@@ -1,43 +1,63 @@
 "use client";
-import { IconDashboard, IconPlus, IconClipboard, IconScale, IconTrendUp, IconMicroscope, IconYarn, IconFactory, IconCertificate, IconFlask, IconSettings, IconLogout, IconSearch, IconUsers, IconFileText, IconPercent, IconShoppingCart, IconMapPin } from "./Icons";
+import { IconDashboard, IconPlus, IconClipboard, IconScale, IconTrendUp, IconMicroscope, IconYarn, IconFactory, IconCertificate, IconFlask, IconSettings, IconLogout, IconSearch, IconUsers, IconFileText, IconPercent, IconShoppingCart, IconMapPin, IconDollar } from "./Icons";
 import { type ReactNode } from "react";
 import { type Permissions } from "@/lib/permissions";
 
-interface NavItem { key: string; label: string; icon: ReactNode; section?: string; requireAuth?: boolean; }
+interface NavItem {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  section?: string;
+  indent?: boolean;
+  requireAuth?: boolean;
+  comingSoon?: boolean;
+}
 
 const NAV_ITEMS: NavItem[] = [
   // Overview
   { key: "dashboard", label: "Dashboard", icon: <IconDashboard className="w-[18px] h-[18px]" />, section: "Overview" },
   { key: "search", label: "Search Yarn", icon: <IconSearch className="w-[18px] h-[18px]" /> },
 
+  // Products
+  { key: "yarns", label: "All Yarns", icon: <IconYarn className="w-[18px] h-[18px]" />, section: "Products" },
+  { key: "yarn-types", label: "Yarn Types", icon: <IconYarn className="w-[18px] h-[18px]" />, indent: true },
+  { key: "dye-methods", label: "Dye Methods", icon: <IconFlask className="w-[18px] h-[18px]" />, indent: true },
+  { key: "treatments", label: "Treatments", icon: <IconFlask className="w-[18px] h-[18px]" />, indent: true },
+  { key: "certificates", label: "Certificates", icon: <IconCertificate className="w-[18px] h-[18px]" />, indent: true },
+
   // Pricing
   { key: "add-price", label: "Add Price", icon: <IconPlus className="w-[18px] h-[18px]" />, section: "Pricing" },
-  { key: "price-history", label: "Price History", icon: <IconClipboard className="w-[18px] h-[18px]" /> },
-  { key: "comparison", label: "Price Comparison", icon: <IconScale className="w-[18px] h-[18px]" /> },
-  { key: "trends", label: "Trend Analysis", icon: <IconTrendUp className="w-[18px] h-[18px]" /> },
-  { key: "micron", label: "Micron Analysis", icon: <IconMicroscope className="w-[18px] h-[18px]" /> },
+  { key: "price-history", label: "Price History", icon: <IconClipboard className="w-[18px] h-[18px]" />, indent: true },
+  { key: "comparison", label: "Price Comparison", icon: <IconScale className="w-[18px] h-[18px]" />, indent: true },
+  { key: "trends", label: "Trend Analysis", icon: <IconTrendUp className="w-[18px] h-[18px]" />, indent: true },
+  { key: "micron", label: "Micron Analysis", icon: <IconMicroscope className="w-[18px] h-[18px]" />, indent: true },
 
-  // Products
-  { key: "yarns", label: "Yarns", icon: <IconYarn className="w-[18px] h-[18px]" />, section: "Products" },
-  { key: "yarn-types", label: "Yarn Types", icon: <IconYarn className="w-[18px] h-[18px]" /> },
-  { key: "dye-methods", label: "Dye Methods", icon: <IconFlask className="w-[18px] h-[18px]" /> },
-  { key: "certificates", label: "Certificates", icon: <IconCertificate className="w-[18px] h-[18px]" /> },
-  { key: "treatments", label: "Treatments", icon: <IconFlask className="w-[18px] h-[18px]" /> },
-
-  // Company — hidden for visitor
-  { key: "factories", label: "Yarn Mills", icon: <IconFactory className="w-[18px] h-[18px]" />, section: "Company", requireAuth: true },
+  // Contacts
+  { key: "factories", label: "Yarn Mills", icon: <IconFactory className="w-[18px] h-[18px]" />, section: "Contacts" },
   { key: "customers", label: "Customers", icon: <IconUsers className="w-[18px] h-[18px]" />, requireAuth: true },
-  { key: "ship-to", label: "Ship-To Addresses", icon: <IconMapPin className="w-[18px] h-[18px]" />, requireAuth: true },
+  { key: "ship-to", label: "Ship-To Addresses", icon: <IconMapPin className="w-[18px] h-[18px]" />, indent: true, requireAuth: true },
 
-  // Sales — hidden for visitor
+  // Sales
   { key: "quotations", label: "Quotations", icon: <IconFileText className="w-[18px] h-[18px]" />, section: "Sales", requireAuth: true },
+  { key: "sales-orders", label: "Sales Orders", icon: <IconFileText className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "delivery-notes", label: "Delivery Notes", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "invoices", label: "Invoices", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "payments", label: "Payments / Receivables", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
   { key: "margin", label: "Margin Analysis", icon: <IconPercent className="w-[18px] h-[18px]" />, requireAuth: true },
 
-  // Orders — hidden for visitor
-  { key: "purchase-orders", label: "Purchase Orders", icon: <IconShoppingCart className="w-[18px] h-[18px]" />, section: "Orders", requireAuth: true },
+  // Purchasing
+  { key: "purchase-orders", label: "Purchase Orders", icon: <IconShoppingCart className="w-[18px] h-[18px]" />, section: "Purchasing", requireAuth: true },
+  { key: "goods-receipts", label: "Goods Receipts", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "supplier-invoices", label: "Supplier Invoices", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "payables", label: "Payables", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+
+  // Finance
+  { key: "reconciliation", label: "Reconciliation", icon: <IconScale className="w-[18px] h-[18px]" />, section: "Finance", requireAuth: true, comingSoon: true },
+  { key: "reports", label: "Reports", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
 
   // Settings
   { key: "settings", label: "User Settings", icon: <IconSettings className="w-[18px] h-[18px]" />, section: "Settings" },
+  { key: "system-settings", label: "System Settings", icon: <IconSettings className="w-[18px] h-[18px]" />, comingSoon: true },
 ];
 
 interface Props {
@@ -64,7 +84,6 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onToggle, use
             <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center"><IconTrendUp className="w-5 h-5 text-white" /></div>
             <div>
               <div className="font-bold text-sm leading-tight">Fiborge&apos;s Sales &amp; Sourcing Hub</div>
-              <div className="text-xs text-slate-400 mt-0.5">Yarn pricing, quotations &amp; orders</div>
             </div>
           </div>
         </div>
@@ -81,13 +100,21 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onToggle, use
                     <span className="block text-[10px] uppercase tracking-wider text-slate-500 mt-2 px-0">{item.section}</span>
                   </div>
                 )}
-                <button
-                  onClick={() => { onNavigate(item.key); if (window.innerWidth < 1024) onToggle(); }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${currentPage === item.key ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-                >
-                  <span className="w-5 flex justify-center shrink-0">{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
+                {item.comingSoon ? (
+                  <div className={`w-full flex items-center gap-3 ${item.indent ? "pl-8 pr-4" : "px-4"} py-2 text-sm text-slate-600 cursor-not-allowed`}>
+                    <span className="w-5 flex justify-center shrink-0 opacity-40">{item.icon}</span>
+                    <span className="opacity-60">{item.label}</span>
+                    <span className="ml-auto text-[9px] uppercase tracking-wider text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">Soon</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { onNavigate(item.key); if (window.innerWidth < 1024) onToggle(); }}
+                    className={`w-full flex items-center gap-3 ${item.indent ? "pl-8 pr-4" : "px-4"} py-2 text-sm transition-colors ${currentPage === item.key ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                  >
+                    <span className="w-5 flex justify-center shrink-0">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                )}
               </div>
             );
           })}
