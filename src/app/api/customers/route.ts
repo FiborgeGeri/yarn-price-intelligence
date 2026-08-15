@@ -16,38 +16,30 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, company, country, email, phone, addressLine1, addressLine2, city, state, postalCode, notes } = body;
+    const { id, name, legitName, primaryAddress, secondaryAddress, country, telephone, notes } = body;
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
     if (id) {
       await db.update(customers).set({
         name,
-        company,
-        country,
-        email,
-        phone,
-        addressLine1,
-        addressLine2,
-        city,
-        state,
-        postalCode,
-        notes,
+        legitName: legitName || null,
+        primaryAddress: primaryAddress || null,
+        secondaryAddress: secondaryAddress || null,
+        country: country || null,
+        telephone: telephone || null,
+        notes: notes || null,
         updatedAt: new Date(),
       }).where(eq(customers.id, id));
       return NextResponse.json({ success: true, id });
     } else {
       const [c] = await db.insert(customers).values({
         name,
-        company,
-        country,
-        email,
-        phone,
-        addressLine1,
-        addressLine2,
-        city,
-        state,
-        postalCode,
-        notes,
+        legitName: legitName || null,
+        primaryAddress: primaryAddress || null,
+        secondaryAddress: secondaryAddress || null,
+        country: country || null,
+        telephone: telephone || null,
+        notes: notes || null,
       }).returning();
       return NextResponse.json({ success: true, id: c.id });
     }

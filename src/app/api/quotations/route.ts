@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { quotations, customers, customerContacts, yarns, factories, treatments } from "@/db/schema";
+import { quotations, customers, customerContacts, yarns, factories, treatments, spinningTypeOptions } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 
 const recordDateDesc = sql`
   case
-    when ${quotations.quoteDate} ~ '^\d{4}-\d{2}-\d{2}$' then to_date(${quotations.quoteDate}, 'YYYY-MM-DD')
-    when ${quotations.quoteDate} ~ '^\d{2}/\d{2}/\d{4}$' then to_date(${quotations.quoteDate}, 'DD/MM/YYYY')
+    when ${quotations.quoteDate} ~ '^\\d{4}-\\d{2}-\\d{2}$' then to_date(${quotations.quoteDate}, 'YYYY-MM-DD')
+    when ${quotations.quoteDate} ~ '^\\d{2}/\\d{2}/\\d{4}$' then to_date(${quotations.quoteDate}, 'DD/MM/YYYY')
     else null
   end desc
 `;
@@ -17,7 +17,7 @@ function createQuoteNo() {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `QT-${y}${m}${day}-${rand}`;
+  return `FOGQ-${y}${m}${day}-${rand}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         customerId: quotations.customerId,
         contactId: quotations.contactId,
         customerName: customers.name,
-        customerCompany: customers.company,
+        customerCompany: customers.legitName,
         contactName: customerContacts.contactName,
         contactEmail: customerContacts.email,
         yarnId: quotations.yarnId,
@@ -41,10 +41,12 @@ export async function GET(req: NextRequest) {
         composition: yarns.composition,
         factoryName: factories.factoryName,
         treatmentName: treatments.name,
+        spinningTypeName: spinningTypeOptions.name,
         costPrice: quotations.costPrice,
         quotedPrice: quotations.quotedPrice,
         currency: quotations.currency,
         unit: quotations.unit,
+        weightBasis: quotations.weightBasis,
         quoteDate: quotations.quoteDate,
         validUntil: quotations.validUntil,
         incoterms: quotations.incoterms,
@@ -57,7 +59,8 @@ export async function GET(req: NextRequest) {
       .leftJoin(customerContacts, eq(quotations.contactId, customerContacts.id))
       .leftJoin(yarns, eq(quotations.yarnId, yarns.id))
       .leftJoin(factories, eq(yarns.factoryId, factories.id))
-      .leftJoin(treatments, eq(yarns.treatmentId, treatments.id));
+      .leftJoin(treatments, eq(yarns.treatmentId, treatments.id))
+      .leftJoin(spinningTypeOptions, eq(yarns.spinningTypeId, spinningTypeOptions.id));
 
     const result = quoteNo
       ? await query.where(eq(quotations.quoteNo, quoteNo)).orderBy(recordDateDesc, desc(quotations.createdAt))
@@ -73,7 +76,24 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, quoteNo, customerId, contactId, yarnId, costPrice, quotedPrice, currency, unit, quoteDate, validUntil, incoterms, status, notes } = body;
+    const {
+      id,
+      quoteNo,
+      customerId,
+      contactId,
+      yarnId,
+      costPrice,
+      quotedPrice,
+      currency,
+      unit,
+      weightBasis,
+      quoteDate,
+      validUntil,
+      incoterms,
+      status,
+      notes,
+    } = body;
+
     if (!customerId || !yarnId || !costPrice || !quotedPrice || !quoteDate) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -87,6 +107,7 @@ export async function POST(req: NextRequest) {
         quotedPrice: parseFloat(quotedPrice),
         currency,
         unit,
+        weightBasis: weightBasis || "condition",
         quoteDate,
         validUntil: validUntil || null,
         incoterms: incoterms || null,
@@ -110,6 +131,7 @@ export async function POST(req: NextRequest) {
       quotedPrice: parseFloat(quotedPrice),
       currency: currency || "USD",
       unit: unit || "per KG",
+      weightBasis: weightBasis || "condition",
       quoteDate,
       validUntil: validUntil || null,
       incoterms: incoterms || null,

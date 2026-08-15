@@ -2,26 +2,26 @@
 import { useState, useEffect } from "react";
 import { Permissions } from "@/lib/permissions";
 
-interface YarnType { id: number; name: string; }
+interface SpinningType { id: number; name: string; }
 interface Props { permissions: Permissions; }
 
-export default function YarnTypesPage({ permissions }: Props) {
-  const [items, setItems] = useState<YarnType[]>([]);
+export default function SpinningTypesPage({ permissions }: Props) {
+  const [items, setItems] = useState<SpinningType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<YarnType | null>(null);
+  const [editing, setEditing] = useState<SpinningType | null>(null);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    setItems(await fetch("/api/yarn-types").then((r) => r.json()));
+    setItems(await fetch("/api/spinning-types").then((r) => r.json()));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const openForm = (item?: YarnType) => {
+  const openForm = (item?: SpinningType) => {
     setEditing(item || null);
     setName(item?.name || "");
     setShowForm(true);
@@ -31,7 +31,7 @@ export default function YarnTypesPage({ permissions }: Props) {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
-    const res = await fetch("/api/yarn-types", {
+    const res = await fetch("/api/spinning-types", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: editing?.id, name: name.trim() }),
@@ -48,8 +48,8 @@ export default function YarnTypesPage({ permissions }: Props) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this yarn type?")) return;
-    await fetch(`/api/yarn-types?id=${id}`, { method: "DELETE" });
+    if (!confirm("Delete this spinning type?")) return;
+    await fetch(`/api/spinning-types?id=${id}`, { method: "DELETE" });
     load();
   };
 
@@ -59,12 +59,12 @@ export default function YarnTypesPage({ permissions }: Props) {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Yarn Types</h1>
-          <p className="text-sm text-slate-500">{items.length} yarn types</p>
+          <h1 className="text-2xl font-bold text-slate-900">Spinning Types</h1>
+          <p className="text-sm text-slate-500">{items.length} spinning types</p>
         </div>
         {permissions.canEdit && (
           <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-            + Add Yarn Type
+            + Add Spinning Type
           </button>
         )}
       </div>
@@ -78,7 +78,7 @@ export default function YarnTypesPage({ permissions }: Props) {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="divide-y divide-slate-100">
           {items.length === 0 ? (
-            <div className="p-6 text-center text-slate-400 text-sm">No yarn types yet. Add one to get started.</div>
+            <div className="p-6 text-center text-slate-400 text-sm">No spinning types yet. Add one to get started.</div>
           ) : items.map((item) => (
             <div key={item.id} className="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
               <span className="text-sm font-medium text-slate-900">{item.name}</span>
@@ -97,7 +97,7 @@ export default function YarnTypesPage({ permissions }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{editing ? "Edit Yarn Type" : "Add Yarn Type"}</h2>
+              <h2 className="text-lg font-semibold">{editing ? "Edit Spinning Type" : "Add Spinning Type"}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 space-y-3">

@@ -1,0 +1,734 @@
+"use client";
+import { useState, useEffect, useMemo } from "react";
+import { Permissions } from "@/lib/permissions";
+import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
+
+interface SOItem {
+  id: number;
+  soId: number;
+  yarnId: number;
+  colorName: string;
+  colorCode: string;
+  yarnName: string;
+  yarnCount: string;
+  composition: string;
+  factoryId: number;
+  factoryName: string;
+  quantity: string;
+  unitPrice: number;
+  currency: string;
+  unit: string;
+  weightBasis: string;
+  incoterms: string;
+  notes: string;
+}
+
+interface SalesOrder {
+  id: number;
+  soNo: string;
+  customerId: number;
+  contactId: number | null;
+  shipToId: number | null;
+  customerName: string;
+  contactName: string | null;
+  shipToName: string | null;
+  customerPoNo: string;
+  quoteNo: string;
+  soDate: string;
+  deliveryDate: string;
+  status: string;
+  notes: string;
+  items: SOItem[];
+}
+
+interface Customer { id: number; name: string; legitName: string; }
+interface Contact { id: number; customerId: number; contactName: string; position: string; email: string; }
+interface ShipTo { id: number; name: string; legitName: string; category: string; }
+interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; composition: string; }
+interface FormItem {
+  yarnId: number;
+  colorName: string;
+  colorCode: string;
+  quantity: string;
+  unitPrice: string;
+  currency: string;
+  unit: string;
+  weightBasis: string;
+  incoterms: string;
+  notes: string;
+}
+interface QuoteItem {
+  yarnId: number;
+  yarnName: string;
+  yarnCount: string;
+  composition: string;
+  quotedPrice: number;
+  currency: string;
+  unit: string;
+  weightBasis: string;
+  incoterms: string;
+}
+interface Props { permissions: Permissions; }
+
+const STATUS_COLORS: Record<string, string> = {
+  Confirmed: "bg-blue-100 text-blue-800",
+  "In Production": "bg-amber-100 text-amber-800",
+  Shipped: "bg-green-100 text-green-800",
+  Delivered: "bg-emerald-100 text-emerald-800",
+  Cancelled: "bg-red-100 text-red-800",
+};
+
+export default function SalesOrdersPage({ permissions }: Props) {
+  const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [customerList, setCustomerList] = useState<Customer[]>([]);
+  const [contactList, setContactList] = useState<Contact[]>([]);
+  const [shipToList, setShipToList] = useState<ShipTo[]>([]);
+  const [yarnList, setYarnList] = useState<Yarn[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [viewing, setViewing] = useState<SalesOrder | null>(null);
+  const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [fCustomer, setFCustomer] = useState(0);
+  const [fContact, setFContact] = useState(0);
+  const [fShipTo, setFShipTo] = useState(0);
+  const [fCustomerPoNo, setFCustomerPoNo] = useState("");
+  const [fQuoteNo, setFQuoteNo] = useState("");
+  const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
+  const [fSoDate, setFSoDate] = useState(new Date().toISOString().split("T")[0]);
+  const [fDeliveryDate, setFDeliveryDate] = useState("");
+  const [fStatus, setFStatus] = useState("Confirmed");
+  const [fNotes, setFNotes] = useState("");
+  const [fAutoCreatePO, setFAutoCreatePO] = useState(true);
+  const [fItems, setFItems] = useState<FormItem[]>([
+    { yarnId: 0, colorName: "", colorCode: "", quantity: "", unitPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" },
+  ]);
+
+  const { viewingYarn, setViewingYarn, openYarnDetail, allCerts } = useYarnDetail();
+
+  const load = async () => {
+    setLoading(true);
+    const [o, c, cc, st, y] = await Promise.all([
+      fetch("/api/sales-orders").then((r) => r.json()),
+      fetch("/api/customers").then((r) => r.json()),
+      fetch("/api/customer-contacts").then((r) => r.json()),
+      fetch("/api/ship-to-addresses").then((r) => r.json()),
+      fetch("/api/yarns").then((r) => r.json()),
+    ]);
+    setOrders(o);
+    setCustomerList(c);
+    setContactList(cc);
+    setShipToList(st);
+    setYarnList(y);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const fContacts = useMemo(
+    () => contactList.filter((c) => c.customerId === fCustomer),
+    [contactList, fCustomer]
+  );
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return orders;
+    const s = search.toLowerCase();
+    return orders.filter((o) =>
+      o.soNo?.toLowerCase().includes(s) ||
+      o.customerName?.toLowerCase().includes(s) ||
+      o.customerPoNo?.toLowerCase().includes(s) ||
+      o.items.some((i) =>
+        i.yarnName?.toLowerCase().includes(s) ||
+        (i.colorName || "").toLowerCase().includes(s) ||
+        (i.colorCode || "").toLowerCase().includes(s)
+      )
+    );
+  }, [orders, search]);
+
+  const openForm = () => {
+    setFCustomer(0);
+    setFContact(0);
+    setFShipTo(0);
+    setFCustomerPoNo("");
+    setFQuoteNo("");
+    setQuoteItems([]);
+    setFSoDate(new Date().toISOString().split("T")[0]);
+    setFDeliveryDate("");
+    setFStatus("Confirmed");
+    setFNotes("");
+    setFAutoCreatePO(true);
+    setFItems([{ yarnId: 0, colorName: "", colorCode: "", quantity: "", unitPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]);
+    setShowForm(true);
+  };
+
+  const loadQuoteItems = async (quoteNo: string) => {
+    if (!quoteNo.trim()) {
+      setQuoteItems([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/quotations?quoteNo=${encodeURIComponent(quoteNo)}`);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const items: QuoteItem[] = data.map((r: any) => ({
+          yarnId: r.yarnId,
+          yarnName: r.yarnName || "",
+          yarnCount: r.yarnCount || "",
+          composition: r.composition || "",
+          quotedPrice: r.quotedPrice,
+          currency: r.currency || "USD",
+          unit: r.unit || "per KG",
+          weightBasis: r.weightBasis || "condition",
+          incoterms: r.incoterms || "",
+        }));
+        setQuoteItems(items);
+        if (!fCustomer && data[0].customerId) setFCustomer(data[0].customerId);
+        if (!fContact && data[0].contactId) setFContact(data[0].contactId);
+      } else {
+        setQuoteItems([]);
+      }
+    } catch {
+      setQuoteItems([]);
+    }
+  };
+
+  const loadQuoteItemsToForm = () => {
+    if (quoteItems.length === 0) return;
+    const newItems: FormItem[] = quoteItems.map((q) => ({
+      yarnId: q.yarnId,
+      colorName: "",
+      colorCode: "",
+      quantity: "",
+      unitPrice: String(q.quotedPrice),
+      currency: q.currency,
+      unit: q.unit,
+      weightBasis: q.weightBasis,
+      incoterms: q.incoterms,
+      notes: "",
+    }));
+    setFItems(newItems);
+    setToast({ type: "success", text: `Loaded ${newItems.length} item(s) from quotation` });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const copyItem = (idx: number) => {
+    setFItems((prev) => {
+      const item = prev[idx];
+      const copy = { ...item, colorName: "", colorCode: "", notes: "" };
+      const newItems = [...prev];
+      newItems.splice(idx + 1, 0, copy);
+      return newItems;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fCustomer) {
+      setToast({ type: "error", text: "Select a customer" });
+      return;
+    }
+    const validItems = fItems.filter((i) => i.yarnId && i.unitPrice);
+    if (validItems.length === 0) {
+      setToast({ type: "error", text: "Add at least one item" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/sales-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: fCustomer,
+          contactId: fContact || null,
+          shipToId: fShipTo || null,
+          customerPoNo: fCustomerPoNo,
+          quoteNo: fQuoteNo,
+          soDate: fSoDate,
+          deliveryDate: fDeliveryDate,
+          status: fStatus,
+          notes: fNotes,
+          items: validItems,
+          autoCreatePO: fAutoCreatePO,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setToast({ type: "success", text: `Sales Order ${d.soNo} created${fAutoCreatePO ? " + PO(s) auto-created" : ""}` });
+        setShowForm(false);
+        load();
+      } else {
+        const d = await res.json().catch(() => ({ error: "Failed" }));
+        setToast({ type: "error", text: d.error || "Failed" });
+      }
+    } catch {
+      setToast({ type: "error", text: "Connection error" });
+    }
+    setSaving(false);
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this sales order?")) return;
+    await fetch(`/api/sales-orders?id=${id}`, { method: "DELETE" });
+    load();
+  };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Sales Orders</h1>
+          <p className="text-sm text-slate-500">{filtered.length} order(s)</p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Search..."
+          />
+          {permissions.canEdit && (
+            <button onClick={openForm} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+              + New Sales Order
+            </button>
+          )}
+        </div>
+      </div>
+
+      {toast && (
+        <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {toast.text}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-slate-600">
+              <th className="px-4 py-3 font-medium">SO No.</th>
+              <th className="px-4 py-3 font-medium">Customer PO</th>
+              <th className="px-4 py-3 font-medium">Customer</th>
+              <th className="px-4 py-3 font-medium">Ship-To</th>
+              <th className="px-4 py-3 font-medium text-center">Items</th>
+              <th className="px-4 py-3 font-medium">SO Date</th>
+              <th className="px-4 py-3 font-medium">Delivery Date</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium w-24">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
+            ) : filtered.map((o) => (
+              <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-3 font-medium">{o.soNo}</td>
+                <td className="px-4 py-3 text-xs text-slate-600">{o.customerPoNo || "—"}</td>
+                <td className="px-4 py-3">
+                  <div className="font-medium text-xs">{o.customerName}</div>
+                  {o.contactName && <div className="text-[10px] text-blue-600">Attn: {o.contactName}</div>}
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-600">{o.shipToName || "—"}</td>
+                <td className="px-4 py-3 text-center text-xs">{o.items.length}</td>
+                <td className="px-4 py-3 text-xs text-slate-600">{o.soDate}</td>
+                <td className="px-4 py-3 text-xs text-slate-600">{o.deliveryDate || "—"}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[o.status] || "bg-slate-100 text-slate-700"}`}>
+                    {o.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2">
+                    <button onClick={() => setViewing(o)} className="text-slate-600 hover:text-slate-900 text-xs">View</button>
+                    {permissions.canDelete && <button onClick={() => handleDelete(o.id)} className="text-red-500 hover:text-red-700 text-xs">Del</button>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {viewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewing(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Sales Order Detail</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{viewing.soNo}</p>
+              </div>
+              <button onClick={() => setViewing(null)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-slate-500 text-xs block">Customer</span>
+                  <div className="font-medium">{viewing.customerName}</div>
+                  {viewing.contactName && <div className="text-xs text-blue-600 mt-0.5">Attn: {viewing.contactName}</div>}
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs block">Ship-To</span>
+                  <div className="font-medium">{viewing.shipToName || "—"}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs block">SO Date</span>
+                  <div>{viewing.soDate}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs block">Status</span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[viewing.status] || ""}`}>
+                    {viewing.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
+                {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
+                {viewing.quoteNo && <div>Ref. Quotation: <span className="font-medium text-slate-700">{viewing.quoteNo}</span></div>}
+              </div>
+
+              <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-600">
+                      <th className="px-4 py-3 font-medium">Yarn</th>
+                      <th className="px-4 py-3 font-medium">Yarn Mill</th>
+                      <th className="px-4 py-3 font-medium">Color</th>
+                      <th className="px-4 py-3 font-medium">Qty</th>
+                      <th className="px-4 py-3 font-medium text-right">Unit Price</th>
+                      <th className="px-4 py-3 font-medium">Weight</th>
+                      <th className="px-4 py-3 font-medium">Incoterms</th>
+                      <th className="px-4 py-3 font-medium">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewing.items.map((item) => (
+                      <tr key={item.id} className="border-t border-slate-200">
+                        <td className="px-4 py-3">
+                          <button onClick={() => openYarnDetail(item.yarnId)} className="font-medium text-blue-700 hover:underline text-left">
+                            {item.yarnName}
+                          </button>
+                          <div className="text-xs text-slate-400">{item.yarnCount || ""} · {item.composition || ""}</div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-600">{item.factoryName}</td>
+                        <td className="px-4 py-3 text-xs">
+                          {item.colorName || item.colorCode ? (
+                            <>
+                              <div className="font-medium">{item.colorName || "—"}</div>
+                              {item.colorCode && <div className="text-slate-400">{item.colorCode}</div>}
+                            </>
+                          ) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs">{item.quantity || "—"}</td>
+                        <td className="px-4 py-3 text-right font-mono text-xs">
+                          {item.currency} {Number(item.unitPrice).toFixed(2)}
+                          <span className="text-slate-400">/{(item.unit || "per KG").replace("per ", "")}</span>
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {item.weightBasis === "net" ? (
+                            <span className="px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded font-medium border border-orange-200">Net</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded font-medium border border-green-200">Cond.</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs">{item.incoterms || "—"}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500 max-w-[180px] whitespace-pre-line">{item.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {viewing.notes && (
+                <div className="text-sm text-slate-600">
+                  <span className="text-xs text-slate-500 block mb-1">Notes</span>
+                  {viewing.notes}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showForm && permissions.canEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">New Sales Order</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Customer *</label>
+                    <select value={fCustomer} onChange={(e) => { setFCustomer(Number(e.target.value)); setFContact(0); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value={0}>Select...</option>
+                      {customerList.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{c.legitName ? ` — ${c.legitName}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Contact Person</label>
+                    <select value={fContact} onChange={(e) => setFContact(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" disabled={!fCustomer}>
+                      <option value={0}>{fCustomer ? "— No specific contact —" : "Select customer first"}</option>
+                      {fContacts.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.contactName}{c.position ? ` · ${c.position}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                    <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option>Confirmed</option>
+                      <option>In Production</option>
+                      <option>Shipped</option>
+                      <option>Delivered</option>
+                      <option>Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ship-To Destination</label>
+                    <select value={fShipTo} onChange={(e) => setFShipTo(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value={0}>— None —</option>
+                      {shipToList.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}{s.category ? ` (${s.category})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">SO Date *</label>
+                      <input type="date" value={fSoDate} onChange={(e) => setFSoDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Delivery Date</label>
+                      <input type="date" value={fDeliveryDate} onChange={(e) => setFDeliveryDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Customer PO No.</label>
+                    <input type="text" value={fCustomerPoNo} onChange={(e) => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Customer's purchase order number" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ref. Quotation No.</label>
+                    <div className="flex gap-2">
+                      <input type="text" value={fQuoteNo} onChange={(e) => setFQuoteNo(e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. FOGQ-20260810-XXXX" />
+                      <button type="button" onClick={() => loadQuoteItems(fQuoteNo)} disabled={!fQuoteNo.trim()} className="px-3 py-2 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 disabled:opacity-50 shrink-0">Load</button>
+                    </div>
+                    {quoteItems.length > 0 && (
+                      <div className="mt-2 flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <span className="text-xs text-green-700">{quoteItems.length} item(s) found in quotation</span>
+                        <button type="button" onClick={loadQuoteItemsToForm} className="text-xs font-medium text-green-700 hover:text-green-900 underline">
+                          Load items into order →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Order Items ({fItems.length})</h3>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFItems((p) => [
+                        ...p,
+                        { yarnId: 0, colorName: "", colorCode: "", quantity: "", unitPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" },
+                      ])
+                    }
+                    className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300"
+                  >
+                    + Add Item
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {fItems.map((item, idx) => (
+                    <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-slate-500">Item {idx + 1}</span>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => copyItem(idx)} className="text-xs text-emerald-600 hover:text-emerald-800">Copy</button>
+                          {fItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setFItems((p) => p.filter((_, i) => i !== idx))}
+                              className="text-xs text-red-500 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="col-span-2">
+                          <select
+                            value={item.yarnId}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, yarnId: Number(e.target.value) } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                          >
+                            <option value={0}>Select yarn...</option>
+                            {yarnList.map((y) => (
+                              <option key={y.id} value={y.id}>
+                                {y.yarnName} · {y.yarnCount || "—"} · {y.factoryName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={item.colorName}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, colorName: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                            placeholder="Color Name"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={item.colorCode}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, colorCode: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                            placeholder="Color Code"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-6 gap-2 mt-2">
+                        <div>
+                          <input
+                            type="text"
+                            value={item.quantity}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                            placeholder="Qty"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={item.unitPrice}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, unitPrice: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                            placeholder="Price"
+                          />
+                        </div>
+                        <div>
+                          <select
+                            value={item.currency}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, currency: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                          >
+                            <option>USD</option>
+                            <option>EUR</option>
+                            <option>GBP</option>
+                            <option>CNY</option>
+                            <option>JPY</option>
+                          </select>
+                        </div>
+                        <div>
+                          <select
+                            value={item.unit}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, unit: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                          >
+                            <option>per KG</option>
+                            <option>per LB</option>
+                            <option>per Cone</option>
+                          </select>
+                        </div>
+                        <div>
+                          <select
+                            value={item.weightBasis}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, weightBasis: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                          >
+                            <option value="condition">Cond.</option>
+                            <option value="net">Net</option>
+                          </select>
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={item.incoterms}
+                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, incoterms: e.target.value } : l))}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                            placeholder="Incoterms"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={item.notes}
+                          onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, notes: e.target.value } : l))}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                          placeholder="Item remarks (optional)"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} />
+              </div>
+
+              <div className="border-t border-slate-200 pt-4 flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={fAutoCreatePO}
+                    onChange={(e) => setFAutoCreatePO(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Auto-create Purchase Order(s) to yarn mill(s)</span>
+                </label>
+                <div className="flex gap-3">
+                  <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                    {saving ? "Creating..." : "Create Sales Order"}
+                  </button>
+                  <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {viewingYarn && <YarnDetailModal yarn={viewingYarn} certs={allCerts} onClose={() => setViewingYarn(null)} />}
+    </div>
+  );
+}

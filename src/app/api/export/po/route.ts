@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { purchaseOrders, poItems, factories, customers, yarns, treatments } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import * as XLSX from "xlsx";
 
 export async function GET(req: NextRequest) {
@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
         factoryName: factories.factoryName,
         customerName: customers.name,
         quoteNo: purchaseOrders.quoteNo,
+        soNo: purchaseOrders.soNo,
+        customerPoNo: purchaseOrders.customerPoNo,
         currency: purchaseOrders.currency,
         unit: purchaseOrders.unit,
         poDate: purchaseOrders.poDate,
@@ -39,9 +41,14 @@ export async function GET(req: NextRequest) {
         micron: yarns.micron,
         composition: yarns.composition,
         treatmentName: treatments.name,
-        color: poItems.color,
+        colorName: poItems.colorName,
+        colorCode: poItems.colorCode,
         quantity: poItems.quantity,
         unitPrice: poItems.unitPrice,
+        currency: poItems.currency,
+        unit: poItems.unit,
+        weightBasis: poItems.weightBasis,
+        incoterms: poItems.incoterms,
         notes: poItems.notes,
       })
       .from(poItems)
@@ -58,19 +65,22 @@ export async function GET(req: NextRequest) {
       "Micron": r.micron ? parseFloat(r.micron).toFixed(1) + "μm" : "",
       "Composition": r.composition || "",
       "Treatment": r.treatmentName || "Untreated",
-      "Color": r.color || "",
+      "Color Name": r.colorName || "",
+      "Color Code": r.colorCode || "",
       "Quantity": r.quantity || "",
       "Unit Price": r.unitPrice,
-      "Currency": po.currency || "USD",
-      "Unit": po.unit || "per KG",
-      "Notes": r.notes || "",
+      "Currency": r.currency || po.currency || "USD",
+      "Unit": r.unit || po.unit || "per KG",
+      "Weight Basis": r.weightBasis === "net" ? "Net Weight" : "Condition Weight",
+      "Incoterms": r.incoterms || po.incoterms || "",
+      "Remarks": r.notes || "",
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "Purchase Order");
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    const filename = `${po.poNo || "PO"}-${(po.factoryName || "").replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_")}.xlsx`;
+    const filename = `${po.poNo || "PO"}-${(po.factoryName || "").replace(/[^a-zA-Z0-9 ]/g, "").replace(/\\s+/g, "_")}.xlsx`;
 
     return new NextResponse(buf, {
       headers: {

@@ -14,9 +14,11 @@ export async function GET(req: NextRequest) {
           factoryName: factories.factoryName,
           yarnCount: yarns.yarnCount,
           micron: yarns.micron,
+          composition: yarns.composition,
           price: prices.price,
           currency: prices.currency,
           unit: prices.unit,
+          weightBasis: prices.weightBasis,
           recordDate: prices.recordDate,
           incoterms: prices.incoterms,
           remarks: prices.remarks,
@@ -27,10 +29,23 @@ export async function GET(req: NextRequest) {
         .orderBy(desc(prices.recordDate));
 
       const csv = [
-        "Yarn Name,Factory,Yarn Count,Micron,Price,Currency,Unit,Date,Incoterms,Remarks",
+        "Yarn Name,Yarn Mill,Yarn Count,Micron,Composition,Price,Currency,Unit,Weight Basis,Date,Incoterms,Remarks",
         ...data.map((r) =>
-          [r.yarnName, r.factoryName, r.yarnCount, r.micron, r.price, r.currency, r.unit, r.recordDate, r.incoterms, r.remarks]
-            .map((v) => `"${(v || "").toString().replace(/"/g, '""')}"`)
+          [
+            r.yarnName,
+            r.factoryName,
+            r.yarnCount,
+            r.micron,
+            r.composition,
+            r.price,
+            r.currency,
+            r.unit,
+            r.weightBasis,
+            r.recordDate,
+            r.incoterms,
+            r.remarks,
+          ]
+            .map((v) => `"${(v || "").toString().replace(/"/g, "\"\"")}"`)
             .join(",")
         ),
       ].join("\n");
@@ -50,7 +65,6 @@ export async function GET(req: NextRequest) {
           factoryName: factories.factoryName,
           yarnCount: yarns.yarnCount,
           micron: yarns.micron,
-          origin: yarns.origin,
           composition: yarns.composition,
         })
         .from(yarns)
@@ -58,10 +72,10 @@ export async function GET(req: NextRequest) {
         .orderBy(yarns.yarnName);
 
       const csv = [
-        "Yarn Name,Factory,Yarn Count,Micron,Origin,Composition",
+        "Yarn Name,Yarn Mill,Yarn Count,Micron,Composition",
         ...data.map((r) =>
-          [r.yarnName, r.factoryName, r.yarnCount, r.micron, r.origin, r.composition]
-            .map((v) => `"${(v || "").toString().replace(/"/g, '""')}"`)
+          [r.yarnName, r.factoryName, r.yarnCount, r.micron, r.composition]
+            .map((v) => `"${(v || "").toString().replace(/"/g, "\"\"")}"`)
             .join(",")
         ),
       ].join("\n");

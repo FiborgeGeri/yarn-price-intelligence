@@ -22,12 +22,9 @@ export const factories = pgTable("factories", {
   id: serial("id").primaryKey(),
   factoryName: varchar("factory_name", { length: 300 }).notNull(),
   legitName: varchar("legit_name", { length: 500 }),
+  primaryAddress: text("primary_address"),
+  secondaryAddress: text("secondary_address"),
   country: varchar("country", { length: 100 }),
-  addressLine1: varchar("address_line1", { length: 500 }),
-  addressLine2: varchar("address_line2", { length: 500 }),
-  city: varchar("city", { length: 200 }),
-  state: varchar("state", { length: 200 }),
-  postalCode: varchar("postal_code", { length: 50 }),
   telephone: varchar("telephone", { length: 100 }),
   notes: text("notes"),
   relationship: varchar("relationship", { length: 50 }).notNull().default("My Factory"),
@@ -66,7 +63,6 @@ export const certificates = pgTable("certificates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Placed AFTER certificates so the reference is defined first
 export const factoryCertificates = pgTable("factory_certificates", {
   id: serial("id").primaryKey(),
   factoryId: integer("factory_id").references(() => factories.id, { onDelete: "cascade" }),
@@ -74,6 +70,12 @@ export const factoryCertificates = pgTable("factory_certificates", {
 });
 
 export const yarnTypeOptions = pgTable("yarn_type_options", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const spinningTypeOptions = pgTable("spinning_type_options", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 200 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -91,11 +93,10 @@ export const yarns = pgTable("yarns", {
   factoryId: integer("factory_id").references(() => factories.id),
   yarnCount: varchar("yarn_count", { length: 100 }),
   yarnTypeId: integer("yarn_type_id").references(() => yarnTypeOptions.id),
+  spinningTypeId: integer("spinning_type_id").references(() => spinningTypeOptions.id),
   micron: varchar("micron", { length: 50 }),
   treatmentId: integer("treatment_id").references(() => treatments.id),
-  origin: varchar("origin", { length: 100 }),
   composition: varchar("composition", { length: 300 }),
-  color: varchar("color", { length: 100 }),
   notes: text("notes"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -120,6 +121,7 @@ export const prices = pgTable("prices", {
   price: real("price").notNull(),
   currency: varchar("currency", { length: 10 }).default("USD"),
   unit: varchar("unit", { length: 50 }).default("per KG"),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
   recordDate: varchar("record_date", { length: 20 }).notNull(),
   incoterms: varchar("incoterms", { length: 100 }),
   remarks: text("remarks"),
@@ -129,15 +131,11 @@ export const prices = pgTable("prices", {
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 300 }).notNull(),
-  company: varchar("company", { length: 300 }),
+  legitName: varchar("legit_name", { length: 500 }),
+  primaryAddress: text("primary_address"),
+  secondaryAddress: text("secondary_address"),
   country: varchar("country", { length: 100 }),
-  email: varchar("email", { length: 200 }),
-  phone: varchar("phone", { length: 100 }),
-  addressLine1: varchar("address_line1", { length: 500 }),
-  addressLine2: varchar("address_line2", { length: 500 }),
-  city: varchar("city", { length: 200 }),
-  state: varchar("state", { length: 200 }),
-  postalCode: varchar("postal_code", { length: 50 }),
+  telephone: varchar("telephone", { length: 100 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -158,14 +156,14 @@ export const customerContacts = pgTable("customer_contacts", {
 
 export const shipToAddresses = pgTable("ship_to_addresses", {
   id: serial("id").primaryKey(),
-  customerId: integer("customer_id").references(() => customers.id, { onDelete: "cascade" }),
-  addressName: varchar("address_name", { length: 300 }).notNull(),
-  addressLine1: varchar("address_line1", { length: 500 }),
-  addressLine2: varchar("address_line2", { length: 500 }),
-  city: varchar("city", { length: 200 }),
-  state: varchar("state", { length: 200 }),
-  postalCode: varchar("postal_code", { length: 50 }),
+  customerId: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  name: varchar("name", { length: 300 }).notNull(),
+  legitName: varchar("legit_name", { length: 500 }),
+  category: varchar("category", { length: 100 }),
+  primaryAddress: text("primary_address"),
+  secondaryAddress: text("secondary_address"),
   country: varchar("country", { length: 100 }),
+  telephone: varchar("telephone", { length: 100 }),
   contactName: varchar("contact_name", { length: 300 }),
   contactPhone: varchar("contact_phone", { length: 100 }),
   contactEmail: varchar("contact_email", { length: 200 }),
@@ -173,12 +171,46 @@ export const shipToAddresses = pgTable("ship_to_addresses", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const salesOrders = pgTable("sales_orders", {
+  id: serial("id").primaryKey(),
+  soNo: varchar("so_no", { length: 50 }),
+  customerId: integer("customer_id").references(() => customers.id),
+  contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
+  shipToId: integer("ship_to_id").references(() => shipToAddresses.id, { onDelete: "set null" }),
+  customerPoNo: varchar("customer_po_no", { length: 100 }),
+  quoteNo: varchar("quote_no", { length: 50 }),
+  soDate: varchar("so_date", { length: 20 }).notNull(),
+  deliveryDate: varchar("delivery_date", { length: 20 }),
+  status: varchar("status", { length: 50 }).default("Confirmed"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const soItems = pgTable("so_items", {
+  id: serial("id").primaryKey(),
+  soId: integer("so_id").references(() => salesOrders.id, { onDelete: "cascade" }),
+  yarnId: integer("yarn_id").references(() => yarns.id),
+  colorName: varchar("color_name", { length: 200 }),
+  colorCode: varchar("color_code", { length: 100 }),
+  quantity: varchar("quantity", { length: 100 }),
+  unitPrice: real("unit_price").notNull(),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  unit: varchar("unit", { length: 50 }).default("per KG"),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
+  incoterms: varchar("incoterms", { length: 100 }),
+  notes: text("notes"),
+});
+
 export const purchaseOrders = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
   poNo: varchar("po_no", { length: 50 }),
   factoryId: integer("factory_id").references(() => factories.id),
   customerId: integer("customer_id").references(() => customers.id),
+  shipToId: integer("ship_to_id").references(() => shipToAddresses.id, { onDelete: "set null" }),
   contactPerson: varchar("contact_person", { length: 200 }),
+  soNo: varchar("so_no", { length: 50 }),
+  customerPoNo: varchar("customer_po_no", { length: 100 }),
   quoteNo: varchar("quote_no", { length: 50 }),
   currency: varchar("currency", { length: 10 }).default("USD"),
   unit: varchar("unit", { length: 50 }).default("per KG"),
@@ -195,9 +227,14 @@ export const poItems = pgTable("po_items", {
   id: serial("id").primaryKey(),
   poId: integer("po_id").references(() => purchaseOrders.id, { onDelete: "cascade" }),
   yarnId: integer("yarn_id").references(() => yarns.id),
-  color: varchar("color", { length: 200 }),
+  colorName: varchar("color_name", { length: 200 }),
+  colorCode: varchar("color_code", { length: 100 }),
   quantity: varchar("quantity", { length: 100 }),
   unitPrice: real("unit_price").notNull(),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  unit: varchar("unit", { length: 50 }).default("per KG"),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
+  incoterms: varchar("incoterms", { length: 100 }),
   notes: text("notes"),
 });
 
@@ -211,6 +248,7 @@ export const quotations = pgTable("quotations", {
   quotedPrice: real("quoted_price").notNull(),
   currency: varchar("currency", { length: 10 }).default("USD"),
   unit: varchar("unit", { length: 50 }).default("per KG"),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
   quoteDate: varchar("quote_date", { length: 20 }).notNull(),
   validUntil: varchar("valid_until", { length: 20 }),
   incoterms: varchar("incoterms", { length: 100 }),

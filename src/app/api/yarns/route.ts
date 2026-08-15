@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { yarns, factories, treatments, yarnCertificates, yarnDyeMethods, yarnTypeOptions, dyeMethodOptions, prices } from "@/db/schema";
+import {
+  yarns,
+  factories,
+  treatments,
+  yarnCertificates,
+  yarnDyeMethods,
+  yarnTypeOptions,
+  spinningTypeOptions,
+  dyeMethodOptions,
+  prices,
+} from "@/db/schema";
 import { eq, inArray, desc } from "drizzle-orm";
 
 const yarnSelect = {
@@ -9,11 +19,10 @@ const yarnSelect = {
   factoryId: yarns.factoryId,
   yarnCount: yarns.yarnCount,
   yarnTypeId: yarns.yarnTypeId,
+  spinningTypeId: yarns.spinningTypeId,
   micron: yarns.micron,
   treatmentId: yarns.treatmentId,
-  origin: yarns.origin,
   composition: yarns.composition,
-  color: yarns.color,
   notes: yarns.notes,
   isActive: yarns.isActive,
   createdAt: yarns.createdAt,
@@ -22,20 +31,23 @@ const yarnSelect = {
   relationship: factories.relationship,
   treatmentName: treatments.name,
   yarnTypeName: yarnTypeOptions.name,
+  spinningTypeName: spinningTypeOptions.name,
 };
 
 export async function GET(req: NextRequest) {
   try {
     const idsParam = req.nextUrl.searchParams.get("ids");
 
-    const baseQuery = () => db
-      .select(yarnSelect)
-      .from(yarns)
-      .leftJoin(factories, eq(yarns.factoryId, factories.id))
-      .leftJoin(treatments, eq(yarns.treatmentId, treatments.id))
-      .leftJoin(yarnTypeOptions, eq(yarns.yarnTypeId, yarnTypeOptions.id));
+    const baseQuery = () =>
+      db
+        .select(yarnSelect)
+        .from(yarns)
+        .leftJoin(factories, eq(yarns.factoryId, factories.id))
+        .leftJoin(treatments, eq(yarns.treatmentId, treatments.id))
+        .leftJoin(yarnTypeOptions, eq(yarns.yarnTypeId, yarnTypeOptions.id))
+        .leftJoin(spinningTypeOptions, eq(yarns.spinningTypeId, spinningTypeOptions.id));
 
-    let result: Awaited<ReturnType<typeof baseQuery>>; 
+    let result: Awaited<ReturnType<typeof baseQuery>>;
     if (idsParam) {
       const ids = idsParam.split(",").map(Number).filter(Boolean);
       if (ids.length > 0) {
@@ -49,11 +61,15 @@ export async function GET(req: NextRequest) {
       result = await baseQuery().orderBy(yarns.yarnName);
     }
 
-    // Get certificates for each yarn
     const yarnIds = result.map((y: { id: number }) => y.id);
+
     const certMap: Record<number, number[]> = {};
     if (yarnIds.length > 0) {
-      const certs = await db.select().from(yarnCertificates).where(inArray(yarnCertificates.yarnId, yarnIds));
+      const certs = await db
+        .select()
+        .from(yarnCertificates)
+        .where(inArray(yarnCertificates.yarnId, yarnIds));
+
       for (const c of certs) {
         if (c.yarnId) {
           if (!certMap[c.yarnId]) certMap[c.yarnId] = [];
@@ -62,10 +78,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Get dye methods for each yarn
     const dyeMap: Record<number, number[]> = {};
     if (yarnIds.length > 0) {
-      const dyes = await db.select().from(yarnDyeMethods).where(inArray(yarnDyeMethods.yarnId, yarnIds));
+      const dyes = await db
+        .select()
+        .from(yarnDyeMethods)
+        .where(inArray(yarnDyeMethods.yarnId, yarnIds));
+
       for (const d of dyes) {
         if (d.yarnId) {
           if (!dyeMap[d.yarnId]) dyeMap[d.yarnId] = [];
@@ -74,13 +93,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Get all dye method names for display
     const allDyeMethods = await db.select().from(dyeMethodOptions);
     const dyeNameMap: Record<number, string> = {};
-    for (const d of allDyeMethods) { dyeNameMap[d.id] = d.name; }
+    for (const d of allDyeMethods) dyeNameMap[d.id] = d.name;
 
-    // Get latest price for each yarn
-    const priceMap: Record<number, { price: number; currency: string | null; unit: string | null; recordDate: string }> = {};
+    interface TermPrice {
+      price: number;
+      currency: string;
+      unit: string;
+      incoterms: string;
+      recordDate: string;
+    }
+
+    const allTermPrices: Record<number, TermPrice[]> = {};
+    const singlePriceMap: Record<number, { price: number; currency: string | null; unit: string | null; recordDate: string }> = {};
+
     if (yarnIds.length > 0) {
       const allPrices = await db
         .select({
@@ -88,6 +115,7 @@ export async function GET(req: NextRequest) {
           price: prices.price,
           currency: prices.currency,
           unit: prices.unit,
+          incoterms: prices.incoterms,
           recordDate: prices.recordDate,
         })
         .from(prices)
@@ -95,8 +123,31 @@ export async function GET(req: NextRequest) {
         .orderBy(desc(prices.recordDate), desc(prices.createdAt));
 
       for (const p of allPrices) {
-        if (p.yarnId && !priceMap[p.yarnId]) {
-          priceMap[p.yarnId] = { price: p.price, currency: p.currency, unit: p.unit, recordDate: p.recordDate };
+        if (!p.yarnId) continue;
+
+        if (!singlePriceMap[p.yarnId]) {
+          singlePriceMap[p.yarnId] = {
+            price: p.price,
+            currency: p.currency,
+            unit: p.unit,
+            recordDate: p.recordDate,
+          };
+        }
+
+        if (!allTermPrices[p.yarnId]) allTermPrices[p.yarnId] = [];
+        const key = `${p.currency || "USD"}|${p.unit || "per KG"}|${p.incoterms || ""}`;
+        const existing = allTermPrices[p.yarnId].find(
+          (tp) => `${tp.currency}|${tp.unit}|${tp.incoterms}` === key
+        );
+
+        if (!existing) {
+          allTermPrices[p.yarnId].push({
+            price: p.price,
+            currency: p.currency || "USD",
+            unit: p.unit || "per KG",
+            incoterms: p.incoterms || "",
+            recordDate: p.recordDate,
+          });
         }
       }
     }
@@ -105,11 +156,14 @@ export async function GET(req: NextRequest) {
       ...y,
       certIds: certMap[y.id] || [],
       dyeMethodIds: dyeMap[y.id] || [],
-      dyeMethodNames: (dyeMap[y.id] || []).map((did: number) => dyeNameMap[did] || "").filter(Boolean),
-      latestPrice: priceMap[y.id]?.price ?? null,
-      latestCurrency: priceMap[y.id]?.currency ?? null,
-      latestUnit: priceMap[y.id]?.unit ?? null,
-      latestPriceDate: priceMap[y.id]?.recordDate ?? null,
+      dyeMethodNames: (dyeMap[y.id] || [])
+        .map((did: number) => dyeNameMap[did] || "")
+        .filter(Boolean),
+      latestPrice: singlePriceMap[y.id]?.price ?? null,
+      latestCurrency: singlePriceMap[y.id]?.currency ?? null,
+      latestUnit: singlePriceMap[y.id]?.unit ?? null,
+      latestPriceDate: singlePriceMap[y.id]?.recordDate ?? null,
+      latestPrices: allTermPrices[y.id] || [],
     }));
 
     return NextResponse.json(data);
@@ -128,11 +182,10 @@ export async function POST(req: NextRequest) {
       factoryId,
       yarnCount,
       yarnTypeId,
+      spinningTypeId,
       micron,
       treatmentId,
-      origin,
       composition,
-      color,
       notes,
       certIds,
       dyeMethodIds,
@@ -146,11 +199,10 @@ export async function POST(req: NextRequest) {
           factoryId,
           yarnCount,
           yarnTypeId: yarnTypeId || null,
+          spinningTypeId: spinningTypeId || null,
           micron,
           treatmentId: treatmentId || null,
-          origin,
           composition,
-          color,
           notes,
           updatedAt: new Date(),
         })
@@ -162,6 +214,7 @@ export async function POST(req: NextRequest) {
           certIds.map((cid: number) => ({ yarnId: id, certificateId: cid }))
         );
       }
+
       await db.delete(yarnDyeMethods).where(eq(yarnDyeMethods.yarnId, id));
       if (dyeMethodIds?.length) {
         await db.insert(yarnDyeMethods).values(
@@ -178,11 +231,10 @@ export async function POST(req: NextRequest) {
           factoryId,
           yarnCount,
           yarnTypeId: yarnTypeId || null,
+          spinningTypeId: spinningTypeId || null,
           micron,
           treatmentId: treatmentId || null,
-          origin,
           composition,
-          color,
           notes,
         })
         .returning();
@@ -192,6 +244,7 @@ export async function POST(req: NextRequest) {
           certIds.map((cid: number) => ({ yarnId: newYarn.id, certificateId: cid }))
         );
       }
+
       if (dyeMethodIds?.length && newYarn) {
         await db.insert(yarnDyeMethods).values(
           dyeMethodIds.map((did: number) => ({ yarnId: newYarn.id, dyeMethodId: did }))

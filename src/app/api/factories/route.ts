@@ -9,29 +9,51 @@ export async function GET() {
 
     const yarnCounts = await db
       .select({ factoryId: yarns.factoryId, count: sql<number>`count(*)::int` })
-      .from(yarns).groupBy(yarns.factoryId);
+      .from(yarns)
+      .groupBy(yarns.factoryId);
+
     const countMap: Record<number, number> = {};
-    for (const yc of yarnCounts) { if (yc.factoryId) countMap[yc.factoryId] = yc.count; }
+    for (const yc of yarnCounts) {
+      if (yc.factoryId) countMap[yc.factoryId] = yc.count;
+    }
 
     const factoryIds = allFactories.map((f) => f.id);
+
     const certMap: Record<number, number[]> = {};
     if (factoryIds.length > 0) {
-      const fCerts = await db.select().from(factoryCertificates).where(inArray(factoryCertificates.factoryId, factoryIds));
-      for (const fc of fCerts) { if (fc.factoryId) { if (!certMap[fc.factoryId]) certMap[fc.factoryId] = []; certMap[fc.factoryId].push(fc.certificateId!); } }
+      const fCerts = await db
+        .select()
+        .from(factoryCertificates)
+        .where(inArray(factoryCertificates.factoryId, factoryIds));
+
+      for (const fc of fCerts) {
+        if (fc.factoryId) {
+          if (!certMap[fc.factoryId]) certMap[fc.factoryId] = [];
+          certMap[fc.factoryId].push(fc.certificateId!);
+        }
+      }
     }
 
     const allCerts = await db.select().from(certificates);
     const certNameMap: Record<number, string> = {};
-    for (const c of allCerts) { certNameMap[c.id] = c.certCode; }
+    for (const c of allCerts) certNameMap[c.id] = c.certCode;
 
-    // Get contacts count per factory
     const contactMap: Record<number, number> = {};
     if (factoryIds.length > 0) {
-      const contactCounts = await db.select({ factoryId: factoryContacts.factoryId, count: sql<number>`count(*)::int` }).from(factoryContacts).groupBy(factoryContacts.factoryId);
-      for (const cc of contactCounts) { if (cc.factoryId) contactMap[cc.factoryId] = cc.count; }
+      const contactCounts = await db
+        .select({
+          factoryId: factoryContacts.factoryId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(factoryContacts)
+        .groupBy(factoryContacts.factoryId);
+
+      for (const cc of contactCounts) {
+        if (cc.factoryId) contactMap[cc.factoryId] = cc.count;
+      }
     }
 
-    const result = allFactories.map(f => ({
+    const result = allFactories.map((f) => ({
       ...f,
       yarnCount: countMap[f.id] || 0,
       certIds: certMap[f.id] || [],
@@ -49,36 +71,67 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, factoryName, legitName, country, addressLine1, addressLine2, city, state, postalCode, telephone, notes, relationship, parentFactoryId, status, certIds } = body;
+    const {
+      id,
+      factoryName,
+      legitName,
+      primaryAddress,
+      secondaryAddress,
+      country,
+      telephone,
+      notes,
+      relationship,
+      parentFactoryId,
+      status,
+      certIds,
+    } = body;
 
     if (id) {
       await db.update(factories).set({
-        factoryName, legitName: legitName || null, country: country || null,
-        addressLine1: addressLine1 || null, addressLine2: addressLine2 || null,
-        city: city || null, state: state || null, postalCode: postalCode || null,
-        telephone: telephone || null, notes: notes || null,
+        factoryName,
+        legitName: legitName || null,
+        primaryAddress: primaryAddress || null,
+        secondaryAddress: secondaryAddress || null,
+        country: country || null,
+        telephone: telephone || null,
+        notes: notes || null,
         relationship: relationship || "My Factory",
-        parentFactoryId: parentFactoryId || null, status: status || "Active",
+        parentFactoryId: parentFactoryId || null,
+        status: status || "Active",
         updatedAt: new Date(),
       }).where(eq(factories.id, id));
 
       await db.delete(factoryCertificates).where(eq(factoryCertificates.factoryId, id));
       if (certIds?.length) {
-        await db.insert(factoryCertificates).values(certIds.map((cid: number) => ({ factoryId: id, certificateId: cid })));
+        await db.insert(factoryCertificates).values(
+          certIds.map((cid: number) => ({
+            factoryId: id,
+            certificateId: cid,
+          }))
+        );
       }
       return NextResponse.json({ success: true, id });
     } else {
       const [f] = await db.insert(factories).values({
-        factoryName, legitName: legitName || null, country: country || null,
-        addressLine1: addressLine1 || null, addressLine2: addressLine2 || null,
-        city: city || null, state: state || null, postalCode: postalCode || null,
-        telephone: telephone || null, notes: notes || null,
+        factoryName,
+        legitName: legitName || null,
+        primaryAddress: primaryAddress || null,
+        secondaryAddress: secondaryAddress || null,
+        country: country || null,
+        telephone: telephone || null,
+        notes: notes || null,
         relationship: relationship || "My Factory",
-        parentFactoryId: parentFactoryId || null, status: status || "Active",
+        parentFactoryId: parentFactoryId || null,
+        status: status || "Active",
       }).returning();
 
       if (certIds?.length && f) {
-        await db.insert(factoryCertificates).values(certIds.map((cid: number) => ({ factoryId: f.id, certificateId: cid })));
+        await db.insert(factoryCertificates).values(
+          certIds.map((cid: number) => ({
+            factoryId: f.id,
+            certificateId: cid,
+          }))
+        );
       }
       return NextResponse.json({ success: true, id: f.id });
     }

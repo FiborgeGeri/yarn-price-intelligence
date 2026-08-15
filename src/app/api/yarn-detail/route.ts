@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { yarns, factories, treatments, yarnCertificates, certificates, prices } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { yarns, factories, treatments, prices } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   try {
-    const yarnId = req.nextUrl.searchParams.get("id");
+    const yarnId = req.nextUrl.searchParams.get("yarnId");
     if (!yarnId) {
-      return NextResponse.json({ error: "Missing yarn id" }, { status: 400 });
+      return NextResponse.json({ error: "Missing yarnId" }, { status: 400 });
     }
 
-    const id = parseInt(yarnId);
-
-    // Get yarn details
     const [yarn] = await db
       .select({
         id: yarns.id,
@@ -20,7 +17,6 @@ export async function GET(req: NextRequest) {
         factoryId: yarns.factoryId,
         yarnCount: yarns.yarnCount,
         micron: yarns.micron,
-        origin: yarns.origin,
         composition: yarns.composition,
         notes: yarns.notes,
         factoryName: factories.factoryName,
@@ -30,33 +26,34 @@ export async function GET(req: NextRequest) {
       .from(yarns)
       .leftJoin(factories, eq(yarns.factoryId, factories.id))
       .leftJoin(treatments, eq(yarns.treatmentId, treatments.id))
-      .where(eq(yarns.id, id))
+      .where(eq(yarns.id, parseInt(yarnId)))
       .limit(1);
 
     if (!yarn) {
       return NextResponse.json({ error: "Yarn not found" }, { status: 404 });
     }
 
-    // Get certificates
-    const certs = await db
-      .select({
-        certCode: certificates.certCode,
-        certFullName: certificates.certFullName,
-      })
-      .from(yarnCertificates)
-      .leftJoin(certificates, eq(yarnCertificates.certificateId, certificates.id))
-      .where(eq(yarnCertificates.yarnId, id));
-
-    // Get price history
     const priceHistory = await db
-      .select()
+      .select({
+        id: prices.id,
+        price: prices.price,
+        currency: prices.currency,
+        unit: prices.unit,
+        weightBasis: prices.weightBasis,
+        recordDate: prices.recordDate,
+        incoterms: prices.incoterms,
+        remarks: prices.remarks,
+      })
       .from(prices)
-      .where(eq(prices.yarnId, id))
-      .orderBy(asc(prices.recordDate));
+      .where(eq(prices.yarnId, parseInt(yarnId)))
+      .orderBy(desc(prices.recordDate), desc(prices.createdAt));
 
-    return NextResponse.json({ yarn, certificates: certs, priceHistory });
+    return NextResponse.json({
+      ...yarn,
+      priceHistory,
+    });
   } catch (err) {
-    console.error("Yarn detail error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("Yarn detail GET error:", err);
+    return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
