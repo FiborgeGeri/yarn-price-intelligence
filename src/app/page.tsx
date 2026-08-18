@@ -23,6 +23,8 @@ import CustomersPage from "@/components/pages/CustomersPage";
 import QuotationsPage from "@/components/pages/QuotationsPage";
 import MarginAnalysisPage from "@/components/pages/MarginAnalysisPage";
 import PurchaseOrdersPage from "@/components/pages/PurchaseOrdersPage";
+import DeliveryNotesPage from "@/components/pages/DeliveryNotesPage";
+import GoodsReceiptsPage from "@/components/pages/GoodsReceiptsPage";
 import ShipToPage from "@/components/pages/ShipToPage";
 import LoginPage from "@/components/LoginPage";
 import { getPermissions, Permissions } from "@/lib/permissions";
@@ -68,7 +70,9 @@ export default function Home() {
       case "ship-to": return permissions.canViewQuotations ? <ShipToPage permissions={permissions} /> : <NoAccess />;
       case "quotations": return permissions.canViewQuotations ? <QuotationsPage permissions={permissions} /> : <NoAccess />;
       case "sales-orders": return permissions.canViewQuotations ? <SalesOrdersPage permissions={permissions} /> : <NoAccess />;
+      case "delivery-notes": return permissions.canViewQuotations ? <DeliveryNotesPage permissions={permissions} /> : <NoAccess />;
       case "purchase-orders": return permissions.canViewQuotations ? <PurchaseOrdersPage permissions={permissions} /> : <NoAccess />;
+      case "goods-receipts": return permissions.canViewQuotations ? <GoodsReceiptsPage permissions={permissions} /> : <NoAccess />;
       case "margin": return permissions.canViewQuotations ? <MarginAnalysisPage /> : <NoAccess />;
       case "settings": return <SettingsPage user={user} permissions={permissions} />;
       default: return <DashboardPage onNavigate={setCurrentPage} permissions={permissions} />;

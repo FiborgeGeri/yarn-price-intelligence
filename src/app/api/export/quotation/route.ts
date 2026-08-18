@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         id: quotations.id,
         quoteNo: quotations.quoteNo,
         customerName: customers.name,
-        customerCompany: customers.legitName,
+        customerCompany: customers.officialName,
         yarnName: yarns.yarnName,
         yarnCount: yarns.yarnCount,
         micron: yarns.micron,

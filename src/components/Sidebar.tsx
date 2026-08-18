@@ -14,48 +14,40 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  // Overview
   { key: "dashboard", label: "Dashboard", icon: <IconDashboard className="w-[18px] h-[18px]" />, section: "Overview" },
   { key: "search", label: "Search Yarn", icon: <IconSearch className="w-[18px] h-[18px]" /> },
 
-  // Products
   { key: "yarns", label: "All Yarns", icon: <IconYarn className="w-[18px] h-[18px]" />, section: "Products" },
   { key: "yarn-types", label: "Yarn Types", icon: <IconYarn className="w-[18px] h-[18px]" />, indent: true },
   { key: "dye-methods", label: "Dye Methods", icon: <IconFlask className="w-[18px] h-[18px]" />, indent: true },
   { key: "treatments", label: "Treatments", icon: <IconFlask className="w-[18px] h-[18px]" />, indent: true },
   { key: "certificates", label: "Certificates", icon: <IconCertificate className="w-[18px] h-[18px]" />, indent: true },
 
-  // Pricing
   { key: "add-price", label: "Add Price", icon: <IconPlus className="w-[18px] h-[18px]" />, section: "Pricing" },
   { key: "price-history", label: "Price History", icon: <IconClipboard className="w-[18px] h-[18px]" />, indent: true },
   { key: "comparison", label: "Price Comparison", icon: <IconScale className="w-[18px] h-[18px]" />, indent: true },
   { key: "trends", label: "Trend Analysis", icon: <IconTrendUp className="w-[18px] h-[18px]" />, indent: true },
   { key: "micron", label: "Micron Analysis", icon: <IconMicroscope className="w-[18px] h-[18px]" />, indent: true },
 
-  // Contacts
   { key: "factories", label: "Yarn Mills", icon: <IconFactory className="w-[18px] h-[18px]" />, section: "Contacts" },
   { key: "customers", label: "Customers", icon: <IconUsers className="w-[18px] h-[18px]" />, requireAuth: true },
-  { key: "ship-to", label: "Ship-To Addresses", icon: <IconMapPin className="w-[18px] h-[18px]" />, indent: true, requireAuth: true },
+  { key: "ship-to", label: "Ship-To Addresses", icon: <IconMapPin className="w-[18px] h-[18px]" />, requireAuth: true },
 
-  // Sales
   { key: "quotations", label: "Quotations", icon: <IconFileText className="w-[18px] h-[18px]" />, section: "Sales", requireAuth: true },
-  { key: "sales-orders", label: "Sales Orders", icon: <IconFileText className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
-  { key: "delivery-notes", label: "Delivery Notes", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "sales-orders", label: "Sales Orders", icon: <IconFileText className="w-[18px] h-[18px]" />, requireAuth: true },
+  { key: "delivery-notes", label: "Delivery Notes", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true },
   { key: "invoices", label: "Invoices", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
   { key: "payments", label: "Payments / Receivables", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
   { key: "margin", label: "Margin Analysis", icon: <IconPercent className="w-[18px] h-[18px]" />, requireAuth: true },
 
-  // Purchasing
   { key: "purchase-orders", label: "Purchase Orders", icon: <IconShoppingCart className="w-[18px] h-[18px]" />, section: "Purchasing", requireAuth: true },
-  { key: "goods-receipts", label: "Goods Receipts", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "goods-receipts", label: "Goods Receipts", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true },
   { key: "supplier-invoices", label: "Supplier Invoices", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
   { key: "payables", label: "Payables", icon: <IconDollar className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
 
-  // Finance
   { key: "reconciliation", label: "Reconciliation", icon: <IconScale className="w-[18px] h-[18px]" />, section: "Finance", requireAuth: true, comingSoon: true },
   { key: "reports", label: "Reports", icon: <IconClipboard className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
 
-  // Settings
   { key: "settings", label: "User Settings", icon: <IconSettings className="w-[18px] h-[18px]" />, section: "Settings" },
   { key: "system-settings", label: "System Settings", icon: <IconSettings className="w-[18px] h-[18px]" />, comingSoon: true },
 ];

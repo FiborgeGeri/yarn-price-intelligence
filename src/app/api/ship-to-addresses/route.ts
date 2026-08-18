@@ -1,40 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { shipToAddresses, customers } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { shipToAddresses, shipToContacts, users } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const customerId = req.nextUrl.searchParams.get("customerId");
-    if (customerId) {
-      const result = await db
-        .select()
-        .from(shipToAddresses)
-        .where(eq(shipToAddresses.customerId, parseInt(customerId)))
-        .orderBy(shipToAddresses.name);
-      return NextResponse.json(result);
+    const allAddresses = await db.select().from(shipToAddresses).orderBy(shipToAddresses.name);
+
+    const contactCounts = await db
+      .select({ shipToId: shipToContacts.shipToId, count: sql<number>`count(*)::int` })
+      .from(shipToContacts)
+      .groupBy(shipToContacts.shipToId);
+
+    const countMap: Record<number, number> = {};
+    for (const cc of contactCounts) {
+      if (cc.shipToId) countMap[cc.shipToId] = cc.count;
     }
 
-    const result = await db
-      .select({
-        id: shipToAddresses.id,
-        customerId: shipToAddresses.customerId,
-        customerName: customers.name,
-        name: shipToAddresses.name,
-        legitName: shipToAddresses.legitName,
-        category: shipToAddresses.category,
-        primaryAddress: shipToAddresses.primaryAddress,
-        secondaryAddress: shipToAddresses.secondaryAddress,
-        country: shipToAddresses.country,
-        telephone: shipToAddresses.telephone,
-        contactName: shipToAddresses.contactName,
-        contactPhone: shipToAddresses.contactPhone,
-        contactEmail: shipToAddresses.contactEmail,
-        notes: shipToAddresses.notes,
-      })
-      .from(shipToAddresses)
-      .leftJoin(customers, eq(shipToAddresses.customerId, customers.id))
-      .orderBy(shipToAddresses.name);
+    const allUsers = await db.select({ id: users.id, displayName: users.displayName, username: users.username }).from(users);
+    const userMap: Record<number, string> = {};
+    for (const u of allUsers) {
+      userMap[u.id] = u.displayName || u.username;
+    }
+
+    const result = allAddresses.map((a) => ({
+      ...a,
+      contactCount: countMap[a.id] || 0,
+      createdByName: a.createdBy ? userMap[a.createdBy] || null : null,
+      updatedByName: a.updatedBy ? userMap[a.updatedBy] || null : null,
+    }));
 
     return NextResponse.json(result);
   } catch (err) {
@@ -46,55 +40,25 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const {
-      id,
-      customerId,
-      name,
-      legitName,
-      category,
-      primaryAddress,
-      secondaryAddress,
-      country,
-      telephone,
-      contactName,
-      contactPhone,
-      contactEmail,
-      notes,
-    } = body;
+    const { id, name, officialName, category, addressLocal, addressEnglish, country, telephone, notes, userId } = body;
 
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
     if (id) {
       await db.update(shipToAddresses).set({
-        customerId: customerId || null,
-        name,
-        legitName: legitName || null,
-        category: category || null,
-        primaryAddress: primaryAddress || null,
-        secondaryAddress: secondaryAddress || null,
-        country: country || null,
-        telephone: telephone || null,
-        contactName: contactName || null,
-        contactPhone: contactPhone || null,
-        contactEmail: contactEmail || null,
-        notes: notes || null,
+        name, officialName: officialName || null, category: category || null,
+        addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
+        country: country || null, telephone: telephone || null, notes: notes || null,
+        updatedAt: new Date(), updatedBy: userId || null,
       }).where(eq(shipToAddresses.id, id));
       return NextResponse.json({ success: true, id });
     }
 
     const [a] = await db.insert(shipToAddresses).values({
-      customerId: customerId || null,
-      name,
-      legitName: legitName || null,
-      category: category || null,
-      primaryAddress: primaryAddress || null,
-      secondaryAddress: secondaryAddress || null,
-      country: country || null,
-      telephone: telephone || null,
-      contactName: contactName || null,
-      contactPhone: contactPhone || null,
-      contactEmail: contactEmail || null,
-      notes: notes || null,
+      name, officialName: officialName || null, category: category || null,
+      addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
+      country: country || null, telephone: telephone || null, notes: notes || null,
+      createdBy: userId || null, updatedBy: userId || null,
     }).returning();
 
     return NextResponse.json({ success: true, id: a.id });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { factories, yarns, factoryCertificates, factoryContacts, certificates } from "@/db/schema";
 import { eq, sql, inArray } from "drizzle-orm";
+import { getUserMap } from "@/lib/auditHelpers";
 
 export async function GET() {
   try {
@@ -53,12 +54,15 @@ export async function GET() {
       }
     }
 
+    const userMap = await getUserMap();
     const result = allFactories.map((f) => ({
       ...f,
       yarnCount: countMap[f.id] || 0,
       certIds: certMap[f.id] || [],
       certNames: (certMap[f.id] || []).map((cid) => certNameMap[cid] || "").filter(Boolean),
       contactCount: contactMap[f.id] || 0,
+      createdByName: f.createdBy ? userMap[f.createdBy] || null : null,
+      updatedByName: f.updatedBy ? userMap[f.updatedBy] || null : null,
     }));
 
     return NextResponse.json(result);
@@ -72,65 +76,41 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id,
-      factoryName,
-      legitName,
-      primaryAddress,
-      secondaryAddress,
-      country,
-      telephone,
-      notes,
-      relationship,
-      parentFactoryId,
-      status,
-      certIds,
+      id, factoryName, officialName, addressLocal, addressEnglish,
+      country, telephone, notes, relationship, parentFactoryId,
+      status, certIds, userId,
     } = body;
 
     if (id) {
       await db.update(factories).set({
-        factoryName,
-        legitName: legitName || null,
-        primaryAddress: primaryAddress || null,
-        secondaryAddress: secondaryAddress || null,
-        country: country || null,
-        telephone: telephone || null,
-        notes: notes || null,
-        relationship: relationship || "My Factory",
-        parentFactoryId: parentFactoryId || null,
-        status: status || "Active",
-        updatedAt: new Date(),
+        factoryName, officialName: officialName || null,
+        addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
+        country: country || null, telephone: telephone || null,
+        notes: notes || null, relationship: relationship || "My Factory",
+        parentFactoryId: parentFactoryId || null, status: status || "Active",
+        updatedAt: new Date(), updatedBy: userId || null,
       }).where(eq(factories.id, id));
 
       await db.delete(factoryCertificates).where(eq(factoryCertificates.factoryId, id));
       if (certIds?.length) {
         await db.insert(factoryCertificates).values(
-          certIds.map((cid: number) => ({
-            factoryId: id,
-            certificateId: cid,
-          }))
+          certIds.map((cid: number) => ({ factoryId: id, certificateId: cid }))
         );
       }
       return NextResponse.json({ success: true, id });
     } else {
       const [f] = await db.insert(factories).values({
-        factoryName,
-        legitName: legitName || null,
-        primaryAddress: primaryAddress || null,
-        secondaryAddress: secondaryAddress || null,
-        country: country || null,
-        telephone: telephone || null,
-        notes: notes || null,
-        relationship: relationship || "My Factory",
-        parentFactoryId: parentFactoryId || null,
-        status: status || "Active",
+        factoryName, officialName: officialName || null,
+        addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
+        country: country || null, telephone: telephone || null,
+        notes: notes || null, relationship: relationship || "My Factory",
+        parentFactoryId: parentFactoryId || null, status: status || "Active",
+        createdBy: userId || null, updatedBy: userId || null,
       }).returning();
 
       if (certIds?.length && f) {
         await db.insert(factoryCertificates).values(
-          certIds.map((cid: number) => ({
-            factoryId: f.id,
-            certificateId: cid,
-          }))
+          certIds.map((cid: number) => ({ factoryId: f.id, certificateId: cid }))
         );
       }
       return NextResponse.json({ success: true, id: f.id });

@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { customers } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getUserMap } from "@/lib/auditHelpers";
 
 export async function GET() {
   try {
     const allCustomers = await db.select().from(customers).orderBy(customers.name);
-    return NextResponse.json(allCustomers);
+    const userMap = await getUserMap();
+    const result = allCustomers.map((c) => ({
+      ...c,
+      createdByName: c.createdBy ? userMap[c.createdBy] || null : null,
+      updatedByName: c.updatedBy ? userMap[c.updatedBy] || null : null,
+    }));
+    return NextResponse.json(result);
   } catch (err) {
     console.error("Customers GET error:", err);
     return NextResponse.json([], { status: 500 });
@@ -16,30 +23,33 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, legitName, primaryAddress, secondaryAddress, country, telephone, notes } = body;
+    const { id, name, officialName, addressLocal, addressEnglish, country, telephone, notes, userId } = body;
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
     if (id) {
       await db.update(customers).set({
         name,
-        legitName: legitName || null,
-        primaryAddress: primaryAddress || null,
-        secondaryAddress: secondaryAddress || null,
+        officialName: officialName || null,
+        addressLocal: addressLocal || null,
+        addressEnglish: addressEnglish || null,
         country: country || null,
         telephone: telephone || null,
         notes: notes || null,
         updatedAt: new Date(),
+        updatedBy: userId || null,
       }).where(eq(customers.id, id));
       return NextResponse.json({ success: true, id });
     } else {
       const [c] = await db.insert(customers).values({
         name,
-        legitName: legitName || null,
-        primaryAddress: primaryAddress || null,
-        secondaryAddress: secondaryAddress || null,
+        officialName: officialName || null,
+        addressLocal: addressLocal || null,
+        addressEnglish: addressEnglish || null,
         country: country || null,
         telephone: telephone || null,
         notes: notes || null,
+        createdBy: userId || null,
+        updatedBy: userId || null,
       }).returning();
       return NextResponse.json({ success: true, id: c.id });
     }
