@@ -15,13 +15,13 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, name } = await req.json();
+    const { id, name, userId } = await req.json();
     if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
     if (id) {
-      await db.update(spinningTypeOptions).set({ name }).where(eq(spinningTypeOptions.id, id));
+      await db.update(spinningTypeOptions).set({ name, updatedAt: new Date(), updatedBy: userId || null }).where(eq(spinningTypeOptions.id, id));
       return NextResponse.json({ success: true, id });
     }
-    const [row] = await db.insert(spinningTypeOptions).values({ name }).returning();
+    const [row] = await db.insert(spinningTypeOptions).values({ name, createdBy: userId || null, updatedBy: userId || null }).returning();
     return NextResponse.json({ success: true, id: row.id });
   } catch (err) {
     console.error("SpinningTypes POST error:", err);

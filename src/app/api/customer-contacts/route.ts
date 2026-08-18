@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, customerId, contactName, department, position, email, phone, cellPhone, notes } = body;
+    const { id, customerId, contactName, department, position, email, phone, cellPhone, notes, userId } = body;
     if (!customerId || !contactName) return NextResponse.json({ error: "Customer and name are required" }, { status: 400 });
 
     if (id) {
@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
         phone: phone || null,
         cellPhone: cellPhone || null,
         notes: notes || null,
+        updatedAt: new Date(),
+        updatedBy: userId || null,
       }).where(eq(customerContacts.id, id));
       return NextResponse.json({ success: true, id });
     }
@@ -47,6 +49,8 @@ export async function POST(req: NextRequest) {
       phone: phone || null,
       cellPhone: cellPhone || null,
       notes: notes || null,
+      createdBy: userId || null,
+      updatedBy: userId || null,
     }).returning();
     return NextResponse.json({ success: true, id: c.id });
   } catch (err) {

@@ -76,41 +76,69 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, factoryName, officialName, addressLocal, addressEnglish,
-      country, telephone, notes, relationship, parentFactoryId,
-      status, certIds, userId,
+      id,
+      factoryName,
+      officialName,
+      addressLocal,
+      addressEnglish,
+      country,
+      telephone,
+      notes,
+      relationship,
+      parentFactoryId,
+      status,
+      certIds,
+      userId,
     } = body;
 
     if (id) {
       await db.update(factories).set({
-        factoryName, officialName: officialName || null,
-        addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
-        country: country || null, telephone: telephone || null,
-        notes: notes || null, relationship: relationship || "My Factory",
-        parentFactoryId: parentFactoryId || null, status: status || "Active",
-        updatedAt: new Date(), updatedBy: userId || null,
+        factoryName,
+        officialName: officialName || null,
+        addressLocal: addressLocal || null,
+        addressEnglish: addressEnglish || null,
+        country: country || null,
+        telephone: telephone || null,
+        notes: notes || null,
+        relationship: relationship || "My Factory",
+        parentFactoryId: parentFactoryId || null,
+        status: status || "Active",
+        updatedAt: new Date(),
+        updatedBy: userId || null,
       }).where(eq(factories.id, id));
 
       await db.delete(factoryCertificates).where(eq(factoryCertificates.factoryId, id));
       if (certIds?.length) {
         await db.insert(factoryCertificates).values(
-          certIds.map((cid: number) => ({ factoryId: id, certificateId: cid }))
+          certIds.map((cid: number) => ({
+            factoryId: id,
+            certificateId: cid,
+          }))
         );
       }
       return NextResponse.json({ success: true, id });
     } else {
       const [f] = await db.insert(factories).values({
-        factoryName, officialName: officialName || null,
-        addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
-        country: country || null, telephone: telephone || null,
-        notes: notes || null, relationship: relationship || "My Factory",
-        parentFactoryId: parentFactoryId || null, status: status || "Active",
-        createdBy: userId || null, updatedBy: userId || null,
+        factoryName,
+        officialName: officialName || null,
+        addressLocal: addressLocal || null,
+        addressEnglish: addressEnglish || null,
+        country: country || null,
+        telephone: telephone || null,
+        notes: notes || null,
+        relationship: relationship || "My Factory",
+        parentFactoryId: parentFactoryId || null,
+        status: status || "Active",
+        createdBy: userId || null,
+        updatedBy: userId || null,
       }).returning();
 
       if (certIds?.length && f) {
         await db.insert(factoryCertificates).values(
-          certIds.map((cid: number) => ({ factoryId: f.id, certificateId: cid }))
+          certIds.map((cid: number) => ({
+            factoryId: f.id,
+            certificateId: cid,
+          }))
         );
       }
       return NextResponse.json({ success: true, id: f.id });

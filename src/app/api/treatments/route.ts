@@ -36,13 +36,13 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name } = body;
+    const { id, name, userId } = body;
 
     if (id) {
-      await db.update(treatments).set({ name }).where(eq(treatments.id, id));
+      await db.update(treatments).set({ name, updatedAt: new Date(), updatedBy: userId || null }).where(eq(treatments.id, id));
       return NextResponse.json({ success: true, id });
     } else {
-      const [t] = await db.insert(treatments).values({ name }).returning();
+      const [t] = await db.insert(treatments).values({ name, createdBy: userId || null, updatedBy: userId || null }).returning();
       return NextResponse.json({ success: true, id: t.id });
     }
   } catch (err) {

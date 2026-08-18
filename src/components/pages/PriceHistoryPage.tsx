@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
+import AuditInfo from "@/components/AuditInfo";
 import { IconTrash, IconDownload } from "@/components/Icons";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
 
@@ -9,6 +11,8 @@ interface PriceRecord {
   recordDate: string; incoterms: string; remarks: string;
   yarnName: string; yarnCount: string; micron: string; composition: string;
   factoryName: string; factoryId: number; relationship: string; treatmentName: string;
+  createdByName: string | null; updatedByName: string | null;
+  createdAt: string; updatedAt: string;
 }
 
 interface Factory { id: number; factoryName: string; relationship: string; }
@@ -173,7 +177,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
     try {
       const res = await fetch("/api/prices", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editing.id, price: editPrice, currency: editCurrency, unit: editUnit, recordDate: editRecordDate, incoterms: editIncoterms, remarks: editRemarks }),
+        body: JSON.stringify({ id: editing.id, price: editPrice, currency: editCurrency, unit: editUnit, recordDate: editRecordDate, incoterms: editIncoterms, remarks: editRemarks, userId: getUserId() }),
       });
       if (res.ok) {
         setPrices((prev) => prev.map((p) => p.id === editing.id ? { ...p, price: parseFloat(editPrice), currency: editCurrency, unit: editUnit, recordDate: editRecordDate, incoterms: editIncoterms, remarks: editRemarks } : p));
@@ -243,11 +247,13 @@ export default function PriceHistoryPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">Treatment</th>
               <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Prices / Incoterms</th>
+              <th className="px-4 py-3 font-medium">By</th>
+              {(permissions.canEdit || permissions.canDelete) && <th className="px-4 py-3 font-medium w-28">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={permissions.canDelete ? 9 : 8} className="px-4 py-8 text-center text-slate-400">No price records found</td></tr>
+              <tr><td colSpan={permissions.canDelete ? 12 : 10} className="px-4 py-8 text-center text-slate-400">No price records found</td></tr>
 
             ) : filtered.map((g) => (
               <tr key={g.key} className={`border-t border-slate-100 hover:bg-slate-50 ${selected.has(g.key) ? "bg-blue-50/50" : ""}`}>
@@ -276,7 +282,26 @@ export default function PriceHistoryPage({ permissions }: Props) {
                     ))}
                   </div>
                 </td>
-
+                <td className="px-4 py-3">
+                  {g.records.map((r) => (
+                    <div key={r.id} className="text-[10px] text-slate-400 leading-relaxed">
+                      {r.createdByName && <span>{r.createdByName}</span>}
+                    </div>
+                  ))}
+                </td>
+                {(permissions.canEdit || permissions.canDelete) && (
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 flex-wrap">
+                      <button onClick={() => setViewing(g)} className="text-slate-600 hover:text-slate-900 text-xs px-1">View</button>
+                      {g.records.length === 1 && permissions.canEdit && (
+                        <button onClick={() => openEdit(g.records[0])} className="text-blue-600 hover:text-blue-800 text-xs px-1">Edit</button>
+                      )}
+                      {g.records.length === 1 && permissions.canDelete && (
+                        <button onClick={async () => { await handleDeleteRecord(g.records[0].id); setPrices((prev) => prev.filter((p) => p.id !== g.records[0].id)); }} className="text-red-500 hover:text-red-700 text-xs px-1">Del</button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -326,6 +351,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
                       {r.remarks && (
                         <div className="mt-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-2.5 whitespace-pre-line">{r.remarks}</div>
                       )}
+                      <AuditInfo createdByName={r.createdByName} updatedByName={r.updatedByName} createdAt={r.createdAt} updatedAt={r.updatedAt} className="mt-1" />
                     </div>
                     {(permissions.canEdit || permissions.canDelete) && (
                       <div className="flex gap-2 shrink-0">

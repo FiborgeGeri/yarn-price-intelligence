@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
+import AuditInfo from "@/components/AuditInfo";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
 
 interface SOItem {
@@ -41,9 +43,10 @@ interface SalesOrder {
   items: SOItem[];
 }
 
-interface Customer { id: number; name: string; legitName: string; }
+interface Customer { id: number; name: string; officialName: string; }
 interface Contact { id: number; customerId: number; contactName: string; position: string; email: string; }
-interface ShipTo { id: number; name: string; legitName: string; category: string; }
+interface ShipTo { id: number; name: string; officialName: string; category: string; contactCount: number; }
+interface ShipToContact { id: number; shipToId: number; contactName: string; position: string; email: string; phone: string; }
 interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; composition: string; }
 interface FormItem {
   yarnId: number;
@@ -94,6 +97,12 @@ export default function SalesOrdersPage({ permissions }: Props) {
   const [fCustomer, setFCustomer] = useState(0);
   const [fContact, setFContact] = useState(0);
   const [fShipTo, setFShipTo] = useState(0);
+  const [fShipToContact, setFShipToContact] = useState(0);
+  const [shipToContactList, setShipToContactList] = useState<ShipToContact[]>([]);
+  const [fOrderCategory, setFOrderCategory] = useState("Bulk");
+  const [fPaymentMethod, setFPaymentMethod] = useState("");
+  const [fPaymentDays, setFPaymentDays] = useState("");
+  const [fPaymentRef, setFPaymentRef] = useState("");
   const [fCustomerPoNo, setFCustomerPoNo] = useState("");
   const [fQuoteNo, setFQuoteNo] = useState("");
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
@@ -147,10 +156,56 @@ export default function SalesOrdersPage({ permissions }: Props) {
     );
   }, [orders, search]);
 
-  const openForm = () => {
+  const loadShipToContacts = async (shipToId: number) => {
+    if (!shipToId) { setShipToContactList([]); return; }
+    try {
+      const data = await fetch(`/api/ship-to-contacts?shipToId=${shipToId}`).then((r) => r.json());
+      setShipToContactList(data);
+    } catch { setShipToContactList([]); }
+  };
+
+  const [editingSO, setEditingSO] = useState<SalesOrder | null>(null);
+
+  const openForm = (so?: SalesOrder) => {
+    if (so) {
+      setEditingSO(so);
+      setFCustomer(so.customerId);
+      setFContact(so.contactId || 0);
+      setFShipTo(so.shipToId || 0);
+      setFShipToContact((so as SalesOrder & { shipToContactId?: number }).shipToContactId || 0);
+      if (so.shipToId) loadShipToContacts(so.shipToId);
+      setFOrderCategory((so as SalesOrder & { orderCategory?: string }).orderCategory || "Bulk");
+      const soAny = so as SalesOrder & { paymentMethod?: string; paymentDays?: number; paymentReference?: string };
+      setFPaymentMethod(soAny.paymentMethod || "");
+      setFPaymentDays(soAny.paymentDays ? String(soAny.paymentDays) : "");
+      setFPaymentRef(soAny.paymentReference || "");
+      setFCustomerPoNo(so.customerPoNo || "");
+      setFQuoteNo(so.quoteNo || "");
+      setQuoteItems([]);
+      setFSoDate(so.soDate);
+      setFDeliveryDate(so.deliveryDate || "");
+      setFStatus(so.status || "Confirmed");
+      setFNotes(so.notes || "");
+      setFAutoCreatePO(false);
+      setFItems(so.items.map((i) => ({
+        yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "",
+        quantity: i.quantity || "", unitPrice: String(i.unitPrice),
+        currency: i.currency || "USD", unit: i.unit || "per KG",
+        weightBasis: i.weightBasis || "condition", incoterms: i.incoterms || "", notes: i.notes || "",
+      })));
+      setShowForm(true);
+      return;
+    }
+    setEditingSO(null);
     setFCustomer(0);
     setFContact(0);
     setFShipTo(0);
+    setFShipToContact(0);
+    setShipToContactList([]);
+    setFOrderCategory("Bulk");
+    setFPaymentMethod("");
+    setFPaymentDays("");
+    setFPaymentRef("");
     setFCustomerPoNo("");
     setFQuoteNo("");
     setQuoteItems([]);
@@ -240,9 +295,15 @@ export default function SalesOrdersPage({ permissions }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: editingSO?.id,
           customerId: fCustomer,
           contactId: fContact || null,
           shipToId: fShipTo || null,
+          shipToContactId: fShipToContact || null,
+          orderCategory: fOrderCategory,
+          paymentMethod: fPaymentMethod || null,
+          paymentDays: fPaymentDays ? parseInt(fPaymentDays) : null,
+          paymentReference: fPaymentRef || null,
           customerPoNo: fCustomerPoNo,
           quoteNo: fQuoteNo,
           soDate: fSoDate,
@@ -251,11 +312,12 @@ export default function SalesOrdersPage({ permissions }: Props) {
           notes: fNotes,
           items: validItems,
           autoCreatePO: fAutoCreatePO,
+          userId: getUserId(),
         }),
       });
       if (res.ok) {
         const d = await res.json();
-        setToast({ type: "success", text: `Sales Order ${d.soNo} created${fAutoCreatePO ? " + PO(s) auto-created" : ""}` });
+        setToast({ type: "success", text: editingSO ? `Sales Order updated` : `Sales Order ${d.soNo} created${fAutoCreatePO ? " + PO(s) auto-created" : ""}` });
         setShowForm(false);
         load();
       } else {
@@ -293,7 +355,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
             placeholder="Search..."
           />
           {permissions.canEdit && (
-            <button onClick={openForm} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
               + New Sales Order
             </button>
           )}
@@ -311,6 +373,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
           <thead>
             <tr className="bg-slate-50 text-left text-slate-600">
               <th className="px-4 py-3 font-medium">SO No.</th>
+              <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 font-medium">Customer PO</th>
               <th className="px-4 py-3 font-medium">Customer</th>
               <th className="px-4 py-3 font-medium">Ship-To</th>
@@ -318,15 +381,22 @@ export default function SalesOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">SO Date</th>
               <th className="px-4 py-3 font-medium">Delivery Date</th>
               <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium w-24">Actions</th>
+              {(permissions.canEdit || permissions.canDelete) && <th className="px-4 py-3 font-medium w-24">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
             ) : filtered.map((o) => (
               <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium">{o.soNo}</td>
+                <td className="px-4 py-3"><button onClick={() => setViewing(o)} className="font-medium text-blue-700 hover:underline">{o.soNo}</button></td>
+                <td className="px-4 py-3">
+                  {(o as SalesOrder & { orderCategory?: string }).orderCategory && (o as SalesOrder & { orderCategory?: string }).orderCategory !== "Bulk" ? (
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${(o as SalesOrder & { orderCategory?: string }).orderCategory === "Sample" ? "bg-purple-100 text-purple-700" : (o as SalesOrder & { orderCategory?: string }).orderCategory === "Free of Charge" ? "bg-amber-100 text-amber-700" : "bg-cyan-100 text-cyan-700"}`}>{(o as SalesOrder & { orderCategory?: string }).orderCategory}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">Bulk</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{o.customerPoNo || "—"}</td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-xs">{o.customerName}</div>
@@ -341,12 +411,14 @@ export default function SalesOrdersPage({ permissions }: Props) {
                     {o.status}
                   </span>
                 </td>
+                {(permissions.canEdit || permissions.canDelete) && (
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
-                    <button onClick={() => setViewing(o)} className="text-slate-600 hover:text-slate-900 text-xs">View</button>
+                    {permissions.canEdit && <button onClick={() => openForm(o)} className="text-blue-600 hover:text-blue-800 text-xs">Edit</button>}
                     {permissions.canDelete && <button onClick={() => handleDelete(o.id)} className="text-red-500 hover:text-red-700 text-xs">Del</button>}
                   </div>
                 </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -374,6 +446,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 <div>
                   <span className="text-slate-500 text-xs block">Ship-To</span>
                   <div className="font-medium">{viewing.shipToName || "—"}</div>
+                  {(viewing as SalesOrder & { shipToContactName?: string }).shipToContactName && <div className="text-xs text-blue-600 mt-0.5">Attn: {(viewing as SalesOrder & { shipToContactName?: string }).shipToContactName}</div>}
                 </div>
                 <div>
                   <span className="text-slate-500 text-xs block">SO Date</span>
@@ -388,6 +461,8 @@ export default function SalesOrdersPage({ permissions }: Props) {
               </div>
 
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
+                <div>Category: <span className={`font-semibold ${{Sample:"text-purple-600","Free of Charge":"text-amber-600","Lab Dip":"text-cyan-600","Strike Off":"text-cyan-600"}[(viewing as SalesOrder & {orderCategory?:string}).orderCategory||""] || "text-slate-700"}`}>{(viewing as SalesOrder & {orderCategory?:string}).orderCategory || "Bulk"}</span></div>
+                {(() => { const v = viewing as SalesOrder & {paymentMethod?:string;paymentDays?:number;paymentReference?:string}; return v.paymentMethod ? <div>Payment: <span className="font-semibold text-emerald-700">{v.paymentMethod}{v.paymentDays ? ` ${v.paymentDays} Days` : ""}{v.paymentReference ? ` from ${v.paymentReference}` : ""}</span></div> : null; })()}
                 {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
                 {viewing.quoteNo && <div>Ref. Quotation: <span className="font-medium text-slate-700">{viewing.quoteNo}</span></div>}
               </div>
@@ -450,6 +525,10 @@ export default function SalesOrdersPage({ permissions }: Props) {
                   {viewing.notes}
                 </div>
               )}
+              <div className="border-t border-slate-200 pt-3 flex items-center justify-between">
+                <AuditInfo createdByName={(viewing as SalesOrder & { createdByName?: string }).createdByName} updatedByName={(viewing as SalesOrder & { updatedByName?: string }).updatedByName} />
+                {permissions.canEdit && <button onClick={() => { setViewing(null); openForm(viewing); }} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Edit Order</button>}
+              </div>
             </div>
           </div>
         </div>
@@ -459,7 +538,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">New Sales Order</h2>
+              <h2 className="text-lg font-semibold">{editingSO ? `Edit Sales Order — ${editingSO.soNo}` : "New Sales Order"}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
 
@@ -472,7 +551,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                       <option value={0}>Select...</option>
                       {customerList.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name}{c.legitName ? ` — ${c.legitName}` : ""}
+                          {c.name}{c.officialName ? ` — ${c.officialName}` : ""}
                         </option>
                       ))}
                     </select>
@@ -491,6 +570,44 @@ export default function SalesOrdersPage({ permissions }: Props) {
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Category</label>
+                    <select value={fOrderCategory} onChange={(e) => setFOrderCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value="Bulk">Bulk</option>
+                      <option value="Sample">Sample</option>
+                      <option value="Free of Charge">Free of Charge</option>
+                      <option value="Lab Dip">Lab Dip</option>
+                      <option value="Strike Off">Strike Off</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Term (Customer → Us)</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select value={fPaymentMethod} onChange={(e) => setFPaymentMethod(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs">
+                        <option value="">— None —</option>
+                        <option value="OA">OA (Open Account)</option>
+                        <option value="TT">TT (Bank Transfer)</option>
+                        <option value="LC">LC (Letter of Credit)</option>
+                        <option value="DP">DP (Doc. against Payment)</option>
+                        <option value="DA">DA (Doc. against Accept.)</option>
+                        <option value="CAD">CAD (Cash against Doc.)</option>
+                        <option value="Advance">Advance Payment</option>
+                      </select>
+                      <input type="number" value={fPaymentDays} onChange={(e) => setFPaymentDays(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs" placeholder="Days" min="0" />
+                      <select value={fPaymentRef} onChange={(e) => setFPaymentRef(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs">
+                        <option value="">From...</option>
+                        <option value="Invoice Date">Invoice Date</option>
+                        <option value="BL Date">BL Date</option>
+                        <option value="Shipment Date">Shipment Date</option>
+                        <option value="Delivery Date">Delivery Date</option>
+                        <option value="Before Shipment">Before Shipment</option>
+                        <option value="At Sight">At Sight</option>
+                      </select>
+                    </div>
+                    {fPaymentMethod && <div className="mt-1 text-[10px] text-slate-400">e.g. {fPaymentMethod}{fPaymentDays ? ` ${fPaymentDays} Days` : ""}{fPaymentRef ? ` from ${fPaymentRef}` : ""}</div>}
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                     <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
                       <option>Confirmed</option>
@@ -505,11 +622,23 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Ship-To Destination</label>
-                    <select value={fShipTo} onChange={(e) => setFShipTo(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    <select value={fShipTo} onChange={(e) => { const v = Number(e.target.value); setFShipTo(v); setFShipToContact(0); loadShipToContacts(v); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
                       <option value={0}>— None —</option>
                       {shipToList.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}{s.category ? ` (${s.category})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ship-To Contact Person</label>
+                    <select value={fShipToContact} onChange={(e) => setFShipToContact(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" disabled={!fShipTo}>
+                      <option value={0}>{fShipTo ? (shipToContactList.length > 0 ? "— No specific contact —" : "— No contacts —") : "Select ship-to first"}</option>
+                      {shipToContactList.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.contactName}{c.position ? ` · ${c.position}` : ""}{c.email ? ` · ${c.email}` : ""}
                         </option>
                       ))}
                     </select>
@@ -716,7 +845,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 </label>
                 <div className="flex gap-3">
                   <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                    {saving ? "Creating..." : "Create Sales Order"}
+                    {saving ? "Saving..." : editingSO ? "Update Sales Order" : "Create Sales Order"}
                   </button>
                   <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">
                     Cancel

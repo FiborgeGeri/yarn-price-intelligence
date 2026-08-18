@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, factoryId, contactName, department, position, email, phone, cellPhone, notes } = body;
+    const { id, factoryId, contactName, department, position, email, phone, cellPhone, notes, userId } = body;
     if (!factoryId || !contactName) {
       return NextResponse.json({ error: "Factory and name are required" }, { status: 400 });
     }
@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
         phone: phone || null,
         cellPhone: cellPhone || null,
         notes: notes || null,
+        updatedAt: new Date(),
+        updatedBy: userId || null,
       }).where(eq(factoryContacts.id, id));
       return NextResponse.json({ success: true, id });
     }
@@ -53,6 +55,8 @@ export async function POST(req: NextRequest) {
       phone: phone || null,
       cellPhone: cellPhone || null,
       notes: notes || null,
+      createdBy: userId || null,
+      updatedBy: userId || null,
     }).returning();
 
     return NextResponse.json({ success: true, id: c.id });

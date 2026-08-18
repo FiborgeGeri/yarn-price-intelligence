@@ -4,7 +4,7 @@ import { prices } from "@/db/schema";
 
 export async function POST(req: NextRequest) {
   try {
-    const { rows } = await req.json();
+    const { rows, userId } = await req.json();
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: "No rows" }, { status: 400 });
     }
@@ -20,6 +20,8 @@ export async function POST(req: NextRequest) {
         recordDate: row.recordDate,
         incoterms: row.incoterms || null,
         remarks: row.remarks || null,
+        createdBy: userId || null,
+        updatedBy: userId || null,
       });
       inserted++;
     }

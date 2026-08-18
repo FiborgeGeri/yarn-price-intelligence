@@ -9,7 +9,8 @@ async function seed() {
   const db = drizzle(pool);
 
   // Check if data already exists
-  const [{ count }] = await db.execute(sql`SELECT count(*)::int as count FROM users`) as unknown as [{ count: number }];
+  const res = await db.execute(sql`SELECT count(*)::int as count FROM users`);
+  const count = (res.rows[0] as { count: number }).count;
   if (count > 0) {
     console.log("Database already seeded, skipping.");
     await pool.end();
@@ -26,11 +27,11 @@ async function seed() {
 
   // Seed factories
   await db.execute(sql`
-    INSERT INTO factories (factory_name, country, contact_person, email, notes, relationship, parent_factory_id, status) VALUES
-    ('Indorama Holding Ltd.', 'Thailand', 'Navin Shrivastava', 'navin.s@indorama.net', 'Global textile & petrochemical group', 'My Factory', NULL, 'Active'),
-    ('Schoeller Wool Austria GmbH', 'Austria', NULL, NULL, 'Premium worsted wool yarn specialist', 'My Factory', 1, 'Active'),
-    ('Suedwolle Group', 'Germany', NULL, NULL, NULL, 'Competitor Factory', NULL, 'Active'),
-    ('XINAO TEXTILES INC.', 'China', NULL, NULL, NULL, 'Competitor Factory', NULL, 'Active')
+    INSERT INTO factories (factory_name, country, notes, relationship, parent_factory_id, status) VALUES
+    ('Indorama Holding Ltd.', 'Thailand', 'Global textile & petrochemical group', 'My Factory', NULL, 'Active'),
+    ('Schoeller Wool Austria GmbH', 'Austria', 'Premium worsted wool yarn specialist', 'My Factory', 1, 'Active'),
+    ('Suedwolle Group', 'Germany', NULL, 'Competitor Factory', NULL, 'Active'),
+    ('XINAO TEXTILES INC.', 'China', NULL, 'Competitor Factory', NULL, 'Active')
   `);
 
   // Seed treatments
@@ -62,53 +63,53 @@ async function seed() {
 
   // Seed yarns (My Factory - Indorama = id 1)
   await db.execute(sql`
-    INSERT INTO yarns (yarn_name, factory_id, yarn_count, micron, treatment_id, origin, composition) VALUES
-    ('SIMPHONIE', 1, 'NM 30/2', '19.5', 5, 'Australia', '100% Wool'),
-    ('SIMPHONIE', 1, 'NM 48/2', '19.5', 5, 'Australia', '100% Wool'),
-    ('SIMPHONIE', 1, 'NM 60/2', '19.5', 5, 'Australia', '100% Wool'),
-    ('SIMPHONIE', 1, 'NM 80/2', '19.5', 5, 'Australia', '100% Wool'),
-    ('BRISBANE', 1, 'NM 28/2', '20.5', 5, 'Australia', '100% Wool'),
-    ('BRISBANE', 1, 'NM 48/2', '20.5', 5, 'Australia', '100% Wool'),
-    ('BRISBANE', 1, 'NM 60/2', '20.5', 5, 'Australia', '100% Wool'),
-    ('BRISBANE RWS', 1, 'NM 48/2', '20.5', 5, 'Australia', '100% RWS Wool'),
-    ('MELBOURNE', 1, 'NM 30/2', '18.5', 5, 'Australia', '100% Wool'),
-    ('MELBOURNE', 1, 'NM 48/2', '18.5', 5, 'Australia', '100% Wool'),
-    ('MELBOURNE', 1, 'NM 60/2', '18.5', 5, 'Australia', '100% Wool'),
-    ('ADELAIDE', 1, 'NM 48/2', '17.5', 5, 'Australia', '100% Wool'),
-    ('ADELAIDE', 1, 'NM 60/2', '17.5', 5, 'Australia', '100% Wool'),
-    ('PERTH', 1, 'NM 48/2', '16.5', 5, 'Australia', '100% Wool'),
-    ('PERTH', 1, 'NM 60/2', '16.5', 5, 'Australia', '100% Wool'),
-    ('DARWIN', 1, 'NM 48/2', '15.5', 5, 'Australia', '100% Wool'),
-    ('DARWIN', 1, 'NM 60/2', '15.5', 5, 'Australia', '100% Wool'),
-    ('CAIRNS', 1, 'NM 48/2', '19.5', 1, 'Australia', '100% Wool'),
-    ('CAIRNS', 1, 'NM 60/2', '19.5', 1, 'Australia', '100% Wool'),
-    ('HOBART', 1, 'NM 48/2', '18.5', 2, 'Australia', '100% Wool'),
-    ('HOBART', 1, 'NM 60/2', '18.5', 2, 'Australia', '100% Wool'),
-    ('CANBERRA', 1, 'NM 48/2', '17.5', 6, 'Australia', '100% Wool'),
-    ('CANBERRA', 1, 'NM 60/2', '17.5', 6, 'Australia', '100% Wool'),
-    ('SYDNEY', 1, 'NM 48/2', '19.5', 3, 'Australia', '100% Wool'),
-    ('SYDNEY', 1, 'NM 60/2', '19.5', 3, 'Australia', '100% Wool')
+    INSERT INTO yarns (yarn_name, factory_id, yarn_count, micron, treatment_id, composition) VALUES
+    ('SIMPHONIE', 1, 'NM 30/2', '19.5', 5, '100% Wool'),
+    ('SIMPHONIE', 1, 'NM 48/2', '19.5', 5, '100% Wool'),
+    ('SIMPHONIE', 1, 'NM 60/2', '19.5', 5, '100% Wool'),
+    ('SIMPHONIE', 1, 'NM 80/2', '19.5', 5, '100% Wool'),
+    ('BRISBANE', 1, 'NM 28/2', '20.5', 5, '100% Wool'),
+    ('BRISBANE', 1, 'NM 48/2', '20.5', 5, '100% Wool'),
+    ('BRISBANE', 1, 'NM 60/2', '20.5', 5, '100% Wool'),
+    ('BRISBANE RWS', 1, 'NM 48/2', '20.5', 5, '100% RWS Wool'),
+    ('MELBOURNE', 1, 'NM 30/2', '18.5', 5, '100% Wool'),
+    ('MELBOURNE', 1, 'NM 48/2', '18.5', 5, '100% Wool'),
+    ('MELBOURNE', 1, 'NM 60/2', '18.5', 5, '100% Wool'),
+    ('ADELAIDE', 1, 'NM 48/2', '17.5', 5, '100% Wool'),
+    ('ADELAIDE', 1, 'NM 60/2', '17.5', 5, '100% Wool'),
+    ('PERTH', 1, 'NM 48/2', '16.5', 5, '100% Wool'),
+    ('PERTH', 1, 'NM 60/2', '16.5', 5, '100% Wool'),
+    ('DARWIN', 1, 'NM 48/2', '15.5', 5, '100% Wool'),
+    ('DARWIN', 1, 'NM 60/2', '15.5', 5, '100% Wool'),
+    ('CAIRNS', 1, 'NM 48/2', '19.5', 1, '100% Wool'),
+    ('CAIRNS', 1, 'NM 60/2', '19.5', 1, '100% Wool'),
+    ('HOBART', 1, 'NM 48/2', '18.5', 2, '100% Wool'),
+    ('HOBART', 1, 'NM 60/2', '18.5', 2, '100% Wool'),
+    ('CANBERRA', 1, 'NM 48/2', '17.5', 6, '100% Wool'),
+    ('CANBERRA', 1, 'NM 60/2', '17.5', 6, '100% Wool'),
+    ('SYDNEY', 1, 'NM 48/2', '19.5', 3, '100% Wool'),
+    ('SYDNEY', 1, 'NM 60/2', '19.5', 3, '100% Wool')
   `);
 
   // Competitor yarns (Suedwolle = 3, XINAO = 4)
   await db.execute(sql`
-    INSERT INTO yarns (yarn_name, factory_id, yarn_count, micron, treatment_id, origin, composition) VALUES
-    ('SW BIELLA YARN', 3, 'NM 48/2', '19.5', 5, 'Australia', '100% Wool'),
-    ('SW BIELLA YARN', 3, 'NM 60/2', '19.5', 5, 'Australia', '100% Wool'),
-    ('SW PREMIUM', 3, 'NM 48/2', '18.5', 5, 'Australia', '100% Wool'),
-    ('SW PREMIUM', 3, 'NM 60/2', '18.5', 5, 'Australia', '100% Wool'),
-    ('SW ULTRA', 3, 'NM 48/2', '17.5', 5, 'Australia', '100% Wool'),
-    ('SW ULTRA', 3, 'NM 60/2', '17.5', 5, 'Australia', '100% Wool'),
-    ('SW CLASSIC', 3, 'NM 48/2', '20.5', 5, 'Australia', '100% Wool'),
-    ('SW CLASSIC', 3, 'NM 60/2', '20.5', 5, 'Australia', '100% Wool'),
-    ('XN MERINO TOP', 4, 'NM 48/2', '19.5', 5, 'China', '100% Wool'),
-    ('XN MERINO TOP', 4, 'NM 60/2', '19.5', 5, 'China', '100% Wool'),
-    ('XN FINE', 4, 'NM 48/2', '18.5', 5, 'China', '100% Wool'),
-    ('XN FINE', 4, 'NM 60/2', '18.5', 5, 'China', '100% Wool'),
-    ('XN CLASSIC', 4, 'NM 48/2', '20.5', 5, 'China', '100% Wool'),
-    ('XN CLASSIC', 4, 'NM 60/2', '20.5', 5, 'China', '100% Wool'),
-    ('XN SUPER', 4, 'NM 48/2', '17.5', 5, 'China', '100% Wool'),
-    ('XN SUPER', 4, 'NM 60/2', '17.5', 5, 'China', '100% Wool')
+    INSERT INTO yarns (yarn_name, factory_id, yarn_count, micron, treatment_id, composition) VALUES
+    ('SW BIELLA YARN', 3, 'NM 48/2', '19.5', 5, '100% Wool'),
+    ('SW BIELLA YARN', 3, 'NM 60/2', '19.5', 5, '100% Wool'),
+    ('SW PREMIUM', 3, 'NM 48/2', '18.5', 5, '100% Wool'),
+    ('SW PREMIUM', 3, 'NM 60/2', '18.5', 5, '100% Wool'),
+    ('SW ULTRA', 3, 'NM 48/2', '17.5', 5, '100% Wool'),
+    ('SW ULTRA', 3, 'NM 60/2', '17.5', 5, '100% Wool'),
+    ('SW CLASSIC', 3, 'NM 48/2', '20.5', 5, '100% Wool'),
+    ('SW CLASSIC', 3, 'NM 60/2', '20.5', 5, '100% Wool'),
+    ('XN MERINO TOP', 4, 'NM 48/2', '19.5', 5, '100% Wool'),
+    ('XN MERINO TOP', 4, 'NM 60/2', '19.5', 5, '100% Wool'),
+    ('XN FINE', 4, 'NM 48/2', '18.5', 5, '100% Wool'),
+    ('XN FINE', 4, 'NM 60/2', '18.5', 5, '100% Wool'),
+    ('XN CLASSIC', 4, 'NM 48/2', '20.5', 5, '100% Wool'),
+    ('XN CLASSIC', 4, 'NM 60/2', '20.5', 5, '100% Wool'),
+    ('XN SUPER', 4, 'NM 48/2', '17.5', 5, '100% Wool'),
+    ('XN SUPER', 4, 'NM 60/2', '17.5', 5, '100% Wool')
   `);
 
   // Seed prices

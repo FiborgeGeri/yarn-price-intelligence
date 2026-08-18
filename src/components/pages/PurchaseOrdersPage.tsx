@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
+import AuditInfo from "@/components/AuditInfo";
 import { IconDownload } from "@/components/Icons";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
 
@@ -31,6 +33,13 @@ interface PO {
   customerId: number;
   customerName: string;
   shipToId: number | null;
+  shipToName: string | null;
+  shipToContactId: number | null;
+  shipToContactName: string | null;
+  orderCategory: string;
+  paymentMethod: string | null;
+  paymentDays: number | null;
+  paymentReference: string | null;
   contactPerson: string;
   soNo: string;
   customerPoNo: string;
@@ -45,11 +54,14 @@ interface PO {
   items: POItem[];
   totalAmount: number;
   itemCount: number;
+  createdByName: string | null;
+  updatedByName: string | null;
 }
 
 interface Factory { id: number; factoryName: string; relationship: string; }
+interface FactoryContact { id: number; factoryId: number; contactName: string; position: string; email: string; phone: string; }
 interface Customer { id: number; name: string; legitName: string; }
-interface ShipTo { id: number; name: string; }
+interface ShipTo { id: number; name: string; category: string; }
 interface Yarn {
   id: number;
   yarnName: string;
@@ -116,9 +128,14 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
   const { viewingYarn, setViewingYarn, openYarnDetail, allCerts } = useYarnDetail();
 
   const [fFactory, setFFactory] = useState(0);
+  const [fContactPerson, setFContactPerson] = useState(0);
+  const [factoryContactList, setFactoryContactList] = useState<FactoryContact[]>([]);
   const [fCustomer, setFCustomer] = useState(0);
   const [fShipTo, setFShipTo] = useState(0);
-  const [fContactPerson, setFContactPerson] = useState("");
+  const [fOrderCategory, setFOrderCategory] = useState("Bulk");
+  const [fPaymentMethod, setFPaymentMethod] = useState("");
+  const [fPaymentDays, setFPaymentDays] = useState("");
+  const [fPaymentRef, setFPaymentRef] = useState("");
   const [fSoNo, setFSoNo] = useState("");
   const [fCustomerPoNo, setFCustomerPoNo] = useState("");
   const [fQuoteNo, setFQuoteNo] = useState("");
@@ -150,6 +167,14 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
 
   useEffect(() => { load(); }, []);
 
+  const loadFactoryContacts = async (factoryId: number) => {
+    if (!factoryId) { setFactoryContactList([]); return; }
+    try {
+      const data = await fetch(`/api/factory-contacts?factoryId=${factoryId}`).then((r) => r.json());
+      setFactoryContactList(data);
+    } catch { setFactoryContactList([]); }
+  };
+
   const filtered = useMemo(() => {
     let r = pos;
     if (statusFilter) r = r.filter((p) => p.status === statusFilter);
@@ -175,9 +200,14 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
     if (po) {
       setEditingPO(po);
       setFFactory(po.factoryId);
+      if (po.factoryId) loadFactoryContacts(po.factoryId);
+      setFContactPerson(0);
       setFCustomer(po.customerId || 0);
       setFShipTo(po.shipToId || 0);
-      setFContactPerson(po.contactPerson || "");
+      setFOrderCategory(po.orderCategory || "Bulk");
+      setFPaymentMethod(po.paymentMethod || "");
+      setFPaymentDays(po.paymentDays ? String(po.paymentDays) : "");
+      setFPaymentRef(po.paymentReference || "");
       setFSoNo(po.soNo || "");
       setFCustomerPoNo(po.customerPoNo || "");
       setFQuoteNo(po.quoteNo || "");
@@ -207,7 +237,12 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       setFFactory(0);
       setFCustomer(0);
       setFShipTo(0);
-      setFContactPerson("");
+      setFOrderCategory("Bulk");
+      setFPaymentMethod("");
+      setFPaymentDays("");
+      setFPaymentRef("");
+      setFContactPerson(0);
+      setFactoryContactList([]);
       setFSoNo("");
       setFCustomerPoNo("");
       setFQuoteNo("");
@@ -259,7 +294,11 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           factoryId: fFactory,
           customerId: fCustomer || null,
           shipToId: fShipTo || null,
-          contactPerson: fContactPerson,
+          orderCategory: fOrderCategory,
+          paymentMethod: fPaymentMethod || null,
+          paymentDays: fPaymentDays ? parseInt(fPaymentDays) : null,
+          paymentReference: fPaymentRef || null,
+          contactPerson: fContactPerson ? (factoryContactList.find((c) => c.id === fContactPerson)?.contactName || null) : null,
           soNo: fSoNo,
           customerPoNo: fCustomerPoNo,
           quoteNo: fQuoteNo,
@@ -271,6 +310,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           status: fStatus,
           notes: fNotes,
           items: validItems,
+          userId: getUserId(),
         }),
       });
 
@@ -342,6 +382,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           <thead>
             <tr className="bg-slate-50 text-left text-slate-600">
               <th className="px-4 py-3 font-medium">PO No.</th>
+              <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 font-medium">Yarn Mill</th>
               <th className="px-4 py-3 font-medium">Customer PO</th>
               <th className="px-4 py-3 font-medium">SO Ref</th>
@@ -353,10 +394,17 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">No purchase orders</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No purchase orders</td></tr>
             ) : filtered.map((p) => (
               <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium">{p.poNo}</td>
+                <td className="px-4 py-3"><button onClick={() => setViewing(p)} className="font-medium text-blue-700 hover:underline">{p.poNo}</button></td>
+                <td className="px-4 py-3">
+                  {p.orderCategory && p.orderCategory !== "Bulk" ? (
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${p.orderCategory === "Sample" ? "bg-purple-100 text-purple-700" : p.orderCategory === "Free of Charge" ? "bg-amber-100 text-amber-700" : "bg-cyan-100 text-cyan-700"}`}>{p.orderCategory}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">Bulk</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-xs">{p.factoryName || "—"}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{p.customerPoNo || "—"}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{p.soNo || "—"}</td>
@@ -369,7 +417,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2 flex-wrap">
-                    <button onClick={() => setViewing(p)} className="text-slate-600 hover:text-slate-900 text-xs">View</button>
+                    
                     <a href={`/api/export/po?id=${p.id}`} className="text-slate-600 hover:text-slate-900 text-xs inline-flex items-center gap-1">
                       <IconDownload className="w-3 h-3" />Export
                     </a>
@@ -398,11 +446,18 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div><span className="text-slate-500 text-xs block">Yarn Mill</span><div className="font-medium">{viewing.factoryName || "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block">Customer</span><div className="font-medium">{viewing.customerName || "—"}</div></div>
-                <div><span className="text-slate-500 text-xs block">PO Date</span><div>{viewing.poDate}</div></div>
+                <div>
+                  <span className="text-slate-500 text-xs block">Ship-To</span>
+                  <div className="font-medium">{viewing.shipToName || "—"}</div>
+                  {viewing.shipToContactName && <div className="text-xs text-blue-600 mt-0.5">Attn: {viewing.shipToContactName}</div>}
+                </div>
                 <div><span className="text-slate-500 text-xs block">Status</span><span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[viewing.status] || ""}`}>{viewing.status}</span></div>
               </div>
 
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
+                <div>Category: <span className={`font-semibold ${{Sample:"text-purple-600","Free of Charge":"text-amber-600","Lab Dip":"text-cyan-600","Strike Off":"text-cyan-600"}[viewing.orderCategory||""] || "text-slate-700"}`}>{viewing.orderCategory || "Bulk"}</span></div>
+                {viewing.paymentMethod && <div>Payment: <span className="font-semibold text-emerald-700">{viewing.paymentMethod}{viewing.paymentDays ? ` ${viewing.paymentDays} Days` : ""}{viewing.paymentReference ? ` from ${viewing.paymentReference}` : ""}</span></div>}
+                <div>PO Date: <span className="font-medium text-slate-700">{viewing.poDate}</span></div>
                 {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
                 {viewing.soNo && <div>SO Ref: <span className="font-medium text-slate-700">{viewing.soNo}</span></div>}
                 {viewing.quoteNo && <div>Quote Ref: <span className="font-medium text-slate-700">{viewing.quoteNo}</span></div>}
@@ -468,6 +523,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                 </div>
               )}
 
+              <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} className="border-t border-slate-200 pt-3" />
               <div className="pt-2 flex gap-2">
                 <a href={`/api/export/po?id=${viewing.id}`} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 inline-flex items-center gap-1.5">
                   <IconDownload className="w-3.5 h-3.5" /> Export PO
@@ -496,73 +552,115 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
 
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Yarn Mill *</label>
-                  <select value={fFactory} onChange={(e) => setFFactory(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                    <option value={0}>Select...</option>
-                    {factoryList.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.factoryName} ({f.relationship === "My Factory" ? "Mine" : "Competitor"})
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Yarn Mill *</label>
+                    <select value={fFactory} onChange={(e) => { const v = Number(e.target.value); setFFactory(v); setFContactPerson(0); loadFactoryContacts(v); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value={0}>Select...</option>
+                      {factoryList.map((f) => (
+                        <option key={f.id} value={f.id}>{f.factoryName} ({f.relationship === "My Factory" ? "Mine" : "Competitor"})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Contact Person (at Yarn Mill)</label>
+                    <select value={fContactPerson} onChange={(e) => setFContactPerson(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" disabled={!fFactory}>
+                      <option value={0}>{fFactory ? (factoryContactList.length > 0 ? "— Select contact —" : "— No contacts —") : "Select yarn mill first"}</option>
+                      {factoryContactList.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.contactName}{c.position ? ` · ${c.position}` : ""}{c.email ? ` · ${c.email}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Customer</label>
+                    <select value={fCustomer} onChange={(e) => setFCustomer(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value={0}>None</option>
+                      {customerList.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Category</label>
+                    <select value={fOrderCategory} onChange={(e) => setFOrderCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value="Bulk">Bulk</option>
+                      <option value="Sample">Sample</option>
+                      <option value="Free of Charge">Free of Charge</option>
+                      <option value="Lab Dip">Lab Dip</option>
+                      <option value="Strike Off">Strike Off</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                    <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option>Draft</option>
+                      <option>Confirmed</option>
+                      <option>Shipped</option>
+                      <option>Received</option>
+                      <option>Closed</option>
+                      <option>Cancelled</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Customer</label>
-                  <select value={fCustomer} onChange={(e) => setFCustomer(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                    <option value={0}>None</option>
-                    {customerList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}{c.legitName ? ` — ${c.legitName}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Customer PO No.</label>
-                  <input type="text" value={fCustomerPoNo} onChange={(e) => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">SO Ref No.</label>
-                  <input type="text" value={fSoNo} onChange={(e) => setFSoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Ship-To</label>
-                  <select value={fShipTo} onChange={(e) => setFShipTo(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                    <option value={0}>— None —</option>
-                    {shipToList.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">PO Date *</label>
-                  <input type="date" value={fPoDate} onChange={(e) => setFPoDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Delivery Date</label>
-                  <input type="date" value={fDeliveryDate} onChange={(e) => setFDeliveryDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Incoterms</label>
-                  <input type="text" value={fIncoterms} onChange={(e) => setFIncoterms(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                  <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
-                    <option>Draft</option>
-                    <option>Confirmed</option>
-                    <option>Shipped</option>
-                    <option>Received</option>
-                    <option>Closed</option>
-                    <option>Cancelled</option>
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ship-To Destination</label>
+                    <select value={fShipTo} onChange={(e) => setFShipTo(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value={0}>— None —</option>
+                      {shipToList.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}{s.category ? ` (${s.category})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">PO Date *</label>
+                      <input type="date" value={fPoDate} onChange={(e) => setFPoDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Delivery Date</label>
+                      <input type="date" value={fDeliveryDate} onChange={(e) => setFDeliveryDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Customer PO No.</label>
+                      <input type="text" value={fCustomerPoNo} onChange={(e) => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">SO Ref No.</label>
+                      <input type="text" value={fSoNo} onChange={(e) => setFSoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Term (Us → Yarn Mill)</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select value={fPaymentMethod} onChange={(e) => setFPaymentMethod(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="">— None —</option>
+                        <option value="OA">OA</option>
+                        <option value="TT">TT</option>
+                        <option value="LC">LC</option>
+                        <option value="DP">DP</option>
+                        <option value="DA">DA</option>
+                        <option value="CAD">CAD</option>
+                        <option value="Advance">Advance</option>
+                      </select>
+                      <input type="number" value={fPaymentDays} onChange={(e) => setFPaymentDays(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Days" min="0" />
+                      <select value={fPaymentRef} onChange={(e) => setFPaymentRef(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="">From...</option>
+                        <option value="Invoice Date">Invoice Date</option>
+                        <option value="BL Date">BL Date</option>
+                        <option value="Shipment Date">Shipment</option>
+                        <option value="Delivery Date">Delivery</option>
+                        <option value="Before Shipment">Before Ship.</option>
+                        <option value="At Sight">At Sight</option>
+                      </select>
+                    </div>
+                    {fPaymentMethod && <div className="mt-1.5 px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-xs font-medium border border-emerald-200">{fPaymentMethod}{fPaymentDays ? ` ${fPaymentDays} Days` : ""}{fPaymentRef ? ` from ${fPaymentRef}` : ""}</div>}
+                  </div>
                 </div>
               </div>
 

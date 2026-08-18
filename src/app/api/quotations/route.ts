@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { quotations, customers, customerContacts, yarns, factories, treatments, spinningTypeOptions } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
+import { getUserMap } from "@/lib/auditHelpers";
 
 const recordDateDesc = sql`
   case
@@ -53,6 +54,8 @@ export async function GET(req: NextRequest) {
         status: quotations.status,
         notes: quotations.notes,
         createdAt: quotations.createdAt,
+        createdBy: quotations.createdBy,
+        updatedBy: quotations.updatedBy,
       })
       .from(quotations)
       .leftJoin(customers, eq(quotations.customerId, customers.id))
@@ -62,9 +65,16 @@ export async function GET(req: NextRequest) {
       .leftJoin(treatments, eq(yarns.treatmentId, treatments.id))
       .leftJoin(spinningTypeOptions, eq(yarns.spinningTypeId, spinningTypeOptions.id));
 
-    const result = quoteNo
+    const rawResult = quoteNo
       ? await query.where(eq(quotations.quoteNo, quoteNo)).orderBy(recordDateDesc, desc(quotations.createdAt))
       : await query.orderBy(recordDateDesc, desc(quotations.createdAt));
+
+    const userMap = await getUserMap();
+    const result = rawResult.map((r) => ({
+      ...r,
+      createdByName: r.createdBy ? userMap[r.createdBy] || null : null,
+      updatedByName: r.updatedBy ? userMap[r.updatedBy] || null : null,
+    }));
 
     return NextResponse.json(result);
   } catch (err) {
@@ -92,6 +102,7 @@ export async function POST(req: NextRequest) {
       incoterms,
       status,
       notes,
+      userId,
     } = body;
 
     if (!customerId || !yarnId || !costPrice || !quotedPrice || !quoteDate) {
@@ -114,6 +125,7 @@ export async function POST(req: NextRequest) {
         status: status || "Draft",
         notes: notes || null,
         updatedAt: new Date(),
+        updatedBy: userId || null,
       };
       if (quoteNo !== undefined) updateData.quoteNo = quoteNo || null;
 
@@ -137,6 +149,8 @@ export async function POST(req: NextRequest) {
       incoterms: incoterms || null,
       status: status || "Draft",
       notes: notes || null,
+      createdBy: userId || null,
+      updatedBy: userId || null,
     }).returning();
 
     return NextResponse.json({ success: true, id: q.id, quoteNo: finalQuoteNo });

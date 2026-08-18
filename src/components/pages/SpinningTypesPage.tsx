@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
 
 interface SpinningType { id: number; name: string; }
 interface Props { permissions: Permissions; }
@@ -34,7 +35,7 @@ export default function SpinningTypesPage({ permissions }: Props) {
     const res = await fetch("/api/spinning-types", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editing?.id, name: name.trim() }),
+      body: JSON.stringify({ id: editing?.id, name: name.trim(), userId: getUserId() }),
     });
     if (res.ok) {
       setToast({ type: "success", text: editing ? "Updated" : "Created" });

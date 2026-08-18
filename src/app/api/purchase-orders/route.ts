@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { purchaseOrders, poItems, factories, customers, yarns, treatments } from "@/db/schema";
+import { purchaseOrders, poItems, factories, customers, shipToAddresses, shipToContacts, yarns, treatments } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
+import { getUserMap } from "@/lib/auditHelpers";
 
 function createPoNo() {
   const d = new Date();
@@ -23,6 +24,13 @@ export async function GET() {
         customerPoNo: purchaseOrders.customerPoNo,
         quoteNo: purchaseOrders.quoteNo,
         shipToId: purchaseOrders.shipToId,
+        shipToName: shipToAddresses.name,
+        shipToContactId: purchaseOrders.shipToContactId,
+        shipToContactName: shipToContacts.contactName,
+        orderCategory: purchaseOrders.orderCategory,
+        paymentMethod: purchaseOrders.paymentMethod,
+        paymentDays: purchaseOrders.paymentDays,
+        paymentReference: purchaseOrders.paymentReference,
         currency: purchaseOrders.currency,
         unit: purchaseOrders.unit,
         poDate: purchaseOrders.poDate,
@@ -31,10 +39,14 @@ export async function GET() {
         status: purchaseOrders.status,
         notes: purchaseOrders.notes,
         createdAt: purchaseOrders.createdAt,
+        createdBy: purchaseOrders.createdBy,
+        updatedBy: purchaseOrders.updatedBy,
       })
       .from(purchaseOrders)
       .leftJoin(factories, eq(purchaseOrders.factoryId, factories.id))
       .leftJoin(customers, eq(purchaseOrders.customerId, customers.id))
+      .leftJoin(shipToAddresses, eq(purchaseOrders.shipToId, shipToAddresses.id))
+      .leftJoin(shipToContacts, eq(purchaseOrders.shipToContactId, shipToContacts.id))
       .orderBy(desc(purchaseOrders.createdAt));
 
     const allItems = await db
@@ -69,11 +81,14 @@ export async function GET() {
       }
     }
 
-    const result = orders.map((o) => ({
+    const userMap = await getUserMap();
+    const result = orders.map((o: Record<string, unknown>) => ({
       ...o,
-      items: itemMap[o.id] || [],
-      totalAmount: (itemMap[o.id] || []).reduce((sum, i) => sum + i.unitPrice, 0),
-      itemCount: (itemMap[o.id] || []).length,
+      items: itemMap[o.id as number] || [],
+      totalAmount: (itemMap[o.id as number] || []).reduce((sum: number, i: { unitPrice: number }) => sum + i.unitPrice, 0),
+      itemCount: (itemMap[o.id as number] || []).length,
+      createdByName: o.createdBy ? userMap[o.createdBy as number] || null : null,
+      updatedByName: o.updatedBy ? userMap[o.updatedBy as number] || null : null,
     }));
 
     return NextResponse.json(result);
@@ -92,6 +107,11 @@ export async function POST(req: NextRequest) {
       factoryId,
       customerId,
       shipToId,
+      shipToContactId,
+      orderCategory,
+      paymentMethod,
+      paymentDays,
+      paymentReference,
       contactPerson,
       soNo: linkedSoNo,
       customerPoNo,
@@ -104,6 +124,7 @@ export async function POST(req: NextRequest) {
       status,
       notes,
       items,
+      userId,
     } = body;
 
     if (!factoryId || !poDate) {
@@ -115,6 +136,11 @@ export async function POST(req: NextRequest) {
         factoryId,
         customerId: customerId || null,
         shipToId: shipToId || null,
+        shipToContactId: shipToContactId || null,
+        orderCategory: orderCategory || "Bulk",
+        paymentMethod: paymentMethod || null,
+        paymentDays: paymentDays || null,
+        paymentReference: paymentReference || null,
         contactPerson: contactPerson || null,
         soNo: linkedSoNo || null,
         customerPoNo: customerPoNo || null,
@@ -127,6 +153,7 @@ export async function POST(req: NextRequest) {
         status: status || "Draft",
         notes: notes || null,
         updatedAt: new Date(),
+        updatedBy: userId || null,
       }).where(eq(purchaseOrders.id, id));
 
       if (poNo) {
@@ -162,6 +189,11 @@ export async function POST(req: NextRequest) {
       factoryId,
       customerId: customerId || null,
       shipToId: shipToId || null,
+      shipToContactId: shipToContactId || null,
+      orderCategory: orderCategory || "Bulk",
+      paymentMethod: paymentMethod || null,
+      paymentDays: paymentDays || null,
+      paymentReference: paymentReference || null,
       contactPerson: contactPerson || null,
       soNo: linkedSoNo || null,
       customerPoNo: customerPoNo || null,
@@ -173,6 +205,8 @@ export async function POST(req: NextRequest) {
       incoterms: incoterms || null,
       status: status || "Draft",
       notes: notes || null,
+      createdBy: userId || null,
+      updatedBy: userId || null,
     }).returning();
 
     if (items?.length) {

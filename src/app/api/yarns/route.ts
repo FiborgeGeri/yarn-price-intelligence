@@ -12,6 +12,7 @@ import {
   prices,
 } from "@/db/schema";
 import { eq, inArray, desc } from "drizzle-orm";
+import { getUserMap } from "@/lib/auditHelpers";
 
 const yarnSelect = {
   id: yarns.id,
@@ -26,7 +27,9 @@ const yarnSelect = {
   notes: yarns.notes,
   isActive: yarns.isActive,
   createdAt: yarns.createdAt,
+  createdBy: yarns.createdBy,
   updatedAt: yarns.updatedAt,
+  updatedBy: yarns.updatedBy,
   factoryName: factories.factoryName,
   relationship: factories.relationship,
   treatmentName: treatments.name,
@@ -152,7 +155,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const data = result.map((y: { id: number }) => ({
+    const userMap = await getUserMap();
+    const data = result.map((y: { id: number; createdBy?: number | null; updatedBy?: number | null }) => ({
       ...y,
       certIds: certMap[y.id] || [],
       dyeMethodIds: dyeMap[y.id] || [],
@@ -164,6 +168,8 @@ export async function GET(req: NextRequest) {
       latestUnit: singlePriceMap[y.id]?.unit ?? null,
       latestPriceDate: singlePriceMap[y.id]?.recordDate ?? null,
       latestPrices: allTermPrices[y.id] || [],
+      createdByName: y.createdBy ? userMap[y.createdBy] || null : null,
+      updatedByName: y.updatedBy ? userMap[y.updatedBy] || null : null,
     }));
 
     return NextResponse.json(data);
@@ -189,6 +195,7 @@ export async function POST(req: NextRequest) {
       notes,
       certIds,
       dyeMethodIds,
+      userId,
     } = body;
 
     if (id) {
@@ -205,6 +212,7 @@ export async function POST(req: NextRequest) {
           composition,
           notes,
           updatedAt: new Date(),
+          updatedBy: userId || null,
         })
         .where(eq(yarns.id, id));
 
@@ -236,6 +244,8 @@ export async function POST(req: NextRequest) {
           treatmentId: treatmentId || null,
           composition,
           notes,
+          createdBy: userId || null,
+          updatedBy: userId || null,
         })
         .returning();
 

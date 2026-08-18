@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
+import AuditInfo from "@/components/AuditInfo";
 import { IconDownload } from "@/components/Icons";
 
 interface QuoteRow {
@@ -10,6 +12,7 @@ interface QuoteRow {
   factoryName: string; treatmentName: string;
   costPrice: number; quotedPrice: number; currency: string; unit: string;
   quoteDate: string; validUntil: string; incoterms: string; status: string; notes: string;
+  createdByName: string | null; updatedByName: string | null; createdAt: string; updatedAt: string;
 }
 interface Customer { id: number; name: string; company: string; }
 interface Contact { id: number; customerId: number; contactName: string; department: string; position: string; email: string; phone: string; }
@@ -21,6 +24,7 @@ interface QuoteGroup {
   contactName: string | null; contactEmail: string | null;
   quoteDate: string; validUntil: string; status: string;
   rows: QuoteRow[]; totalCost: number; totalQuoted: number; margin: number; marginPct: number;
+  createdByName: string | null; updatedByName: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = { Draft: "bg-slate-100 text-slate-700", Sent: "bg-blue-100 text-blue-800", Accepted: "bg-green-100 text-green-800", Rejected: "bg-red-100 text-red-800", Expired: "bg-amber-100 text-amber-800" };
@@ -177,7 +181,7 @@ export default function QuotationsPage({ permissions }: Props) {
 
   const groups = useMemo(() => {
     const map: Record<string, QuoteGroup> = {};
-    for (const r of rows) { const qn = r.quoteNo || `LEGACY-${r.id}`; if (!map[qn]) { map[qn] = { quoteNo: qn, customerId: r.customerId, contactId: r.contactId, customerName: r.customerName, customerCompany: r.customerCompany, contactName: r.contactName, contactEmail: r.contactEmail, quoteDate: r.quoteDate, validUntil: r.validUntil, status: r.status, rows: [], totalCost: 0, totalQuoted: 0, margin: 0, marginPct: 0 }; } map[qn].rows.push(r); map[qn].totalCost += r.costPrice; map[qn].totalQuoted += r.quotedPrice; }
+    for (const r of rows) { const qn = r.quoteNo || `LEGACY-${r.id}`; if (!map[qn]) { map[qn] = { quoteNo: qn, customerId: r.customerId, contactId: r.contactId, customerName: r.customerName, customerCompany: r.customerCompany, contactName: r.contactName, contactEmail: r.contactEmail, quoteDate: r.quoteDate, validUntil: r.validUntil, status: r.status, rows: [], totalCost: 0, totalQuoted: 0, margin: 0, marginPct: 0, createdByName: r.createdByName, updatedByName: r.updatedByName }; } map[qn].rows.push(r); map[qn].totalCost += r.costPrice; map[qn].totalQuoted += r.quotedPrice; }
     for (const g of Object.values(map)) { g.margin = g.totalQuoted - g.totalCost; g.marginPct = g.totalCost ? (g.margin / g.totalCost) * 100 : 0; }
     return Object.values(map).sort((a, b) => b.quoteDate.localeCompare(a.quoteDate) || b.quoteNo.localeCompare(a.quoteNo));
   }, [rows]);
@@ -222,7 +226,7 @@ export default function QuotationsPage({ permissions }: Props) {
     setShowMulti(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!fCustomer || !fYarn || !fCostPrice || !fQuotedPrice) return; setSaving(true); const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, quoteNo: editing?.quoteNo, customerId: fCustomer, contactId: fContact || null, yarnId: fYarn, costPrice: fCostPrice, quotedPrice: fQuotedPrice, currency: fCurrency, unit: fUnit, quoteDate: fQuoteDate, validUntil: fValidUntil, incoterms: fIncoterms, status: fStatus, notes: fNotes }) }); if (res.ok) { setToast({ type: "success", text: editing ? "Updated" : "Created" }); setShowForm(false); load(); } else { const d = await res.json().catch(() => ({ error: "Failed" })); setToast({ type: "error", text: d.error || "Failed" }); } setSaving(false); setTimeout(() => setToast(null), 3000); };
+  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!fCustomer || !fYarn || !fCostPrice || !fQuotedPrice) return; setSaving(true); const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, quoteNo: editing?.quoteNo, customerId: fCustomer, contactId: fContact || null, yarnId: fYarn, costPrice: fCostPrice, quotedPrice: fQuotedPrice, currency: fCurrency, unit: fUnit, quoteDate: fQuoteDate, validUntil: fValidUntil, incoterms: fIncoterms, status: fStatus, notes: fNotes, userId: getUserId() }) }); if (res.ok) { setToast({ type: "success", text: editing ? "Updated" : "Created" }); setShowForm(false); load(); } else { const d = await res.json().catch(() => ({ error: "Failed" })); setToast({ type: "error", text: d.error || "Failed" }); } setSaving(false); setTimeout(() => setToast(null), 3000); };
 
   const updateLine = (idx: number, field: keyof LineItem, value: string) => setMLines((p) => p.map((l, i) => i === idx ? { ...l, [field]: value } : l));
   const addLine = () => setMLines((p) => [...p, { yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", incoterms: "", notes: "" }]);
@@ -252,7 +256,7 @@ export default function QuotationsPage({ permissions }: Props) {
     try {
       if (editingGroup) { const origIds = editingGroup.rows.map((r) => r.id); const curIds = validLines.map((l) => l.id).filter(Boolean) as number[]; for (const id of origIds.filter((id) => !curIds.includes(id))) await fetch(`/api/quotations?id=${id}`, { method: "DELETE" }); }
       let processed = 0; let firstError = "";
-      for (const line of validLines) { const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: line.id, quoteNo, customerId: mCustomer, contactId: mContact || null, yarnId: line.yarnId, costPrice: line.costPrice, quotedPrice: line.quotedPrice, currency: line.currency, unit: line.unit, quoteDate: mQuoteDate, validUntil: mValidUntil, incoterms: line.incoterms, status: mStatus, notes: line.notes }) }); if (res.ok) processed++; else if (!firstError) { const d = await res.json().catch(() => ({ error: "Failed" })); firstError = d.error || "Failed"; } }
+      for (const line of validLines) { const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: line.id, quoteNo, customerId: mCustomer, contactId: mContact || null, yarnId: line.yarnId, costPrice: line.costPrice, quotedPrice: line.quotedPrice, currency: line.currency, unit: line.unit, quoteDate: mQuoteDate, validUntil: mValidUntil, incoterms: line.incoterms, status: mStatus, notes: line.notes, userId: getUserId() }) }); if (res.ok) processed++; else if (!firstError) { const d = await res.json().catch(() => ({ error: "Failed" })); firstError = d.error || "Failed"; } }
       if (processed === 0) { setToast({ type: "error", text: firstError || "Failed" }); } else { setToast({ type: "success", text: `${editingGroup ? "Updated" : "Created"} ${quoteNo} (${processed} items)` }); setShowMulti(false); setEditingGroup(null); setMLines([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", incoterms: "", notes: "" }]); load(); }
     } catch { setToast({ type: "error", text: "Failed to save" }); }
     setMSaving(false); setTimeout(() => setToast(null), 4000);
@@ -303,7 +307,10 @@ export default function QuotationsPage({ permissions }: Props) {
             <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Count</th><th className="px-4 py-3 font-medium">Micron</th><th className="px-4 py-3 font-medium">Composition</th><th className="px-4 py-3 font-medium">Treatment</th><th className="px-4 py-3 font-medium">Incoterms</th><th className="px-4 py-3 font-medium text-right">Cost</th><th className="px-4 py-3 font-medium text-right">Quoted</th><th className="px-4 py-3 font-medium text-right">Margin</th><th className="px-4 py-3 font-medium">Notes</th></tr></thead><tbody>
               {viewing.rows.map((r) => { const m = r.quotedPrice - r.costPrice; const mp = r.costPrice ? (m / r.costPrice) * 100 : 0; return (<tr key={r.id} className="border-t border-slate-200"><td className="px-4 py-3"><div className="font-medium">{r.yarnName}</div><div className="text-xs text-slate-400">{r.factoryName}</div></td><td className="px-4 py-3">{r.yarnCount || "—"}</td><td className="px-4 py-3">{r.micron ? r.micron + "μm" : "—"}</td><td className="px-4 py-3">{r.composition || "—"}</td><td className="px-4 py-3">{r.treatmentName || "Untreated"}</td><td className="px-4 py-3"><span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-medium border border-blue-200">{r.incoterms || "—"}</span></td><td className="px-4 py-3 text-right font-mono text-slate-500">{r.currency} {r.costPrice.toFixed(2)}<span className="text-slate-400 text-[10px]">/{(r.unit || "per KG").replace("per ", "")}</span></td><td className="px-4 py-3 text-right font-mono font-medium">{r.currency} {r.quotedPrice.toFixed(2)}<span className="text-slate-400 text-[10px]">/{(r.unit || "per KG").replace("per ", "")}</span></td><td className={`px-4 py-3 text-right font-mono text-xs font-medium ${m > 0 ? "text-green-600" : "text-red-500"}`}>{m > 0 ? "+" : ""}{m.toFixed(2)} ({mp.toFixed(1)}%)</td><td className="px-4 py-3 text-xs text-slate-500 max-w-[220px] whitespace-pre-line">{r.notes || "—"}</td></tr>); })}
             </tbody></table></div>
-            <div className="pt-2 flex gap-2"><a href={`/api/export/quotation?quoteNo=${encodeURIComponent(viewing.quoteNo)}`} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 inline-flex items-center gap-1.5"><IconDownload className="w-3.5 h-3.5" /> Export</a>{permissions.canEdit && <button onClick={() => { setViewing(null); openMultiForm(viewing); }} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Edit</button>}</div>
+            <div className="pt-2 flex items-center justify-between">
+              <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} />
+              <div className="flex gap-2"><a href={`/api/export/quotation?quoteNo=${encodeURIComponent(viewing.quoteNo)}`} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 inline-flex items-center gap-1.5"><IconDownload className="w-3.5 h-3.5" /> Export</a>{permissions.canEdit && <button onClick={() => { setViewing(null); openMultiForm(viewing); }} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Edit</button>}</div>
+            </div>
           </div>
         </div></div>
       )}

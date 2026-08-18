@@ -118,6 +118,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
         </table>
       </div>
 
+      {/* Detail */}
       {viewing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewing(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -133,6 +134,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
                 {viewing.poNo && <div>PO Ref: <span className="font-medium text-slate-700">{viewing.poNo}</span></div>}
                 {viewing.shippingMethod && <div>Shipping: <span className="font-medium text-slate-700">{viewing.shippingMethod}</span></div>}
                 {viewing.trackingNo && <div>AWB / Tracking: <span className="font-medium text-slate-700">{viewing.trackingNo}</span></div>}
+                {viewing.totalPackages && <div>Packages: <span className="font-medium text-slate-700">{viewing.totalPackages}</span></div>}
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto">
                 <table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Color</th><th className="px-4 py-3 font-medium">PO Qty</th><th className="px-4 py-3 font-medium">Invoice Qty</th><th className="px-4 py-3 font-medium">Total Pkgs</th><th className="px-4 py-3 font-medium">Gross Wt</th><th className="px-4 py-3 font-medium">Net Wt</th><th className="px-4 py-3 font-medium">Lot No.</th></tr></thead>
@@ -154,6 +156,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
         </div>
       )}
 
+      {/* Form */}
       {showForm && permissions.canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>

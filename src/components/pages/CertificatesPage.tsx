@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
 import { IconSearch } from "@/components/Icons";
 
 interface CertYarn { yarnId: number; yarnName: string; factoryName: string; yarnCount: string; composition: string; }
@@ -46,7 +47,7 @@ export default function CertificatesPage({ permissions }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!code) return; setSaving(true);
-    const res = await fetch("/api/certificates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, certCode: code, certFullName: fullName, category, issuingBody, description }) });
+    const res = await fetch("/api/certificates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, certCode: code, certFullName: fullName, category, issuingBody, description, userId: getUserId() }) });
     if (res.ok) { setToast({ type: "success", text: editing ? "Updated" : "Created" }); setShowForm(false); loadData(); }
     setSaving(false); setTimeout(() => setToast(null), 3000);
   };

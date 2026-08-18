@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { salesOrders, soItems, purchaseOrders, poItems, customers, customerContacts, shipToAddresses, yarns, factories, prices } from "@/db/schema";
+import { salesOrders, soItems, purchaseOrders, poItems, customers, customerContacts, shipToAddresses, shipToContacts, yarns, factories, prices } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { getUserMap } from "@/lib/auditHelpers";
 
 function createSoNo() {
   const d = new Date();
@@ -25,6 +26,12 @@ export async function GET() {
         customerName: customers.name,
         contactName: customerContacts.contactName,
         shipToName: shipToAddresses.name,
+        shipToContactId: salesOrders.shipToContactId,
+        shipToContactName: shipToContacts.contactName,
+        orderCategory: salesOrders.orderCategory,
+        paymentMethod: salesOrders.paymentMethod,
+        paymentDays: salesOrders.paymentDays,
+        paymentReference: salesOrders.paymentReference,
         customerPoNo: salesOrders.customerPoNo,
         quoteNo: salesOrders.quoteNo,
         soDate: salesOrders.soDate,
@@ -32,11 +39,14 @@ export async function GET() {
         status: salesOrders.status,
         notes: salesOrders.notes,
         createdAt: salesOrders.createdAt,
+        createdBy: salesOrders.createdBy,
+        updatedBy: salesOrders.updatedBy,
       })
       .from(salesOrders)
       .leftJoin(customers, eq(salesOrders.customerId, customers.id))
       .leftJoin(customerContacts, eq(salesOrders.contactId, customerContacts.id))
       .leftJoin(shipToAddresses, eq(salesOrders.shipToId, shipToAddresses.id))
+      .leftJoin(shipToContacts, eq(salesOrders.shipToContactId, shipToContacts.id))
       .orderBy(desc(salesOrders.soDate), desc(salesOrders.createdAt));
 
     const allItems = await db
@@ -71,9 +81,12 @@ export async function GET() {
       }
     }
 
+    const userMap = await getUserMap();
     const result = orders.map((o) => ({
       ...o,
       items: itemMap[o.id] || [],
+      createdByName: o.createdBy ? userMap[o.createdBy] || null : null,
+      updatedByName: o.updatedBy ? userMap[o.updatedBy] || null : null,
     }));
 
     return NextResponse.json(result);
@@ -86,7 +99,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, customerId, contactId, shipToId, customerPoNo, quoteNo, soDate, deliveryDate, status, notes, items, autoCreatePO } = body;
+    const { id, customerId, contactId, shipToId, shipToContactId, orderCategory, paymentMethod, paymentDays, paymentReference, customerPoNo, quoteNo, soDate, deliveryDate, status, notes, items, autoCreatePO, userId } = body;
 
     if (!customerId || !soDate) {
       return NextResponse.json({ error: "Customer and date are required" }, { status: 400 });
@@ -97,6 +110,11 @@ export async function POST(req: NextRequest) {
         customerId,
         contactId: contactId || null,
         shipToId: shipToId || null,
+        shipToContactId: shipToContactId || null,
+        orderCategory: orderCategory || "Bulk",
+        paymentMethod: paymentMethod || null,
+        paymentDays: paymentDays || null,
+        paymentReference: paymentReference || null,
         customerPoNo: customerPoNo || null,
         quoteNo: quoteNo || null,
         soDate,
@@ -104,6 +122,7 @@ export async function POST(req: NextRequest) {
         status: status || "Confirmed",
         notes: notes || null,
         updatedAt: new Date(),
+        updatedBy: userId || null,
       }).where(eq(salesOrders.id, id));
 
       await db.delete(soItems).where(eq(soItems.soId, id));
@@ -131,12 +150,19 @@ export async function POST(req: NextRequest) {
         customerId,
         contactId: contactId || null,
         shipToId: shipToId || null,
+        shipToContactId: shipToContactId || null,
+        orderCategory: orderCategory || "Bulk",
+        paymentMethod: paymentMethod || null,
+        paymentDays: paymentDays || null,
+        paymentReference: paymentReference || null,
         customerPoNo: customerPoNo || null,
         quoteNo: quoteNo || null,
         soDate,
         deliveryDate: deliveryDate || null,
         status: status || "Confirmed",
         notes: notes || null,
+        createdBy: userId || null,
+        updatedBy: userId || null,
       }).returning();
 
       if (items?.length && so) {
@@ -182,6 +208,8 @@ export async function POST(req: NextRequest) {
             factoryId: parseInt(factoryId),
             customerId,
             shipToId: shipToId || null,
+            shipToContactId: shipToContactId || null,
+            orderCategory: orderCategory || "Bulk",
             contactPerson: null,
             soNo,
             customerPoNo: customerPoNo || null,

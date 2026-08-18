@@ -184,6 +184,7 @@ export const customerContacts = pgTable("customer_contacts", {
   updatedBy: integer("updated_by"),
 });
 
+// Ship-To Addresses - Independent entity
 export const shipToAddresses = pgTable("ship_to_addresses", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 300 }).notNull(),
@@ -200,6 +201,7 @@ export const shipToAddresses = pgTable("ship_to_addresses", {
   updatedBy: integer("updated_by"),
 });
 
+// Ship-To Contacts - separate contacts for ship-to addresses
 export const shipToContacts = pgTable("ship_to_contacts", {
   id: serial("id").primaryKey(),
   shipToId: integer("ship_to_id").references(() => shipToAddresses.id, { onDelete: "cascade" }),
@@ -319,6 +321,7 @@ export const quotations = pgTable("quotations", {
   updatedBy: integer("updated_by"),
 });
 
+// Delivery Notes - created from Sales Orders (outbound to customer)
 export const deliveryNotes = pgTable("delivery_notes", {
   id: serial("id").primaryKey(),
   dnNo: varchar("dn_no", { length: 50 }),
@@ -359,6 +362,7 @@ export const dnItems = pgTable("dn_items", {
   notes: text("notes"),
 });
 
+// Goods Receipts - created from Purchase Orders (inbound from yarn mill)
 export const goodsReceipts = pgTable("goods_receipts", {
   id: serial("id").primaryKey(),
   grNo: varchar("gr_no", { length: 50 }),

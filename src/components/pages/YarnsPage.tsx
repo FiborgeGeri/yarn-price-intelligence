@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
+import AuditInfo from "@/components/AuditInfo";
 import { IconTrash, IconUpload } from "@/components/Icons";
 
 const ANIMAL_FIBERS = ["wool", "merino", "cashmere", "mohair", "alpaca", "angora", "camel", "yak", "silk", "vicuña", "vicuna", "llama", "qiviut", "pashmina", "shahtoosh", "guanaco", "bison", "musk ox"];
@@ -16,11 +18,12 @@ function formatFiberLabel(fiber: string): string { return fiber.charAt(0).toUppe
 interface Yarn {
   id: number; yarnName: string; factoryId: number; yarnCount: string;
   yarnTypeId: number; yarnTypeName: string;
-  micron: string; treatmentId: number; origin: string; composition: string;
-  color: string; notes: string; factoryName: string; relationship: string;
+  micron: string; treatmentId: number; composition: string;
+  notes: string; factoryName: string; relationship: string;
   treatmentName: string; certIds: number[]; dyeMethodIds: number[]; dyeMethodNames: string[];
   latestPrice: number | null; latestCurrency: string | null;
   latestUnit: string | null; latestPriceDate: string | null;
+  createdByName: string; updatedByName: string; createdAt: string; updatedAt: string;
 }
 interface Factory { id: number; factoryName: string; relationship: string; }
 interface Treatment { id: number; name: string; }
@@ -160,6 +163,7 @@ export default function YarnsPage({ permissions }: Props) {
           micron: formMicron, treatmentId: formTreatment || null,
           composition: formComposition, notes: formNotes, certIds: formCerts,
           dyeMethodIds: formDyeMethods,
+          userId: getUserId(),
         }),
       });
       if (res.ok) { setToast({ type: "success", text: editing ? "Yarn updated" : "Yarn created" }); setShowForm(false); loadData(); }
@@ -247,12 +251,11 @@ export default function YarnsPage({ permissions }: Props) {
             <th className="px-4 py-3 font-medium">Type</th>
             <th className="px-4 py-3 font-medium">Dye Method</th>
             <th className="px-4 py-3 font-medium">Treatment</th>
-            <th className="px-4 py-3 font-medium text-right">Latest Price</th>
             {(permissions.canEdit || permissions.canDelete) && <th className="px-4 py-3 font-medium w-28">Actions</th>}
           </tr></thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={12} className="px-4 py-8 text-center text-slate-400">No yarns found</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">No yarns found</td></tr>
             ) : filtered.map((y) => (
               <tr key={y.id} className={`border-t border-slate-100 hover:bg-slate-50 ${selected.has(y.id) ? "bg-blue-50/50" : ""}`}>
                 {permissions.canDelete && <td className="px-4 py-3"><input type="checkbox" checked={selected.has(y.id)} onChange={() => toggleSelect(y.id)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></td>}
@@ -269,9 +272,6 @@ export default function YarnsPage({ permissions }: Props) {
                 <td className="px-4 py-3 text-slate-600 text-xs">{y.yarnTypeName || "—"}</td>
                 <td className="px-4 py-3 text-xs">{y.dyeMethodNames?.length ? y.dyeMethodNames.join(", ") : "—"}</td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{y.treatmentName || "—"}</td>
-                <td className="px-4 py-3 text-right font-mono text-xs">
-                  {y.latestPrice != null ? <span className="font-medium">{y.latestCurrency || "USD"} {y.latestPrice.toFixed(2)}<span className="text-slate-400 font-normal">/{(y.latestUnit || "per KG").replace("per ", "")}</span></span> : <span className="text-slate-400">—</span>}
-                </td>
                 {(permissions.canEdit || permissions.canDelete) && (
                   <td className="px-4 py-3"><div className="flex gap-1">
                     {permissions.canEdit && <button onClick={() => openForm(y)} className="text-blue-600 hover:text-blue-800 text-xs px-1">Edit</button>}
@@ -313,6 +313,7 @@ export default function YarnsPage({ permissions }: Props) {
                 <div className="border-t border-slate-200 pt-4"><span className="text-slate-500 text-xs block mb-1">Certificates</span><div className="flex flex-wrap gap-1.5">{certs.filter((c) => viewing.certIds.includes(c.id)).map((c) => <span key={c.id} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">{c.certCode}</span>)}</div></div>
               )}
               {viewing.notes && <div className="border-t border-slate-200 pt-4"><span className="text-slate-500 text-xs block mb-0.5">Notes</span><p className="text-sm text-slate-700 whitespace-pre-line">{viewing.notes}</p></div>}
+              <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} createdAt={viewing.createdAt} updatedAt={viewing.updatedAt} className="border-t border-slate-200 pt-3" />
             </div>
             <div className="p-4 border-t border-slate-200 flex gap-2 justify-end">
               {permissions.canEdit && <button onClick={() => { setViewing(null); openForm(viewing); }} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Edit</button>}

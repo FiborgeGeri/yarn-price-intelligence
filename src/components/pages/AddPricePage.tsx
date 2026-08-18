@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
 
 interface Yarn {
   id: number;
@@ -331,7 +332,7 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
       const res = await fetch("/api/prices/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ rows, userId: getUserId() }),
       });
 
       if (res.ok) {
@@ -398,7 +399,7 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/prices/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
+      const res = await fetch("/api/prices/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows, userId: getUserId() }) });
       if (res.ok) {
         const d = await res.json();
         setBulkResult({ count: d.inserted });

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Permissions } from "@/lib/permissions";
+import { getUserId } from "@/lib/getUserId";
 
 interface Treatment {
   id: number; name: string; yarnCount: number;
@@ -41,7 +42,7 @@ export default function TreatmentsPage({ permissions }: Props) {
     const res = await fetch("/api/treatments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editing?.id, name }),
+      body: JSON.stringify({ id: editing?.id, name, userId: getUserId() }),
     });
     if (res.ok) {
       setToast({ type: "success", text: editing ? "Updated" : "Created" });
