@@ -21,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   // Products
   { key: "yarns", label: "All Yarns", icon: <IconYarn className="w-[18px] h-[18px]" />, section: "Products" },
   { key: "yarn-types", label: "Yarn Types", icon: <IconYarn className="w-[18px] h-[18px]" />, indent: true },
+  { key: "spinning-types", label: "Spinning Types", icon: <IconYarn className="w-[18px] h-[18px]" />, indent: true },
   { key: "dye-methods", label: "Dye Methods", icon: <IconFlask className="w-[18px] h-[18px]" />, indent: true },
   { key: "treatments", label: "Treatments", icon: <IconFlask className="w-[18px] h-[18px]" />, indent: true },
   { key: "certificates", label: "Certificates", icon: <IconCertificate className="w-[18px] h-[18px]" />, indent: true },

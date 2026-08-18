@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { goodsReceipts, grItems, factories, yarns, shipToAddresses, shipToContacts, deliveryNotes, dnItems } from "@/db/schema";
+import { goodsReceipts, grItems, factories, yarns, shipToAddresses, shipToContacts, deliveryNotes, dnItems, purchaseOrders, salesOrders } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
@@ -94,6 +94,37 @@ export async function POST(req: NextRequest) {
         status: status || "Shipped from Mill",
         notes: notes || null, updatedAt: new Date(), updatedBy: userId || null,
       }).where(eq(goodsReceipts.id, id));
+
+      // Auto-sync DN, PO, SO status when GR status changes
+      if (status) {
+        const grRecord = await db.select({ poNo: goodsReceipts.poNo }).from(goodsReceipts).where(eq(goodsReceipts.id, id));
+        const grPoNo = grRecord[0]?.poNo;
+        // Sync DN status
+        const dnStatusMap: Record<string, string> = {
+          "Shipped from Mill": "Packed", "In Transit": "Shipped", "Arrived at Port": "Shipped",
+          "Customs Clearance": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
+        };
+        if (dnStatusMap[status]) {
+          await db.update(deliveryNotes).set({ status: dnStatusMap[status], updatedAt: new Date() }).where(eq(deliveryNotes.notes, `Auto-created from ${grRecord[0]?.poNo ? "" : ""}GR-${id}`));
+        }
+        // Sync PO and SO status
+        if (grPoNo) {
+          const poStatusMap: Record<string, string> = {
+            "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Received", "Completed": "Closed",
+          };
+          const soStatusMap: Record<string, string> = {
+            "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
+          };
+          if (poStatusMap[status]) {
+            await db.update(purchaseOrders).set({ status: poStatusMap[status], updatedAt: new Date() }).where(eq(purchaseOrders.poNo, grPoNo));
+          }
+          // Find SO via PO
+          const po = await db.select({ soNo: purchaseOrders.soNo }).from(purchaseOrders).where(eq(purchaseOrders.poNo, grPoNo));
+          if (po[0]?.soNo && soStatusMap[status]) {
+            await db.update(salesOrders).set({ status: soStatusMap[status], updatedAt: new Date() }).where(eq(salesOrders.soNo, po[0].soNo));
+          }
+        }
+      }
 
       await db.delete(grItems).where(eq(grItems.grId, id));
       if (items?.length) {

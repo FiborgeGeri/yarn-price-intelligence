@@ -125,6 +125,25 @@ export async function POST(req: NextRequest) {
         updatedBy: userId || null,
       }).where(eq(salesOrders.id, id));
 
+      // Auto-sync PO status when SO status changes
+      if (status) {
+        const soRecord = await db.select({ soNo: salesOrders.soNo }).from(salesOrders).where(eq(salesOrders.id, id));
+        const soNo = soRecord[0]?.soNo;
+        if (soNo) {
+          const statusMap: Record<string, string> = {
+            "Confirmed": "Confirmed",
+            "In Production": "Confirmed",
+            "Shipped": "Shipped",
+            "Delivered": "Received",
+            "Cancelled": "Cancelled",
+          };
+          const poStatus = statusMap[status];
+          if (poStatus) {
+            await db.update(purchaseOrders).set({ status: poStatus, updatedAt: new Date() }).where(eq(purchaseOrders.soNo, soNo));
+          }
+        }
+      }
+
       await db.delete(soItems).where(eq(soItems.soId, id));
       if (items?.length) {
         await db.insert(soItems).values(items.map((item: any) => ({

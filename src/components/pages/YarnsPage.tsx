@@ -18,6 +18,7 @@ function formatFiberLabel(fiber: string): string { return fiber.charAt(0).toUppe
 interface Yarn {
   id: number; yarnName: string; factoryId: number; yarnCount: string;
   yarnTypeId: number; yarnTypeName: string;
+  spinningTypeId: number; spinningTypeName: string;
   micron: string; treatmentId: number; composition: string;
   notes: string; factoryName: string; relationship: string;
   treatmentName: string; certIds: number[]; dyeMethodIds: number[]; dyeMethodNames: string[];
@@ -29,6 +30,7 @@ interface Factory { id: number; factoryName: string; relationship: string; }
 interface Treatment { id: number; name: string; }
 interface Certificate { id: number; certCode: string; certFullName: string; category: string; }
 interface YarnTypeOpt { id: number; name: string; }
+interface SpinningTypeOpt { id: number; name: string; }
 interface DyeMethodOpt { id: number; name: string; }
 interface Props { permissions: Permissions; }
 
@@ -38,6 +40,7 @@ export default function YarnsPage({ permissions }: Props) {
   const [treatmentsList, setTreatments] = useState<Treatment[]>([]);
   const [certs, setCerts] = useState<Certificate[]>([]);
   const [yarnTypeOpts, setYarnTypeOpts] = useState<YarnTypeOpt[]>([]);
+  const [spinningTypeOpts, setSpinningTypeOpts] = useState<SpinningTypeOpt[]>([]);
   const [dyeMethodOpts, setDyeMethodOpts] = useState<DyeMethodOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -54,6 +57,7 @@ export default function YarnsPage({ permissions }: Props) {
   const [formFactory, setFormFactory] = useState<number>(0);
   const [formCount, setFormCount] = useState("");
   const [formYarnType, setFormYarnType] = useState<number>(0);
+  const [formSpinningType, setFormSpinningType] = useState<number>(0);
   const [formDyeMethods, setFormDyeMethods] = useState<number[]>([]);
   const [formMicron, setFormMicron] = useState("");
   const [formTreatment, setFormTreatment] = useState<number>(0);
@@ -69,15 +73,16 @@ export default function YarnsPage({ permissions }: Props) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [y, f, t, c, yt, dm] = await Promise.all([
+      const [y, f, t, c, yt, st, dm] = await Promise.all([
         fetch("/api/yarns").then((r) => r.json()),
         fetch("/api/factories").then((r) => r.json()),
         fetch("/api/treatments").then((r) => r.json()),
         fetch("/api/certificates").then((r) => r.json()),
         fetch("/api/yarn-types").then((r) => r.json()),
+        fetch("/api/spinning-types").then((r) => r.json()),
         fetch("/api/dye-methods").then((r) => r.json()),
       ]);
-      setYarns(y); setFactories(f); setTreatments(t); setCerts(c); setYarnTypeOpts(yt); setDyeMethodOpts(dm);
+      setYarns(y); setFactories(f); setTreatments(t); setCerts(c); setYarnTypeOpts(yt); setSpinningTypeOpts(st); setDyeMethodOpts(dm);
     } catch {}
     setLoading(false); setSelected(new Set());
   };
@@ -128,12 +133,14 @@ export default function YarnsPage({ permissions }: Props) {
     if (yarn) {
       setEditing(yarn); setFormName(yarn.yarnName); setFormFactory(yarn.factoryId);
       setFormCount(yarn.yarnCount || ""); setFormYarnType(yarn.yarnTypeId || 0);
+      setFormSpinningType(yarn.spinningTypeId || 0);
       setFormDyeMethods(yarn.dyeMethodIds || []);
       setFormMicron(yarn.micron || "");
       setFormTreatment(yarn.treatmentId || 0); setFormComposition(yarn.composition || "");
       setFormNotes(yarn.notes || ""); setFormCerts(yarn.certIds || []);
     } else {
       setEditing(null); setFormName(""); setFormFactory(0); setFormCount(""); setFormYarnType(0);
+      setFormSpinningType(0);
       setFormDyeMethods([]); setFormMicron("");
       setFormTreatment(0); setFormComposition(""); setFormNotes(""); setFormCerts([]);
     }
@@ -143,6 +150,7 @@ export default function YarnsPage({ permissions }: Props) {
   const duplicateYarn = (yarn: Yarn) => {
     setEditing(null); setFormName(yarn.yarnName); setFormFactory(yarn.factoryId);
     setFormCount(yarn.yarnCount || ""); setFormYarnType(yarn.yarnTypeId || 0);
+    setFormSpinningType(yarn.spinningTypeId || 0);
     setFormDyeMethods(yarn.dyeMethodIds || []);
     setFormMicron(yarn.micron || "");
     setFormTreatment(yarn.treatmentId || 0); setFormComposition(yarn.composition || "");
@@ -153,6 +161,18 @@ export default function YarnsPage({ permissions }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formFactory) { setToast({ type: "error", text: "Name and yarn mill are required" }); return; }
+    // Composition percentage validation
+    if (formComposition.trim()) {
+      const pcts = formComposition.match(/(\d+(?:\.\d+)?)\s*%/g);
+      if (pcts) {
+        const total = pcts.reduce((sum, p) => sum + parseFloat(p), 0);
+        if (Math.abs(total - 100) > 0.5) {
+          setToast({ type: "error", text: `Composition totals ${total.toFixed(1)}% — must equal 100%` });
+          setTimeout(() => setToast(null), 5000);
+          return;
+        }
+      }
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/yarns", {
@@ -160,6 +180,7 @@ export default function YarnsPage({ permissions }: Props) {
         body: JSON.stringify({
           id: editing?.id, yarnName: formName, factoryId: formFactory,
           yarnCount: formCount, yarnTypeId: formYarnType || null,
+          spinningTypeId: formSpinningType || null,
           micron: formMicron, treatmentId: formTreatment || null,
           composition: formComposition, notes: formNotes, certIds: formCerts,
           dyeMethodIds: formDyeMethods,
@@ -303,6 +324,7 @@ export default function YarnsPage({ permissions }: Props) {
                 <div><span className="text-slate-500 text-xs block mb-0.5">Micron</span><div className="font-medium">{viewing.micron ? `${viewing.micron}μm` : "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Treatment</span><div className="font-medium">{viewing.treatmentName || "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Yarn Type</span><div className="font-medium">{viewing.yarnTypeName || "—"}</div></div>
+                <div><span className="text-slate-500 text-xs block mb-0.5">Spinning Type</span><div className="font-medium">{viewing.spinningTypeName || "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Dye Method</span><div className="font-medium">{viewing.dyeMethodNames?.length ? viewing.dyeMethodNames.join(", ") : "—"}</div></div>
 
               </div>
@@ -340,11 +362,16 @@ export default function YarnsPage({ permissions }: Props) {
                   {factories.map((f) => <option key={f.id} value={f.id}>{f.factoryName} ({f.relationship === "My Factory" ? "Mine" : "Competitor"})</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Yarn Count</label><input type="text" value={formCount} onChange={(e) => setFormCount(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="NM 48/2" /></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Yarn Type</label>
                   <select value={formYarnType} onChange={(e) => setFormYarnType(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
                     <option value={0}>—</option>{yarnTypeOpts.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Spinning Type</label>
+                  <select value={formSpinningType} onChange={(e) => setFormSpinningType(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    <option value={0}>—</option>{spinningTypeOpts.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -352,7 +379,7 @@ export default function YarnsPage({ permissions }: Props) {
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Treatment</label>
                   <select value={formTreatment} onChange={(e) => setFormTreatment(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>None</option>{treatmentsList.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
                 </div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Composition</label><input type="text" value={formComposition} onChange={(e) => setFormComposition(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. 100% Wool" /></div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Composition</label><input type="text" value={formComposition} onChange={(e) => setFormComposition(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. 50% Wool / 50% Nylon" /></div>
               </div>
 
               {/* Smart Micron */}
@@ -405,8 +432,13 @@ export default function YarnsPage({ permissions }: Props) {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between"><h2 className="text-lg font-semibold">Bulk Import Yarns</h2><button onClick={() => setShowBulk(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button></div>
             <div className="p-4 space-y-4">
-              <p className="text-sm text-slate-600">Paste tab-separated data. Columns: <strong>Yarn Name, Yarn Mill, Yarn Count, Micron, Treatment, Composition, Notes</strong></p>
-              <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} className="w-full h-56 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={"Yarn Name\tYarn Mill\tYarn Count\tMicron\tTreatment\tComposition\tNotes"} />
+              <p className="text-sm text-slate-600">Paste tab-separated data from Excel. Columns:</p>
+              <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono">Yarn Name | Yarn Mill | Yarn Count | Micron | Treatment | Composition | Notes</div>
+              <div className="flex gap-2 items-center">
+                <a href="/api/export/template?type=yarns" className="text-xs text-blue-600 hover:underline">↓ Download Excel template</a>
+                <span className="text-xs text-slate-400">Copy from Excel and paste below</span>
+              </div>
+              <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} className="w-full h-56 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={"SIMPHONIE\tIndorama\tNM 48/2\t19.5\tUntreated\t100% Wool\tSample yarn\nBRISBANE\tIndorama\tNM 60/2\t20.5\tAnti-Shrinkage\t100% Wool\t"} />
               <div className="flex gap-3">
                 <button onClick={handleBulkImport} disabled={bulkSaving || !bulkText.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">{bulkSaving ? "Importing..." : "Import Yarns"}</button>
                 <button onClick={() => setShowBulk(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors">Cancel</button>
