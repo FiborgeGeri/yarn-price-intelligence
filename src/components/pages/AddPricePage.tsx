@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
+import { calculateMoistureRegain } from "@/lib/moistureRegain";
 
 interface Yarn {
   id: number;
@@ -9,6 +10,8 @@ interface Yarn {
   factoryId: number;
   yarnCount: string;
   micron: string;
+  composition: string;
+  spinningTypeName: string;
   factoryName: string;
   relationship: string;
   treatmentName: string;
@@ -23,6 +26,7 @@ interface PriceLine {
   price: string;
   currency: string;
   unit: string;
+  weightBasis: string;
   incoterms: string;
   remarks: string;
 }
@@ -276,7 +280,7 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
   const [yarnId, setYarnId] = useState<number | null>(null);
   const [recordDate, setRecordDate] = useState(new Date().toISOString().split("T")[0]);
   const [lines, setLines] = useState<PriceLine[]>([
-    { price: "", currency: "USD", unit: "per KG", incoterms: "", remarks: "" },
+    { price: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", remarks: "" },
   ]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -324,6 +328,7 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
         price: l.price,
         currency: l.currency || "USD",
         unit: l.unit || "per KG",
+        weightBasis: l.weightBasis || "condition",
         recordDate,
         incoterms: l.incoterms || "",
         remarks: l.remarks || "",
@@ -339,7 +344,7 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
         const d = await res.json();
         setSingleSuccess(true);
         setToast({ type: "success", text: `${d.inserted} price line(s) saved successfully!` });
-        setLines([{ price: "", currency: "USD", unit: "per KG", incoterms: "", remarks: "" }]);
+        setLines([{ price: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", remarks: "" }]);
       } else {
         const d = await res.json();
         setToast({ type: "error", text: d.error || "Failed to save" });
@@ -481,7 +486,7 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setLines((prev) => [...prev, { price: "", currency: currencyOptions[0], unit: unitOptions[0], incoterms: "", remarks: "" }])}
+                  onClick={() => setLines((prev) => [...prev, { price: "", currency: currencyOptions[0], unit: unitOptions[0], weightBasis: "condition", incoterms: "", remarks: "" }])}
                   className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300"
                 >
                   + Add Line
@@ -506,7 +511,19 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Price *</label><input type="number" step="0.01" value={line.price} onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, price: e.target.value } : l))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="27.85" /></div>
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Currency</label><select value={line.currency} onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, currency: e.target.value } : l))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{currencyOptions.map((c) => <option key={c}>{c}</option>)}</select></div>
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Unit</label><select value={line.unit} onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, unit: e.target.value } : l))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{unitOptions.map((u) => <option key={u}>{u}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Weight Basis</label><select value={line.weightBasis} onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, weightBasis: e.target.value } : l))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="condition">Condition Weight</option><option value="net">Net Weight</option></select></div>
                   </div>
+                  {line.weightBasis === "condition" && selectedYarn?.composition && (() => {
+                    const regain = calculateMoistureRegain(selectedYarn.composition, selectedYarn.spinningTypeName || "");
+                    if (!regain || regain.hasUnknown) return null;
+                    return (
+                      <div className="mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                        <span className="font-medium text-blue-800">Moisture Regain: {regain.blendedRegain.toFixed(2)}%</span>
+                        <span className="text-blue-600 ml-2">({regain.components.map(c => `${c.fibre} ${c.regain}%`).join(", ")})</span>
+                        {selectedYarn.spinningTypeName && <span className="text-blue-500 ml-1">· {selectedYarn.spinningTypeName}</span>}
+                      </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Incoterms</label>

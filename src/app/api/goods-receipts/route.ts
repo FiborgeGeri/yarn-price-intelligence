@@ -95,34 +95,53 @@ export async function POST(req: NextRequest) {
         notes: notes || null, updatedAt: new Date(), updatedBy: userId || null,
       }).where(eq(goodsReceipts.id, id));
 
-      // Auto-sync DN, PO, SO status when GR status changes
-      if (status) {
-        const grRecord = await db.select({ poNo: goodsReceipts.poNo }).from(goodsReceipts).where(eq(goodsReceipts.id, id));
-        const grPoNo = grRecord[0]?.poNo;
-        // Sync DN status
-        const dnStatusMap: Record<string, string> = {
-          "Shipped from Mill": "Packed", "In Transit": "Shipped", "Arrived at Port": "Shipped",
-          "Customs Clearance": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
-        };
-        if (dnStatusMap[status]) {
-          await db.update(deliveryNotes).set({ status: dnStatusMap[status], updatedAt: new Date() }).where(eq(deliveryNotes.notes, `Auto-created from ${grRecord[0]?.poNo ? "" : ""}GR-${id}`));
+      // Sync linked DN — update header + items + status
+      const linkedDNs = await db.select({ id: deliveryNotes.id }).from(deliveryNotes).where(eq(deliveryNotes.grId, id));
+      const dnStatusMap: Record<string, string> = {
+        "Shipped from Mill": "Packed", "In Transit": "Shipped", "Arrived at Port": "Shipped",
+        "Customs Clearance": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
+      };
+      for (const dn of linkedDNs) {
+        await db.update(deliveryNotes).set({
+          shipToId: shipToId || null,
+          shippingMethod: shippingMethod || null,
+          trackingNo: trackingNo || null,
+          ...(dnStatusMap[status] ? { status: dnStatusMap[status] } : {}),
+          updatedAt: new Date(), updatedBy: userId || null,
+        }).where(eq(deliveryNotes.id, dn.id));
+
+        // Update DN items from GR items
+        if (items?.length) {
+          await db.delete(dnItems).where(eq(dnItems.dnId, dn.id));
+          for (const item of items) {
+            if (!item.yarnId) continue;
+            await db.insert(dnItems).values({
+              dnId: dn.id, yarnId: item.yarnId, colorName: item.colorName || null,
+              colorCode: item.colorCode || null, quantity: item.quantityReceived || item.quantityOrdered || null,
+              packages: item.packages || null, packingDetails: item.packingDetails || null,
+              grossWeight: item.grossWeight || null, netWeight: item.netWeight || null,
+              lotNo: item.lotNo || null,
+            });
+          }
         }
-        // Sync PO and SO status
-        if (grPoNo) {
-          const poStatusMap: Record<string, string> = {
-            "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Received", "Completed": "Closed",
-          };
-          const soStatusMap: Record<string, string> = {
-            "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
-          };
-          if (poStatusMap[status]) {
-            await db.update(purchaseOrders).set({ status: poStatusMap[status], updatedAt: new Date() }).where(eq(purchaseOrders.poNo, grPoNo));
-          }
-          // Find SO via PO
-          const po = await db.select({ soNo: purchaseOrders.soNo }).from(purchaseOrders).where(eq(purchaseOrders.poNo, grPoNo));
-          if (po[0]?.soNo && soStatusMap[status]) {
-            await db.update(salesOrders).set({ status: soStatusMap[status], updatedAt: new Date() }).where(eq(salesOrders.soNo, po[0].soNo));
-          }
+      }
+
+      // Sync PO and SO status
+      const grRecord = await db.select({ poNo: goodsReceipts.poNo }).from(goodsReceipts).where(eq(goodsReceipts.id, id));
+      const grPoNo = grRecord[0]?.poNo;
+      if (grPoNo && status) {
+        const poStatusMap: Record<string, string> = {
+          "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Received", "Completed": "Closed",
+        };
+        const soStatusMap: Record<string, string> = {
+          "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
+        };
+        if (poStatusMap[status]) {
+          await db.update(purchaseOrders).set({ status: poStatusMap[status], updatedAt: new Date() }).where(eq(purchaseOrders.poNo, grPoNo));
+        }
+        const po = await db.select({ soNo: purchaseOrders.soNo }).from(purchaseOrders).where(eq(purchaseOrders.poNo, grPoNo));
+        if (po[0]?.soNo && soStatusMap[status]) {
+          await db.update(salesOrders).set({ status: soStatusMap[status], updatedAt: new Date() }).where(eq(salesOrders.soNo, po[0].soNo));
         }
       }
 
@@ -174,7 +193,7 @@ export async function POST(req: NextRequest) {
     if (autoCreateDN && gr && items?.length) {
       dnNo = createDnNo();
       const [dn] = await db.insert(deliveryNotes).values({
-        dnNo, soNo: soNo || null, customerPoNo: customerPoNo || null, customerId: customerId || null,
+        dnNo, grId: gr.id, soNo: soNo || null, customerPoNo: customerPoNo || null, customerId: customerId || null,
         shipToId: shipToId || null, shipToContactId: shipToContactId || null, orderCategory: orderCategory || "Bulk",
         dnDate: grDate, shippingMethod: shippingMethod || null, trackingNo: trackingNo || null,
         status: "Shipped",

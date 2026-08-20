@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { yarnId, price, currency, unit, recordDate, incoterms, remarks, userId } = body;
+    const { yarnId, price, currency, unit, weightBasis, recordDate, incoterms, remarks, userId } = body;
 
     if (!yarnId || !price || !recordDate) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
         price: parseFloat(price),
         currency: currency || "USD",
         unit: unit || "per KG",
+        weightBasis: weightBasis || "condition",
         recordDate,
         incoterms: incoterms || null,
         remarks: remarks || null,
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, price, currency, unit, recordDate, incoterms, remarks, userId } = body;
+    const { id, price, currency, unit, weightBasis, recordDate, incoterms, remarks, userId } = body;
 
     if (!id || !price || !recordDate) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -110,6 +111,7 @@ export async function PUT(req: NextRequest) {
         price: parseFloat(price),
         currency: currency || "USD",
         unit: unit || "per KG",
+        weightBasis: weightBasis || "condition",
         recordDate,
         incoterms: incoterms || null,
         remarks: remarks || null,

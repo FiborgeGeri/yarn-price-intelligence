@@ -125,21 +125,56 @@ export async function POST(req: NextRequest) {
         updatedBy: userId || null,
       }).where(eq(salesOrders.id, id));
 
-      // Auto-sync PO status when SO status changes
-      if (status) {
-        const soRecord = await db.select({ soNo: salesOrders.soNo }).from(salesOrders).where(eq(salesOrders.id, id));
-        const soNo = soRecord[0]?.soNo;
-        if (soNo) {
-          const statusMap: Record<string, string> = {
-            "Confirmed": "Confirmed",
-            "In Production": "Confirmed",
-            "Shipped": "Shipped",
-            "Delivered": "Received",
-            "Cancelled": "Cancelled",
-          };
-          const poStatus = statusMap[status];
-          if (poStatus) {
-            await db.update(purchaseOrders).set({ status: poStatus, updatedAt: new Date() }).where(eq(purchaseOrders.soNo, soNo));
+      // Sync linked POs — update header fields + status + items
+      const soRecord = await db.select({ soNo: salesOrders.soNo }).from(salesOrders).where(eq(salesOrders.id, id));
+      const soNo = soRecord[0]?.soNo;
+      if (soNo) {
+        // Status mapping
+        const statusMap: Record<string, string> = {
+          "Confirmed": "Confirmed", "In Production": "Confirmed",
+          "Shipped": "Shipped", "Delivered": "Received", "Cancelled": "Cancelled",
+        };
+        const poStatus = statusMap[status] || undefined;
+
+        // Update PO header fields
+        const linkedPOs = await db.select({ id: purchaseOrders.id, factoryId: purchaseOrders.factoryId }).from(purchaseOrders).where(eq(purchaseOrders.soNo, soNo));
+        for (const po of linkedPOs) {
+          await db.update(purchaseOrders).set({
+            customerId,
+            shipToId: shipToId || null,
+            shipToContactId: shipToContactId || null,
+            orderCategory: orderCategory || "Bulk",
+            customerPoNo: customerPoNo || null,
+            deliveryDate: deliveryDate || null,
+            ...(poStatus ? { status: poStatus } : {}),
+            updatedAt: new Date(),
+            updatedBy: userId || null,
+          }).where(eq(purchaseOrders.id, po.id));
+
+          // Update PO items — only items that match this PO's factory
+          if (items?.length) {
+            // Get yarn->factory mapping
+            const yarnData = await db.select({ id: yarns.id, factoryId: yarns.factoryId }).from(yarns);
+            const yarnFactoryMap: Record<number, number> = {};
+            for (const y of yarnData) { if (y.factoryId) yarnFactoryMap[y.id] = y.factoryId; }
+
+            const poItemsForFactory = items.filter((item: { yarnId: number }) => yarnFactoryMap[item.yarnId] === po.factoryId);
+            if (poItemsForFactory.length > 0) {
+              await db.delete(poItems).where(eq(poItems.poId, po.id));
+              await db.insert(poItems).values(poItemsForFactory.map((item: { yarnId: number; colorName?: string; colorCode?: string; quantity?: string; unitPrice: string; currency?: string; unit?: string; weightBasis?: string; incoterms?: string; notes?: string }) => ({
+                poId: po.id,
+                yarnId: item.yarnId,
+                colorName: item.colorName || null,
+                colorCode: item.colorCode || null,
+                quantity: item.quantity || null,
+                unitPrice: parseFloat(item.unitPrice),
+                currency: item.currency || "USD",
+                unit: item.unit || "per KG",
+                weightBasis: item.weightBasis || "condition",
+                incoterms: item.incoterms || null,
+                notes: item.notes || null,
+              })));
+            }
           }
         }
       }

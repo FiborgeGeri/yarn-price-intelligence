@@ -10,7 +10,7 @@ interface QuoteRow {
   contactName: string | null; contactEmail: string | null;
   yarnId: number; yarnName: string; yarnCount: string; micron: string; composition: string;
   factoryName: string; treatmentName: string;
-  costPrice: number; quotedPrice: number; currency: string; unit: string;
+  costPrice: number; quotedPrice: number; currency: string; unit: string; weightBasis: string;
   quoteDate: string; validUntil: string; incoterms: string; status: string; notes: string;
   createdByName: string | null; updatedByName: string | null; createdAt: string; updatedAt: string;
 }
@@ -38,7 +38,7 @@ function getEffectiveStatus(status: string, validUntil?: string) {
 
 function createQuoteNo() { const d = new Date(); return `FOGQ-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`; }
 
-interface LatestTermPrice { price: number; currency: string; unit: string; incoterms: string; date: string; }
+interface LatestTermPrice { price: number; currency: string; unit: string; weightBasis: string; incoterms: string; date: string; }
 
 async function fetchLatestTermPrices(yarnId: number): Promise<LatestTermPrice[]> {
   try {
@@ -47,9 +47,9 @@ async function fetchLatestTermPrices(yarnId: number): Promise<LatestTermPrice[]>
     // Group by currency+unit+incoterms, keep only the latest (first) of each
     const map = new Map<string, LatestTermPrice>();
     for (const p of all) {
-      const key = `${p.currency || "USD"}|${p.unit || "per KG"}|${p.incoterms || ""}`;
+      const key = `${p.currency || "USD"}|${p.unit || "per KG"}|${p.weightBasis || "condition"}|${p.incoterms || ""}`;
       if (!map.has(key)) {
-        map.set(key, { price: p.price, currency: p.currency || "USD", unit: p.unit || "per KG", incoterms: p.incoterms || "", date: p.recordDate });
+        map.set(key, { price: p.price, currency: p.currency || "USD", unit: p.unit || "per KG", weightBasis: p.weightBasis || "condition", incoterms: p.incoterms || "", date: p.recordDate });
       }
     }
     return Array.from(map.values());
@@ -67,6 +67,7 @@ function TermPriceBadges({ prices, onSelect }: { prices: LatestTermPrice[]; onSe
             <span className="font-mono font-semibold">{p.currency} {p.price.toFixed(2)}</span>
             <span className="text-slate-400">/</span>
             <span className="text-slate-500">{p.unit.replace("per ", "")}</span>
+            <span className={`px-1 py-0.5 rounded text-[9px] font-bold ${p.weightBasis === "net" ? "bg-orange-50 text-orange-600" : "bg-green-50 text-green-600"}`}>{p.weightBasis === "net" ? "Net" : "Cond"}</span>
             {p.incoterms && <><span className="text-slate-300">·</span><span className="text-blue-600 font-semibold">{p.incoterms}</span></>}
             <span className="text-slate-300 text-[10px]">({p.date})</span>
           </button>
@@ -163,7 +164,7 @@ export default function QuotationsPage({ permissions }: Props) {
   const [search, setSearch] = useState(""); const [statusFilter, setStatusFilter] = useState(""); const [customerFilter, setCustomerFilter] = useState("");
 
   const [fCustomer, setFCustomer] = useState(0); const [fContact, setFContact] = useState(0); const [fYarn, setFYarn] = useState(0); const [fCostPrice, setFCostPrice] = useState("");
-  const [fQuotedPrice, setFQuotedPrice] = useState(""); const [fCurrency, setFCurrency] = useState("USD"); const [fUnit, setFUnit] = useState("per KG");
+  const [fQuotedPrice, setFQuotedPrice] = useState(""); const [fCurrency, setFCurrency] = useState("USD"); const [fUnit, setFUnit] = useState("per KG"); const [fWeightBasis, setFWeightBasis] = useState("condition");
   const [fQuoteDate, setFQuoteDate] = useState(new Date().toISOString().split("T")[0]); const [fValidUntil, setFValidUntil] = useState("");
   const [fIncoterms, setFIncoterms] = useState(""); const [fStatus, setFStatus] = useState("Draft"); const [fNotes, setFNotes] = useState(""); const [saving, setSaving] = useState(false);
 
@@ -201,7 +202,7 @@ export default function QuotationsPage({ permissions }: Props) {
       fetchLatestTermPrices(fYarn).then((tp) => {
         setFTermPrices(tp);
         // Auto-apply the first term price if available
-        if (tp.length === 1) { setFCostPrice(String(tp[0].price)); setFCurrency(tp[0].currency); setFUnit(tp[0].unit); setFIncoterms(tp[0].incoterms); }
+        if (tp.length === 1) { setFCostPrice(String(tp[0].price)); setFCurrency(tp[0].currency); setFUnit(tp[0].unit); setFWeightBasis(tp[0].weightBasis || "condition"); setFIncoterms(tp[0].incoterms); }
         else if (tp.length === 0 && selectedYarnData?.latestPrice != null) { setFCostPrice(String(selectedYarnData.latestPrice)); if (selectedYarnData.latestCurrency) setFCurrency(selectedYarnData.latestCurrency); if (selectedYarnData.latestUnit) setFUnit(selectedYarnData.latestUnit); }
       });
     } else { setFTermPrices([]); }
@@ -209,7 +210,7 @@ export default function QuotationsPage({ permissions }: Props) {
   const margin = fCostPrice && fQuotedPrice ? parseFloat(fQuotedPrice) - parseFloat(fCostPrice) : null;
   const marginPct = margin != null && parseFloat(fCostPrice) ? (margin / parseFloat(fCostPrice)) * 100 : null;
 
-  const openForm = (r?: QuoteRow) => { if (r) { setEditing(r); setFCustomer(r.customerId); setFContact(r.contactId || 0); setFYarn(r.yarnId); setFCostPrice(String(r.costPrice)); setFQuotedPrice(String(r.quotedPrice)); setFCurrency(r.currency || "USD"); setFUnit(r.unit || "per KG"); setFQuoteDate(r.quoteDate); setFValidUntil(r.validUntil || ""); setFIncoterms(r.incoterms || ""); setFStatus(r.status || "Draft"); setFNotes(r.notes || ""); } else { setEditing(null); setFCustomer(0); setFContact(0); setFYarn(0); setFCostPrice(""); setFQuotedPrice(""); setFCurrency("USD"); setFUnit("per KG"); setFQuoteDate(new Date().toISOString().split("T")[0]); setFValidUntil(""); setFIncoterms(""); setFStatus("Draft"); setFNotes(""); } setShowForm(true); };
+  const openForm = (r?: QuoteRow) => { if (r) { setEditing(r); setFCustomer(r.customerId); setFContact(r.contactId || 0); setFYarn(r.yarnId); setFCostPrice(String(r.costPrice)); setFQuotedPrice(String(r.quotedPrice)); setFCurrency(r.currency || "USD"); setFUnit(r.unit || "per KG"); setFWeightBasis(r.weightBasis || "condition"); setFQuoteDate(r.quoteDate); setFValidUntil(r.validUntil || ""); setFIncoterms(r.incoterms || ""); setFStatus(r.status || "Draft"); setFNotes(r.notes || ""); } else { setEditing(null); setFCustomer(0); setFContact(0); setFYarn(0); setFCostPrice(""); setFQuotedPrice(""); setFCurrency("USD"); setFUnit("per KG"); setFWeightBasis("condition"); setFQuoteDate(new Date().toISOString().split("T")[0]); setFValidUntil(""); setFIncoterms(""); setFStatus("Draft"); setFNotes(""); } setShowForm(true); };
 
   const openMultiForm = (group?: QuoteGroup) => {
     if (group) {
@@ -226,7 +227,7 @@ export default function QuotationsPage({ permissions }: Props) {
     setShowMulti(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!fCustomer || !fYarn || !fCostPrice || !fQuotedPrice) return; setSaving(true); const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, quoteNo: editing?.quoteNo, customerId: fCustomer, contactId: fContact || null, yarnId: fYarn, costPrice: fCostPrice, quotedPrice: fQuotedPrice, currency: fCurrency, unit: fUnit, quoteDate: fQuoteDate, validUntil: fValidUntil, incoterms: fIncoterms, status: fStatus, notes: fNotes, userId: getUserId() }) }); if (res.ok) { setToast({ type: "success", text: editing ? "Updated" : "Created" }); setShowForm(false); load(); } else { const d = await res.json().catch(() => ({ error: "Failed" })); setToast({ type: "error", text: d.error || "Failed" }); } setSaving(false); setTimeout(() => setToast(null), 3000); };
+  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!fCustomer || !fYarn || !fCostPrice || !fQuotedPrice) return; setSaving(true); const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, quoteNo: editing?.quoteNo, customerId: fCustomer, contactId: fContact || null, yarnId: fYarn, costPrice: fCostPrice, quotedPrice: fQuotedPrice, currency: fCurrency, unit: fUnit, weightBasis: fWeightBasis, quoteDate: fQuoteDate, validUntil: fValidUntil, incoterms: fIncoterms, status: fStatus, notes: fNotes, userId: getUserId() }) }); if (res.ok) { setToast({ type: "success", text: editing ? "Updated" : "Created" }); setShowForm(false); load(); } else { const d = await res.json().catch(() => ({ error: "Failed" })); setToast({ type: "error", text: d.error || "Failed" }); } setSaving(false); setTimeout(() => setToast(null), 3000); };
 
   const updateLine = (idx: number, field: keyof LineItem, value: string) => setMLines((p) => p.map((l, i) => i === idx ? { ...l, [field]: value } : l));
   const addLine = () => setMLines((p) => [...p, { yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", incoterms: "", notes: "" }]);
@@ -324,10 +325,10 @@ export default function QuotationsPage({ permissions }: Props) {
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Customer *</label><select value={fCustomer} onChange={(e) => { setFCustomer(Number(e.target.value)); setFContact(0); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required><option value={0}>Select...</option>{customerList.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ""}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Contact Person</label><select value={fContact} onChange={(e) => setFContact(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" disabled={!fCustomer}><option value={0}>{fCustomer ? (fContacts.length > 0 ? "— No specific contact —" : "— No contacts —") : "Select customer first"}</option>{fContacts.map((c) => <option key={c.id} value={c.id}>{c.contactName}{c.position ? ` · ${c.position}` : ""}{c.email ? ` · ${c.email}` : ""}</option>)}</select></div>
             </div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Yarn *</label><YarnFilterPicker yarnList={yarnList} value={fYarn} onChange={setFYarn} />{!editing && fTermPrices.length > 0 && <TermPriceBadges prices={fTermPrices} onSelect={(p) => { setFCostPrice(String(p.price)); setFCurrency(p.currency); setFUnit(p.unit); setFIncoterms(p.incoterms); }} />}</div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Yarn *</label><YarnFilterPicker yarnList={yarnList} value={fYarn} onChange={setFYarn} />{!editing && fTermPrices.length > 0 && <TermPriceBadges prices={fTermPrices} onSelect={(p) => { setFCostPrice(String(p.price)); setFCurrency(p.currency); setFUnit(p.unit); setFWeightBasis(p.weightBasis || "condition"); setFIncoterms(p.incoterms); }} />}</div>
             <div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">Cost *</label><input type="number" step="0.01" value={fCostPrice} onChange={(e) => setFCostPrice(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Quoted *</label><input type="number" step="0.01" value={fQuotedPrice} onChange={(e) => setFQuotedPrice(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div></div>
             {margin != null && <div className={`p-2 rounded-lg text-sm font-mono ${margin > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>Margin: {margin > 0 ? "+" : ""}{margin.toFixed(2)} {fCurrency}/{fUnit.replace("per ", "")} ({marginPct?.toFixed(1)}%)</div>}
-            <div className="grid grid-cols-3 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">Currency</label><select value={fCurrency} onChange={(e) => setFCurrency(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>USD</option><option>EUR</option><option>GBP</option><option>CNY</option><option>JPY</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Unit</label><select value={fUnit} onChange={(e) => setFUnit(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>per KG</option><option>per LB</option><option>per Cone</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Incoterms</label><input type="text" value={fIncoterms} onChange={(e) => setFIncoterms(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div></div>
+            <div className="grid grid-cols-4 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">Currency</label><select value={fCurrency} onChange={(e) => setFCurrency(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>USD</option><option>EUR</option><option>GBP</option><option>CNY</option><option>JPY</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Unit</label><select value={fUnit} onChange={(e) => setFUnit(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>per KG</option><option>per LB</option><option>per Cone</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Weight Basis</label><select value={fWeightBasis} onChange={(e) => setFWeightBasis(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="condition">Condition Wt</option><option value="net">Net Weight</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Incoterms</label><input type="text" value={fIncoterms} onChange={(e) => setFIncoterms(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">Quote Date *</label><input type="date" value={fQuoteDate} onChange={(e) => setFQuoteDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Valid Until</label><input type="date" value={fValidUntil} onChange={(e) => setFValidUntil(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label><select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option><option>Expired</option></select></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} /></div>

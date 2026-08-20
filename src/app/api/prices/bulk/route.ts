@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
         price: parseFloat(row.price),
         currency: row.currency || "USD",
         unit: row.unit || "per KG",
+        weightBasis: row.weightBasis || "condition",
         recordDate: row.recordDate,
         incoterms: row.incoterms || null,
         remarks: row.remarks || null,

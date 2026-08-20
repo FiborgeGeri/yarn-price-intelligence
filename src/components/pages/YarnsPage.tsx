@@ -167,7 +167,7 @@ export default function YarnsPage({ permissions }: Props) {
       if (pcts) {
         const total = pcts.reduce((sum, p) => sum + parseFloat(p), 0);
         if (Math.abs(total - 100) > 0.5) {
-                    alert(`⚠️ Composition totals ${total.toFixed(1)}%\n\nIt must equal 100%. Please fix the composition before saving.`);
+          alert(`⚠️ Composition totals ${total.toFixed(1)}%\n\nIt must equal 100%. Please fix the composition before saving.`);
           return;
         }
       }
@@ -380,7 +380,8 @@ export default function YarnsPage({ permissions }: Props) {
                 </div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Composition</label><input type="text" value={formComposition} onChange={(e) => setFormComposition(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. 50% Wool / 50% Nylon" />
                   {(() => { const pcts = formComposition.match(/(\d+(?:\.\d+)?)\s*%/g); if (!pcts) return null; const total = pcts.reduce((s, p) => s + parseFloat(p), 0); const ok = Math.abs(total - 100) <= 0.5; return <div className={`mt-1 text-xs font-medium ${ok ? "text-green-600" : "text-red-600"}`}>{ok ? `✓ Total: ${total}%` : `⚠ Total: ${total}% — must be 100%`}</div>; })()}
-                </div>              </div>
+                </div>
+              </div>
 
               {/* Smart Micron */}
               {detectedFibers.length > 0 ? (

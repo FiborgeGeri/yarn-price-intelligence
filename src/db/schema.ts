@@ -325,6 +325,7 @@ export const quotations = pgTable("quotations", {
 export const deliveryNotes = pgTable("delivery_notes", {
   id: serial("id").primaryKey(),
   dnNo: varchar("dn_no", { length: 50 }),
+  grId: integer("gr_id"),
   soId: integer("so_id").references(() => salesOrders.id, { onDelete: "set null" }),
   soNo: varchar("so_no", { length: 50 }),
   customerPoNo: varchar("customer_po_no", { length: 100 }),
