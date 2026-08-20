@@ -23,6 +23,7 @@ export async function GET() {
         factoryId: goodsReceipts.factoryId, factoryName: factories.factoryName,
         shipToId: goodsReceipts.shipToId, shipToName: shipToAddresses.name,
         shipToContactName: shipToContacts.contactName,
+        quantityUnit: goodsReceipts.quantityUnit,
         grDate: goodsReceipts.grDate, 
         shippingMethod: goodsReceipts.shippingMethod,
         trackingNo: goodsReceipts.trackingNo,
@@ -77,7 +78,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, poId, poNo, factoryId, shipToId, shipToContactId, grDate, shippingMethod, trackingNo, totalPackages, totalGrossWeight, totalNetWeight, status, notes, items, autoCreateDN, soNo, customerId, customerPoNo, orderCategory, userId } = body;
+    const { id, poId, poNo, factoryId, shipToId, shipToContactId, quantityUnit, grDate, shippingMethod, trackingNo, totalPackages, totalGrossWeight, totalNetWeight, status, notes, items, autoCreateDN, soNo, customerId, customerPoNo, orderCategory, userId } = body;
 
     if (!factoryId || !grDate) {
       return NextResponse.json({ error: "Yarn mill and date required" }, { status: 400 });
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
         poId: poId || null, poNo: poNo || null, factoryId,
         shipToId: shipToId || null,
         shipToContactId: shipToContactId || null,
+        quantityUnit: quantityUnit || "KGS",
         grDate, shippingMethod: shippingMethod || null, trackingNo: trackingNo || null,
         totalPackages: totalPackages || null,
         totalGrossWeight: totalGrossWeight || null, totalNetWeight: totalNetWeight || null,
@@ -131,7 +133,7 @@ export async function POST(req: NextRequest) {
       const grPoNo = grRecord[0]?.poNo;
       if (grPoNo && status) {
         const poStatusMap: Record<string, string> = {
-          "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Received", "Completed": "Closed",
+          "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Arrived at Port": "Shipped", "Customs Clearance": "Shipped", "Delivered": "Received", "Completed": "Closed",
         };
         const soStatusMap: Record<string, string> = {
           "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
@@ -167,6 +169,7 @@ export async function POST(req: NextRequest) {
       grNo, poId: poId || null, poNo: poNo || null, factoryId,
       shipToId: shipToId || null,
       shipToContactId: shipToContactId || null,
+      quantityUnit: quantityUnit || "KGS",
       grDate, shippingMethod: shippingMethod || null, trackingNo: trackingNo || null,
       totalPackages: totalPackages || null,
       totalGrossWeight: totalGrossWeight || null, totalNetWeight: totalNetWeight || null,
@@ -194,7 +197,7 @@ export async function POST(req: NextRequest) {
       dnNo = createDnNo();
       const [dn] = await db.insert(deliveryNotes).values({
         dnNo, grId: gr.id, soNo: soNo || null, customerPoNo: customerPoNo || null, customerId: customerId || null,
-        shipToId: shipToId || null, shipToContactId: shipToContactId || null, orderCategory: orderCategory || "Bulk",
+        shipToId: shipToId || null, shipToContactId: shipToContactId || null, orderCategory: orderCategory || "Bulk", quantityUnit: quantityUnit || "KGS",
         dnDate: grDate, shippingMethod: shippingMethod || null, trackingNo: trackingNo || null,
         status: "Shipped",
         notes: `Auto-created from ${grNo}`,

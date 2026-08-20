@@ -100,6 +100,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
   const [fShipToContact, setFShipToContact] = useState(0);
   const [shipToContactList, setShipToContactList] = useState<ShipToContact[]>([]);
   const [fOrderCategory, setFOrderCategory] = useState("Bulk");
+  const [fQtyUnit, setFQtyUnit] = useState("KGS");
   const [fPaymentMethod, setFPaymentMethod] = useState("");
   const [fPaymentDays, setFPaymentDays] = useState("");
   const [fPaymentRef, setFPaymentRef] = useState("");
@@ -175,6 +176,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
       setFShipToContact((so as SalesOrder & { shipToContactId?: number }).shipToContactId || 0);
       if (so.shipToId) loadShipToContacts(so.shipToId);
       setFOrderCategory((so as SalesOrder & { orderCategory?: string }).orderCategory || "Bulk");
+      setFQtyUnit((so as SalesOrder & { quantityUnit?: string }).quantityUnit || "KGS");
       const soAny = so as SalesOrder & { paymentMethod?: string; paymentDays?: number; paymentReference?: string };
       setFPaymentMethod(soAny.paymentMethod || "");
       setFPaymentDays(soAny.paymentDays ? String(soAny.paymentDays) : "");
@@ -203,6 +205,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
     setFShipToContact(0);
     setShipToContactList([]);
     setFOrderCategory("Bulk");
+    setFQtyUnit("KGS");
     setFPaymentMethod("");
     setFPaymentDays("");
     setFPaymentRef("");
@@ -301,6 +304,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
           shipToId: fShipTo || null,
           shipToContactId: fShipToContact || null,
           orderCategory: fOrderCategory,
+          quantityUnit: fQtyUnit,
           paymentMethod: fPaymentMethod || null,
           paymentDays: fPaymentDays ? parseInt(fPaymentDays) : null,
           paymentReference: fPaymentRef || null,
@@ -405,7 +409,14 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 <td className="px-4 py-3 text-xs text-slate-600">{o.shipToName || "—"}</td>
                 <td className="px-4 py-3 text-center text-xs">{o.items.length}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{o.soDate}</td>
-                <td className="px-4 py-3 text-xs text-slate-600">{o.deliveryDate || "—"}</td>
+                <td className="px-4 py-3 text-xs">{(() => {
+                  if (!o.deliveryDate) return <span className="text-slate-400">—</span>;
+                  const today = new Date().toISOString().split("T")[0];
+                  const late = o.deliveryDate < today && o.status !== "Delivered" && o.status !== "Cancelled";
+                  if (!late) return <span className="text-slate-600">{o.deliveryDate}</span>;
+                  const days = Math.round((new Date(today).getTime() - new Date(o.deliveryDate).getTime()) / 86400000);
+                  return <span className="text-red-600 font-semibold">{o.deliveryDate} <span className="px-1 py-0.5 rounded bg-red-100 text-[10px]">{days}d late</span></span>;
+                })()}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[o.status] || "bg-slate-100 text-slate-700"}`}>
                     {o.status}
@@ -462,6 +473,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
 
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
                 <div>Category: <span className={`font-semibold ${{Sample:"text-purple-600","Free of Charge":"text-amber-600","Lab Dip":"text-cyan-600","Strike Off":"text-cyan-600"}[(viewing as SalesOrder & {orderCategory?:string}).orderCategory||""] || "text-slate-700"}`}>{(viewing as SalesOrder & {orderCategory?:string}).orderCategory || "Bulk"}</span></div>
+                <div>Unit: <span className="font-semibold text-slate-700">{(viewing as SalesOrder & {quantityUnit?:string}).quantityUnit || "KGS"}</span></div>
                 {(() => { const v = viewing as SalesOrder & {paymentMethod?:string;paymentDays?:number;paymentReference?:string}; return v.paymentMethod ? <div>Payment: <span className="font-semibold text-emerald-700">{v.paymentMethod}{v.paymentDays ? ` ${v.paymentDays} Days` : ""}{v.paymentReference ? ` from ${v.paymentReference}` : ""}</span></div> : null; })()}
                 {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
                 {viewing.quoteNo && <div>Ref. Quotation: <span className="font-medium text-slate-700">{viewing.quoteNo}</span></div>}
@@ -569,15 +581,21 @@ export default function SalesOrdersPage({ permissions }: Props) {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Category</label>
-                    <select value={fOrderCategory} onChange={(e) => setFOrderCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                      <option value="Bulk">Bulk</option>
-                      <option value="Sample">Sample</option>
-                      <option value="Free of Charge">Free of Charge</option>
-                      <option value="Lab Dip">Lab Dip</option>
-                      <option value="Strike Off">Strike Off</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Order Category</label>
+                      <select value={fOrderCategory} onChange={(e) => setFOrderCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="Bulk">Bulk</option>
+                        <option value="Sample">Sample</option>
+                        <option value="Free of Charge">Free of Charge</option>
+                        <option value="Lab Dip">Lab Dip</option>
+                        <option value="Strike Off">Strike Off</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Order Unit</label>
+                      <select value={fQtyUnit} onChange={(e) => setFQtyUnit(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="KGS">KGS</option><option value="LBS">LBS</option><option value="MTR">MTR</option><option value="YDS">YDS</option><option value="CONES">CONES</option><option value="PCS">PCS</option></select>
+                    </div>
                   </div>
 
                   <div>

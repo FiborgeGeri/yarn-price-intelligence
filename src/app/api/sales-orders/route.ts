@@ -29,6 +29,7 @@ export async function GET() {
         shipToContactId: salesOrders.shipToContactId,
         shipToContactName: shipToContacts.contactName,
         orderCategory: salesOrders.orderCategory,
+        quantityUnit: salesOrders.quantityUnit,
         paymentMethod: salesOrders.paymentMethod,
         paymentDays: salesOrders.paymentDays,
         paymentReference: salesOrders.paymentReference,
@@ -99,7 +100,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, customerId, contactId, shipToId, shipToContactId, orderCategory, paymentMethod, paymentDays, paymentReference, customerPoNo, quoteNo, soDate, deliveryDate, status, notes, items, autoCreatePO, userId } = body;
+    const { id, customerId, contactId, shipToId, shipToContactId, orderCategory, quantityUnit, paymentMethod, paymentDays, paymentReference, customerPoNo, quoteNo, soDate, deliveryDate, status, notes, items, autoCreatePO, userId } = body;
 
     if (!customerId || !soDate) {
       return NextResponse.json({ error: "Customer and date are required" }, { status: 400 });
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
         shipToId: shipToId || null,
         shipToContactId: shipToContactId || null,
         orderCategory: orderCategory || "Bulk",
+        quantityUnit: quantityUnit || "KGS",
         paymentMethod: paymentMethod || null,
         paymentDays: paymentDays || null,
         paymentReference: paymentReference || null,
@@ -131,7 +133,7 @@ export async function POST(req: NextRequest) {
       if (soNo) {
         // Status mapping
         const statusMap: Record<string, string> = {
-          "Confirmed": "Confirmed", "In Production": "Confirmed",
+          "Confirmed": "Confirmed", "In Production": "In Production",
           "Shipped": "Shipped", "Delivered": "Received", "Cancelled": "Cancelled",
         };
         const poStatus = statusMap[status] || undefined;
@@ -144,6 +146,7 @@ export async function POST(req: NextRequest) {
             shipToId: shipToId || null,
             shipToContactId: shipToContactId || null,
             orderCategory: orderCategory || "Bulk",
+            quantityUnit: quantityUnit || "KGS",
             customerPoNo: customerPoNo || null,
             deliveryDate: deliveryDate || null,
             ...(poStatus ? { status: poStatus } : {}),
@@ -206,6 +209,7 @@ export async function POST(req: NextRequest) {
         shipToId: shipToId || null,
         shipToContactId: shipToContactId || null,
         orderCategory: orderCategory || "Bulk",
+        quantityUnit: quantityUnit || "KGS",
         paymentMethod: paymentMethod || null,
         paymentDays: paymentDays || null,
         paymentReference: paymentReference || null,
@@ -264,6 +268,7 @@ export async function POST(req: NextRequest) {
             shipToId: shipToId || null,
             shipToContactId: shipToContactId || null,
             orderCategory: orderCategory || "Bulk",
+            quantityUnit: quantityUnit || "KGS",
             contactPerson: null,
             soNo,
             customerPoNo: customerPoNo || null,

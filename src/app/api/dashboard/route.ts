@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { factories, yarns, prices, treatments } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { factories, yarns, prices, treatments, customers, quotations, salesOrders, purchaseOrders, goodsReceipts, deliveryNotes, shipToAddresses } from "@/db/schema";
+import { eq, desc, sql } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -162,6 +162,62 @@ export async function GET() {
     // Recent prices (top 15)
     const recentPrices = allPrices.slice(0, 15);
 
+    // --- Business documents counts ---
+    const cnt = async (tbl: Parameters<typeof db.select>[0] extends never ? never : never) => 0;
+    void cnt;
+    const [custCount] = await db.select({ c: sql<number>`count(*)::int` }).from(customers);
+    const [shipToCount] = await db.select({ c: sql<number>`count(*)::int` }).from(shipToAddresses);
+    const allQuotes = await db.select({ id: quotations.id, quoteNo: quotations.quoteNo, status: quotations.status, validUntil: quotations.validUntil }).from(quotations);
+    const uniqueQuoteNos = new Set(allQuotes.map(q => q.quoteNo || `L-${q.id}`)).size;
+    const todayStr = now.toISOString().split("T")[0];
+    const expiringQuotes = allQuotes.filter(q => q.validUntil && q.validUntil >= todayStr && q.validUntil <= new Date(now.getTime() + 14 * 86400000).toISOString().split("T")[0]).length;
+
+    const allSOs = await db.select({ id: salesOrders.id, status: salesOrders.status, deliveryDate: salesOrders.deliveryDate, soNo: salesOrders.soNo, customerId: salesOrders.customerId, soDate: salesOrders.soDate }).from(salesOrders).orderBy(desc(salesOrders.soDate));
+    const allPOs = await db.select({ id: purchaseOrders.id, status: purchaseOrders.status, poNo: purchaseOrders.poNo, poDate: purchaseOrders.poDate }).from(purchaseOrders).orderBy(desc(purchaseOrders.poDate));
+    const allGRs = await db.select({ id: goodsReceipts.id, status: goodsReceipts.status, grNo: goodsReceipts.grNo, grDate: goodsReceipts.grDate }).from(goodsReceipts).orderBy(desc(goodsReceipts.grDate));
+    const allDNs = await db.select({ id: deliveryNotes.id, status: deliveryNotes.status, dnNo: deliveryNotes.dnNo, dnDate: deliveryNotes.dnDate }).from(deliveryNotes).orderBy(desc(deliveryNotes.dnDate));
+
+    const countBy = (rows: { status: string | null }[], list: string[]) => rows.filter(r => list.includes(r.status || "")).length;
+
+    const soOpen = countBy(allSOs, ["Confirmed", "In Production"]);
+    const poOpen = countBy(allPOs, ["Draft", "Confirmed"]);
+    const grInTransit = countBy(allGRs, ["Shipped from Mill", "In Transit", "Arrived at Port", "Customs Clearance"]);
+    const dnPending = countBy(allDNs, ["Draft", "Packed", "Shipped"]);
+
+    // Upcoming deliveries in next 30 days
+    const in30 = new Date(now.getTime() + 30 * 86400000).toISOString().split("T")[0];
+    const upcomingDeliveries = allSOs
+      .filter(s => s.deliveryDate && s.deliveryDate >= todayStr && s.deliveryDate <= in30 && s.status !== "Cancelled" && s.status !== "Delivered")
+      .slice(0, 8)
+      .map(s => ({ id: s.id, soNo: s.soNo, deliveryDate: s.deliveryDate, status: s.status }));
+
+    // Overdue deliveries with day count
+    const dayDiff = (a: string, b: string) => Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
+    const overdueDeliveries = allSOs
+      .filter(s => s.deliveryDate && s.deliveryDate < todayStr && s.status !== "Cancelled" && s.status !== "Delivered")
+      .slice(0, 8)
+      .map(s => ({ id: s.id, soNo: s.soNo, deliveryDate: s.deliveryDate, status: s.status, daysOverdue: dayDiff(todayStr, s.deliveryDate as string) }));
+
+    // Newly created sales orders (last 14 days by soDate)
+    const d14 = new Date(now.getTime() - 14 * 86400000).toISOString().split("T")[0];
+    const newOrders = allSOs
+      .filter(s => s.soDate && s.soDate >= d14)
+      .slice(0, 8)
+      .map(s => ({ id: s.id, soNo: s.soNo, soDate: s.soDate, status: s.status }));
+
+    // Newly added yarns (last 30 days)
+    const d30 = new Date(now.getTime() - 30 * 86400000);
+    const yarnRows = await db
+      .select({ id: yarns.id, yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, createdAt: yarns.createdAt, factoryName: factories.factoryName, relationship: factories.relationship })
+      .from(yarns)
+      .leftJoin(factories, eq(yarns.factoryId, factories.id))
+      .orderBy(desc(yarns.createdAt));
+    const newYarns = yarnRows
+      .filter(y => y.createdAt && new Date(y.createdAt) >= d30)
+      .slice(0, 8)
+      .map(y => ({ id: y.id, yarnName: y.yarnName, yarnCount: y.yarnCount || "", factoryName: y.factoryName || "", relationship: y.relationship || "" }));
+    const newYarnCount = yarnRows.filter(y => y.createdAt && new Date(y.createdAt) >= d30).length;
+
     return NextResponse.json({
       kpi: {
         myFactories: myFactories.length,
@@ -177,11 +233,30 @@ export async function GET() {
         yarnsWithPrices: yarnIdsWithPrices.size,
         yarnsWithoutPrices: yarnsNoPriceList.length,
         stalePriceCount: stalePrices.length,
+        customers: custCount?.c || 0,
+        shipToAddresses: shipToCount?.c || 0,
+        quotations: uniqueQuoteNos,
+        expiringQuotes,
+        salesOrders: allSOs.length,
+        salesOrdersOpen: soOpen,
+        purchaseOrders: allPOs.length,
+        purchaseOrdersOpen: poOpen,
+        goodsReceipts: allGRs.length,
+        goodsReceiptsInTransit: grInTransit,
+        deliveryNotes: allDNs.length,
+        deliveryNotesPending: dnPending,
+        overdueCount: overdueDeliveries.length,
+        newYarnCount,
+        newOrderCount: newOrders.length,
       },
       movers: movers.slice(0, 10),
       yarnsNoPrice: yarnsNoPriceList.slice(0, 8),
       stalePrices: stalePrices.slice(0, 8),
       recentPrices,
+      upcomingDeliveries,
+      overdueDeliveries,
+      newOrders,
+      newYarns,
     });
   } catch (err) {
     console.error("Dashboard error:", err);

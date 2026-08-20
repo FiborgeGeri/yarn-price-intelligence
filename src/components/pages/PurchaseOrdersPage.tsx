@@ -37,6 +37,7 @@ interface PO {
   shipToContactId: number | null;
   shipToContactName: string | null;
   orderCategory: string;
+  quantityUnit: string;
   paymentMethod: string | null;
   paymentDays: number | null;
   paymentReference: string | null;
@@ -89,7 +90,7 @@ interface FormItem {
   notes: string;
 }
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = { "In Production": "bg-amber-100 text-amber-800",
   Draft: "bg-slate-100 text-slate-700",
   Confirmed: "bg-blue-100 text-blue-800",
   Shipped: "bg-amber-100 text-amber-800",
@@ -133,6 +134,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
   const [fCustomer, setFCustomer] = useState(0);
   const [fShipTo, setFShipTo] = useState(0);
   const [fOrderCategory, setFOrderCategory] = useState("Bulk");
+  const [fQtyUnit, setFQtyUnit] = useState("KGS");
   const [fPaymentMethod, setFPaymentMethod] = useState("");
   const [fPaymentDays, setFPaymentDays] = useState("");
   const [fPaymentRef, setFPaymentRef] = useState("");
@@ -205,6 +207,8 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       setFCustomer(po.customerId || 0);
       setFShipTo(po.shipToId || 0);
       setFOrderCategory(po.orderCategory || "Bulk");
+      setFQtyUnit(po.quantityUnit || "KGS");
+      setFQtyUnit(po.quantityUnit || "KGS");
       setFPaymentMethod(po.paymentMethod || "");
       setFPaymentDays(po.paymentDays ? String(po.paymentDays) : "");
       setFPaymentRef(po.paymentReference || "");
@@ -238,6 +242,8 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       setFCustomer(0);
       setFShipTo(0);
       setFOrderCategory("Bulk");
+      setFQtyUnit("KGS");
+      setFQtyUnit("KGS");
       setFPaymentMethod("");
       setFPaymentDays("");
       setFPaymentRef("");
@@ -295,6 +301,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           customerId: fCustomer || null,
           shipToId: fShipTo || null,
           orderCategory: fOrderCategory,
+          quantityUnit: fQtyUnit,
           paymentMethod: fPaymentMethod || null,
           paymentDays: fPaymentDays ? parseInt(fPaymentDays) : null,
           paymentReference: fPaymentRef || null,
@@ -457,6 +464,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
                 <div>Category: <span className={`font-semibold ${{Sample:"text-purple-600","Free of Charge":"text-amber-600","Lab Dip":"text-cyan-600","Strike Off":"text-cyan-600"}[viewing.orderCategory||""] || "text-slate-700"}`}>{viewing.orderCategory || "Bulk"}</span></div>
                 {viewing.paymentMethod && <div>Payment: <span className="font-semibold text-emerald-700">{viewing.paymentMethod}{viewing.paymentDays ? ` ${viewing.paymentDays} Days` : ""}{viewing.paymentReference ? ` from ${viewing.paymentReference}` : ""}</span></div>}
+                <div>Unit: <span className="font-semibold text-slate-700">{viewing.quantityUnit || "KGS"}</span></div>
                 <div>PO Date: <span className="font-medium text-slate-700">{viewing.poDate}</span></div>
                 {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
                 {viewing.soNo && <div>SO Ref: <span className="font-medium text-slate-700">{viewing.soNo}</span></div>}
@@ -582,15 +590,21 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Category</label>
-                    <select value={fOrderCategory} onChange={(e) => setFOrderCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                      <option value="Bulk">Bulk</option>
-                      <option value="Sample">Sample</option>
-                      <option value="Free of Charge">Free of Charge</option>
-                      <option value="Lab Dip">Lab Dip</option>
-                      <option value="Strike Off">Strike Off</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Order Category</label>
+                      <select value={fOrderCategory} onChange={(e) => setFOrderCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="Bulk">Bulk</option>
+                        <option value="Sample">Sample</option>
+                        <option value="Free of Charge">Free of Charge</option>
+                        <option value="Lab Dip">Lab Dip</option>
+                        <option value="Strike Off">Strike Off</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Order Unit</label>
+                      <select value={fQtyUnit} onChange={(e) => setFQtyUnit(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="KGS">KGS</option><option value="LBS">LBS</option><option value="MTR">MTR</option><option value="YDS">YDS</option><option value="CONES">CONES</option><option value="PCS">PCS</option></select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>

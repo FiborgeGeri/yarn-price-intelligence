@@ -53,6 +53,9 @@ export default function PriceComparisonPage() {
   const [loading, setLoading] = useState(true);
   const [micronFilter, setMicronFilter] = useState("");
   const [countFilter, setCountFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"price-asc" | "price-desc" | "name" | "micron">("price-asc");
+  const [showSectors, setShowSectors] = useState(true);
 
   useEffect(() => {
     fetch("/api/comparison")
@@ -79,11 +82,26 @@ export default function PriceComparisonPage() {
     let r = list;
     if (micronFilter) r = r.filter((y) => y.micron === micronFilter);
     if (countFilter) r = r.filter((y) => y.yarnCount === countFilter);
-    return r.sort((a, b) => parseFloat(a.micron || "99") - parseFloat(b.micron || "99") || a.yarnName.localeCompare(b.yarnName));
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      r = r.filter((y) =>
+        y.yarnName?.toLowerCase().includes(s) ||
+        y.factoryName?.toLowerCase().includes(s) ||
+        y.yarnCount?.toLowerCase().includes(s) ||
+        y.treatment?.toLowerCase().includes(s) ||
+        (y.micron || "").includes(s)
+      );
+    }
+    const sorted = [...r];
+    if (sortBy === "price-asc") sorted.sort((a, b) => toPerKg(a.price, a.unit) - toPerKg(b.price, b.unit));
+    else if (sortBy === "price-desc") sorted.sort((a, b) => toPerKg(b.price, b.unit) - toPerKg(a.price, a.unit));
+    else if (sortBy === "name") sorted.sort((a, b) => a.yarnName.localeCompare(b.yarnName));
+    else sorted.sort((a, b) => parseFloat(a.micron || "99") - parseFloat(b.micron || "99") || a.yarnName.localeCompare(b.yarnName));
+    return sorted;
   };
 
-  const filteredMy = useMemo(() => applyFilter(data?.myYarns ?? []), [data, micronFilter, countFilter]);
-  const filteredComp = useMemo(() => applyFilter(data?.compYarns ?? []), [data, micronFilter, countFilter]);
+  const filteredMy = useMemo(() => applyFilter(data?.myYarns ?? []), [data, micronFilter, countFilter, search, sortBy]);
+  const filteredComp = useMemo(() => applyFilter(data?.compYarns ?? []), [data, micronFilter, countFilter, search, sortBy]);
 
   const filteredMatches = useMemo(() => {
     if (!data) return [];
@@ -116,36 +134,38 @@ export default function PriceComparisonPage() {
 
   // ── sector table helper ──
   const SectorTable = ({ rows, color }: { rows: PricedYarn[]; color: "blue" | "red" }) => (
-    <div className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden ${color === "blue" ? "border-blue-200" : "border-red-200"}`}>
+    <div className={`bg-white rounded-xl shadow-sm border-2 ${color === "blue" ? "border-blue-200" : "border-red-200"}`}>
       {rows.length === 0 ? (
         <div className="p-6 text-center text-slate-400 text-sm">No priced yarns match the current filters</div>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className={`text-left text-slate-600 ${color === "blue" ? "bg-blue-50/60" : "bg-red-50/60"}`}>
-              <th className="px-4 py-2.5 font-medium">Yarn</th>
-              <th className="px-4 py-2.5 font-medium">Factory</th>
-              <th className="px-4 py-2.5 font-medium">Count</th>
-              <th className="px-4 py-2.5 font-medium">Micron</th>
-              <th className="px-4 py-2.5 font-medium">Treatment</th>
-              <th className="px-4 py-2.5 font-medium text-right">Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((y, i) => (
-              <tr key={i} className={`border-t border-slate-100 ${color === "blue" ? "hover:bg-blue-50/30" : "hover:bg-red-50/30"}`}>
-                <td className="px-4 py-2.5 font-medium">{y.yarnName}</td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs">{y.factoryName}</td>
-                <td className="px-4 py-2.5 text-slate-600">{y.yarnCount || "—"}</td>
-                <td className="px-4 py-2.5">{y.micron ? `${parseFloat(y.micron).toFixed(1)}μm` : "—"}</td>
-                <td className="px-4 py-2.5 text-slate-600">{y.treatment}</td>
-                <td className="px-4 py-2.5 text-right font-mono font-medium">
-                  {y.currency} {y.price.toFixed(2)}<span className="text-slate-400 font-normal text-xs">/{y.unit.replace("per ", "")}</span>
-                </td>
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead className="sticky top-0 z-10">
+              <tr className={`text-left text-slate-600 ${color === "blue" ? "bg-blue-50" : "bg-red-50"}`}>
+                <th className="px-3 py-2.5 font-medium">Yarn</th>
+                <th className="px-3 py-2.5 font-medium">Factory</th>
+                <th className="px-3 py-2.5 font-medium whitespace-nowrap">Count</th>
+                <th className="px-3 py-2.5 font-medium whitespace-nowrap">Micron</th>
+                <th className="px-3 py-2.5 font-medium">Treatment</th>
+                <th className="px-3 py-2.5 font-medium text-right whitespace-nowrap">Price</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((y, i) => (
+                <tr key={i} className={`border-t border-slate-100 ${color === "blue" ? "hover:bg-blue-50/30" : "hover:bg-red-50/30"}`}>
+                  <td className="px-3 py-2.5 font-medium">{y.yarnName}</td>
+                  <td className="px-3 py-2.5 text-slate-600 text-xs">{y.factoryName}</td>
+                  <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{y.yarnCount || "—"}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{y.micron ? `${parseFloat(y.micron).toFixed(1)}μm` : "—"}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{y.treatment}</td>
+                  <td className="px-3 py-2.5 text-right font-mono font-semibold whitespace-nowrap">
+                    {y.currency} {y.price.toFixed(2)}<span className="text-slate-400 font-normal text-xs">/{y.unit.replace("per ", "")}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -158,7 +178,14 @@ export default function PriceComparisonPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-6">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 min-w-[220px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Search yarn, mill, count, treatment..."
+        />
         <select value={micronFilter} onChange={(e) => setMicronFilter(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
           <option value="">All Microns</option>
           {microns.map((m) => <option key={m} value={m}>{parseFloat(m).toFixed(1)}μm</option>)}
@@ -167,31 +194,42 @@ export default function PriceComparisonPage() {
           <option value="">All Counts</option>
           {counts.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        {(micronFilter || countFilter) && (
-          <button onClick={() => { setMicronFilter(""); setCountFilter(""); }} className="text-sm text-blue-600 hover:underline">Clear</button>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="price-asc">Sort: Price ↑</option>
+          <option value="price-desc">Sort: Price ↓</option>
+          <option value="name">Sort: Yarn Name</option>
+          <option value="micron">Sort: Micron</option>
+        </select>
+        <button onClick={() => setShowSectors(!showSectors)} className="px-3 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">
+          {showSectors ? "Hide" : "Show"} Mill Lists
+        </button>
+        {(micronFilter || countFilter || search) && (
+          <button onClick={() => { setMicronFilter(""); setCountFilter(""); setSearch(""); }} className="text-sm text-blue-600 hover:underline">Clear</button>
         )}
       </div>
 
-      {/* Two sectors */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-3 h-3 rounded-full bg-blue-500" />
-            <h2 className="text-lg font-semibold text-slate-900">My Factories</h2>
-            <span className="text-sm text-slate-500">({filteredMy.length})</span>
+      {/* Two sectors — stacked full width so price column is always visible */}
+      {showSectors && (
+        <div className="space-y-6 mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-3 h-3 rounded-full bg-blue-500" />
+              <h2 className="text-lg font-semibold text-slate-900">My Yarn Mills</h2>
+              <span className="text-sm text-slate-500">({filteredMy.length})</span>
+            </div>
+            <SectorTable rows={filteredMy} color="blue" />
           </div>
-          <SectorTable rows={filteredMy} color="blue" />
-        </div>
 
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-3 h-3 rounded-full bg-red-500" />
-            <h2 className="text-lg font-semibold text-slate-900">Competitor Factories</h2>
-            <span className="text-sm text-slate-500">({filteredComp.length})</span>
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-3 h-3 rounded-full bg-red-500" />
+              <h2 className="text-lg font-semibold text-slate-900">Competitor Yarn Mills</h2>
+              <span className="text-sm text-slate-500">({filteredComp.length})</span>
+            </div>
+            <SectorTable rows={filteredComp} color="red" />
           </div>
-          <SectorTable rows={filteredComp} color="red" />
         </div>
-      </div>
+      )}
 
       {/* Head-to-Head */}
       {filteredMatches.length > 0 && (

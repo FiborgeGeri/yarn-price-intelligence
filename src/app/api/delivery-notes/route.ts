@@ -25,6 +25,7 @@ export async function GET() {
         shipToName: shipToAddresses.name,
         shipToContactName: shipToContacts.contactName,
         orderCategory: deliveryNotes.orderCategory,
+        quantityUnit: deliveryNotes.quantityUnit,
         dnDate: deliveryNotes.dnDate,
         shippingMethod: deliveryNotes.shippingMethod,
         trackingNo: deliveryNotes.trackingNo,
@@ -85,7 +86,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, soId, soNo, customerPoNo, customerId, contactId, shipToId, shipToContactId, orderCategory, dnDate, shippingMethod, trackingNo, totalPackages, totalGrossWeight, totalNetWeight, status, notes, items, userId } = body;
+    const { id, soId, soNo, customerPoNo, customerId, contactId, shipToId, shipToContactId, orderCategory, quantityUnit, dnDate, shippingMethod, trackingNo, totalPackages, totalGrossWeight, totalNetWeight, status, notes, items, userId } = body;
 
     if (!customerId || !dnDate) {
       return NextResponse.json({ error: "Customer and date required" }, { status: 400 });
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
       await db.update(deliveryNotes).set({
         soId: soId || null, soNo: soNo || null, customerPoNo: customerPoNo || null, customerId,
         contactId: contactId || null, shipToId: shipToId || null,
-        shipToContactId: shipToContactId || null, orderCategory: orderCategory || "Bulk",
+        shipToContactId: shipToContactId || null, orderCategory: orderCategory || "Bulk", quantityUnit: quantityUnit || "KGS",
         dnDate, shippingMethod: shippingMethod || null, trackingNo: trackingNo || null,
         totalPackages: totalPackages || null, totalGrossWeight: totalGrossWeight || null,
         totalNetWeight: totalNetWeight || null, status: status || "Draft",
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
     const [dn] = await db.insert(deliveryNotes).values({
       dnNo, soId: soId || null, soNo: soNo || null, customerPoNo: customerPoNo || null, customerId,
       contactId: contactId || null, shipToId: shipToId || null,
-      shipToContactId: shipToContactId || null, orderCategory: orderCategory || "Bulk", 
+      shipToContactId: shipToContactId || null, orderCategory: orderCategory || "Bulk", quantityUnit: quantityUnit || "KGS",
       dnDate, shippingMethod: shippingMethod || null, trackingNo: trackingNo || null,
       totalPackages: totalPackages || null, totalGrossWeight: totalGrossWeight || null,
       totalNetWeight: totalNetWeight || null, status: status || "Draft",

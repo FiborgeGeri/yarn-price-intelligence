@@ -3,17 +3,18 @@ import { useState, useEffect, useMemo } from "react";
 import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
+import { PackingEditor, PackingView, parsePacking, serializePacking, packingTotals, type PackingBox } from "@/components/PackingEditor";
 
 interface DNItem { id: number; dnId: number; yarnId: number; yarnName: string; yarnCount: string; composition: string; factoryName: string; colorName: string; colorCode: string; quantity: string; packages: number; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
-interface DN { id: number; dnNo: string; soId: number | null; soNo: string; customerPoNo: string | null; customerId: number; customerName: string; contactName: string | null; shipToId: number | null; shipToName: string | null; shipToContactName: string | null; orderCategory: string; dnDate: string; shippingMethod: string; trackingNo: string; totalPackages: number; totalGrossWeight: string; totalNetWeight: string; status: string; notes: string; items: DNItem[]; createdByName: string | null; updatedByName: string | null; }
+interface DN { id: number; dnNo: string; soId: number | null; soNo: string; customerPoNo: string | null; customerId: number; customerName: string; contactName: string | null; shipToId: number | null; shipToName: string | null; shipToContactName: string | null; orderCategory: string; quantityUnit: string; dnDate: string; shippingMethod: string; trackingNo: string; totalPackages: number; totalGrossWeight: string; totalNetWeight: string; status: string; notes: string; items: DNItem[]; createdByName: string | null; updatedByName: string | null; }
 interface Customer { id: number; name: string; }
 interface ShipTo { id: number; name: string; category: string; }
 interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; }
-interface FormItem { yarnId: number; colorName: string; colorCode: string; quantity: string; packages: string; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
+interface FormItem { yarnId: number; colorName: string; colorCode: string; quantity: string; packingBoxes: PackingBox[]; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
 interface Props { permissions: Permissions; }
 
 const STATUS_COLORS: Record<string, string> = { Draft: "bg-slate-100 text-slate-700", Packed: "bg-blue-100 text-blue-800", Shipped: "bg-amber-100 text-amber-800", Delivered: "bg-green-100 text-green-800", Cancelled: "bg-red-100 text-red-800" };
-const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantity: "", packages: "", packingDetails: "", grossWeight: "", netWeight: "", lotNo: "", notes: "" };
+const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantity: "", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" };
 
 export default function DeliveryNotesPage({ permissions }: Props) {
   const [dns, setDns] = useState<DN[]>([]);
@@ -31,6 +32,7 @@ export default function DeliveryNotesPage({ permissions }: Props) {
   const [fCustomer, setFCustomer] = useState(0);
   const [fShipTo, setFShipTo] = useState(0);
   const [fCategory, setFCategory] = useState("Bulk");
+  const [fQtyUnit, setFQtyUnit] = useState("KGS");
   const [fCustomerPoNo, setFCustomerPoNo] = useState("");
   const [fSoNo, setFSoNo] = useState("");
   const [fDnDate, setFDnDate] = useState(new Date().toISOString().split("T")[0]);
@@ -70,6 +72,8 @@ export default function DeliveryNotesPage({ permissions }: Props) {
       setFCustomer(dn.customerId);
       setFShipTo(dn.shipToId || 0);
       setFCategory(dn.orderCategory || "Bulk");
+      setFQtyUnit(dn.quantityUnit || "KGS");
+      setFQtyUnit(dn.quantityUnit || "KGS");
       setFCustomerPoNo(dn.customerPoNo || "");
       setFSoNo(dn.soNo || "");
       setFDnDate(dn.dnDate);
@@ -77,12 +81,14 @@ export default function DeliveryNotesPage({ permissions }: Props) {
       setFTrackingNo(dn.trackingNo || "");
       setFStatus(dn.status || "Draft");
       setFNotes(dn.notes || "");
-      setFItems(dn.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantity: i.quantity || "", packages: String(i.packages || ""), packingDetails: i.packingDetails || "", grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" })));
+      setFItems(dn.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantity: i.quantity || "", packingBoxes: parsePacking(i.packingDetails), grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" })));
     } else {
       setEditing(null);
       setFCustomer(0);
       setFShipTo(0);
       setFCategory("Bulk");
+      setFQtyUnit("KGS");
+      setFQtyUnit("KGS");
       setFCustomerPoNo("");
       setFSoNo("");
       setFDnDate(new Date().toISOString().split("T")[0]);
@@ -110,12 +116,13 @@ export default function DeliveryNotesPage({ permissions }: Props) {
         customerId: fCustomer,
         shipToId: fShipTo || null,
         orderCategory: fCategory,
+        quantityUnit: fQtyUnit,
         dnDate: fDnDate,
         shippingMethod: fShippingMethod,
         trackingNo: fTrackingNo,
         status: fStatus,
         notes: fNotes,
-        items: validItems.map(i => ({ ...i, packages: i.packages ? parseInt(i.packages) : null })),
+        items: validItems.map(i => { const t = packingTotals(i.packingBoxes); return { ...i, packages: t.count || null, packingDetails: serializePacking(i.packingBoxes), grossWeight: i.grossWeight || (t.gross ? t.gross.toFixed(2) : ""), netWeight: i.netWeight || (t.net ? t.net.toFixed(2) : "") }; }),
         userId: getUserId(),
       }),
     });
@@ -187,18 +194,19 @@ export default function DeliveryNotesPage({ permissions }: Props) {
               </div>
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
                 {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
+                <div>Unit: <span className="font-semibold text-slate-700">{viewing.quantityUnit || "KGS"}</span></div>
                 {viewing.soNo && <div>SO Ref: <span className="font-medium text-slate-700">{viewing.soNo}</span></div>}
                 {viewing.shippingMethod && <div>Shipping: <span className="font-medium text-slate-700">{viewing.shippingMethod}</span></div>}
                 {viewing.trackingNo && <div>Tracking: <span className="font-medium text-slate-700">{viewing.trackingNo}</span></div>}
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto">
-                <table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Color</th><th className="px-4 py-3 font-medium">Qty</th><th className="px-4 py-3 font-medium">Total Pkgs</th><th className="px-4 py-3 font-medium">Gross Wt</th><th className="px-4 py-3 font-medium">Net Wt</th><th className="px-4 py-3 font-medium">Lot No.</th></tr></thead>
+                <table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Color</th><th className="px-4 py-3 font-medium">Invoice Qty</th><th className="px-4 py-3 font-medium">Total Pkgs</th><th className="px-4 py-3 font-medium">Gross Wt</th><th className="px-4 py-3 font-medium">Net Wt</th><th className="px-4 py-3 font-medium">Lot No.</th></tr></thead>
                 <tbody>{viewing.items.map(i => (<tr key={i.id} className="border-t border-slate-200"><td className="px-4 py-3"><div className="font-medium">{i.yarnName}</div><div className="text-xs text-slate-400">{i.yarnCount} · {i.factoryName}</div></td><td className="px-4 py-3 text-xs">{i.colorName || i.colorCode || "—"}</td><td className="px-4 py-3 text-xs">{i.quantity || "—"}</td><td className="px-4 py-3 text-xs">{i.packages || "—"}</td><td className="px-4 py-3 text-xs">{i.grossWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.netWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.lotNo || "—"}</td></tr>))}</tbody></table>
               </div>
               {viewing.items.some(i => i.packingDetails) && (
                 <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3">Packing Details</h3>
-                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1">{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</div><pre className="text-xs text-slate-600 whitespace-pre-wrap font-sans bg-white border border-slate-200 rounded-lg p-3">{i.packingDetails}</pre></div>))}</div>
+                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1 flex items-center gap-2 flex-wrap"><span>{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</span>{i.quantity && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">Invoice Qty: {i.quantity} {viewing.quantityUnit || "KGS"}</span>}</div><PackingView raw={i.packingDetails} weightUnit={viewing.quantityUnit === "LBS" ? "LB" : "KG"} /></div>))}</div>
                 </div>
               )}
               {viewing.notes && <div className="text-sm text-slate-600"><span className="text-xs text-slate-500 block mb-1">Notes</span>{viewing.notes}</div>}
@@ -226,7 +234,7 @@ export default function DeliveryNotesPage({ permissions }: Props) {
                 </div>
                 <div className="space-y-3">
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Ship-To Destination</label><select value={fShipTo} onChange={e => setFShipTo(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>— None —</option>{shipToList.map(s => <option key={s.id} value={s.id}>{s.name}{s.category ? ` (${s.category})` : ""}</option>)}</select></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">DN Date *</label><input type="date" value={fDnDate} onChange={e => setFDnDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div>
+                  <div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">DN Date *</label><input type="date" value={fDnDate} onChange={e => setFDnDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Quantity Unit</label><select value={fQtyUnit} onChange={e => setFQtyUnit(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="KGS">KGS</option><option value="LBS">LBS</option><option value="MTR">MTR</option><option value="YDS">YDS</option><option value="CONES">CONES</option><option value="PCS">PCS</option></select></div></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Shipping Method</label><input type="text" value={fShippingMethod} onChange={e => setFShippingMethod(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. Sea, Air, Courier" /></div>
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Tracking No.</label><input type="text" value={fTrackingNo} onChange={e => setFTrackingNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
@@ -243,17 +251,16 @@ export default function DeliveryNotesPage({ permissions }: Props) {
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-2"><select value={item.yarnId} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, yarnId: Number(e.target.value) } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"><option value={0}>Select yarn...</option>{yarnList.map(y => <option key={y.id} value={y.id}>{y.yarnName} · {y.yarnCount || "—"} · {y.factoryName}</option>)}</select></div>
                       <div><input type="text" value={item.colorName} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, colorName: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Color" /></div>
-                      <div><input type="text" value={item.quantity} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Qty" /></div>
+                      <div><input type="text" value={item.quantity} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Invoice Qty" /></div>
                     </div>
                     <div className="grid grid-cols-4 gap-2 mt-2">
-                      <div><input type="text" value={item.packages} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, packages: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Total Pkgs" /></div>
                       <div><input type="text" value={item.grossWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, grossWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Gross Wt" /></div>
                       <div><input type="text" value={item.netWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, netWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Net Wt" /></div>
                       <div><input type="text" value={item.lotNo} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, lotNo: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Lot No." /></div>
                     </div>
                     <div className="mt-2">
-                      <label className="block text-[11px] font-medium text-slate-600 mb-1">Packing Details</label>
-                      <textarea value={item.packingDetails} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingDetails: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" rows={3} placeholder={"e.g.\n1 of 10 boxes - 12 cones\n2 of 10 boxes - 12 cones"} />
+                      <div className="text-[11px] text-slate-500 mb-1">Invoice Qty: <span className="font-semibold text-slate-700">{item.quantity || "—"} {fQtyUnit}</span></div>
+                      <PackingEditor boxes={item.packingBoxes} onChange={(bx) => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingBoxes: bx } : l))} weightUnit={fQtyUnit === "LBS" ? "LB" : "KG"} />
                     </div>
                     <div className="mt-2"><input type="text" value={item.notes} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, notes: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Notes" /></div>
                   </div>

@@ -126,6 +126,8 @@ export default function YarnsPage({ permissions }: Props) {
     if (fac && WORSTED_MILLS.some((m) => fac.factoryName.toLowerCase().includes(m))) {
       const worsted = yarnTypeOpts.find((t) => t.name.toLowerCase() === "worsted");
       if (worsted) setFormYarnType(worsted.id);
+      const spinWorsted = spinningTypeOpts.find((t) => t.name.toLowerCase().includes("worsted") && !t.name.toLowerCase().includes("semi"));
+      if (spinWorsted) setFormSpinningType(spinWorsted.id);
     }
   };
 

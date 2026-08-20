@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { purchaseOrders, poItems, factories, customers, shipToAddresses, shipToContacts, yarns, treatments } from "@/db/schema";
+import { purchaseOrders, poItems, factories, customers, shipToAddresses, shipToContacts, yarns, treatments, salesOrders } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
@@ -28,6 +28,7 @@ export async function GET() {
         shipToContactId: purchaseOrders.shipToContactId,
         shipToContactName: shipToContacts.contactName,
         orderCategory: purchaseOrders.orderCategory,
+        quantityUnit: purchaseOrders.quantityUnit,
         paymentMethod: purchaseOrders.paymentMethod,
         paymentDays: purchaseOrders.paymentDays,
         paymentReference: purchaseOrders.paymentReference,
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
       shipToId,
       shipToContactId,
       orderCategory,
+      quantityUnit,
       paymentMethod,
       paymentDays,
       paymentReference,
@@ -138,6 +140,7 @@ export async function POST(req: NextRequest) {
         shipToId: shipToId || null,
         shipToContactId: shipToContactId || null,
         orderCategory: orderCategory || "Bulk",
+        quantityUnit: quantityUnit || "KGS",
         paymentMethod: paymentMethod || null,
         paymentDays: paymentDays || null,
         paymentReference: paymentReference || null,
@@ -155,6 +158,21 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
         updatedBy: userId || null,
       }).where(eq(purchaseOrders.id, id));
+
+      // Sync SO status from PO status
+      if (status && linkedSoNo) {
+        const soMap: Record<string, string> = {
+          "Confirmed": "Confirmed",
+          "In Production": "In Production",
+          "Shipped": "Shipped",
+          "Received": "Delivered",
+          "Closed": "Delivered",
+          "Cancelled": "Cancelled",
+        };
+        if (soMap[status]) {
+          await db.update(salesOrders).set({ status: soMap[status], updatedAt: new Date() }).where(eq(salesOrders.soNo, linkedSoNo));
+        }
+      }
 
       if (poNo) {
         await db.update(purchaseOrders).set({ poNo }).where(eq(purchaseOrders.id, id));
@@ -191,6 +209,7 @@ export async function POST(req: NextRequest) {
       shipToId: shipToId || null,
       shipToContactId: shipToContactId || null,
       orderCategory: orderCategory || "Bulk",
+      quantityUnit: quantityUnit || "KGS",
       paymentMethod: paymentMethod || null,
       paymentDays: paymentDays || null,
       paymentReference: paymentReference || null,

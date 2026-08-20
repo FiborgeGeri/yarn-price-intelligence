@@ -3,18 +3,19 @@ import { useState, useEffect, useMemo } from "react";
 import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
+import { PackingEditor, PackingView, parsePacking, serializePacking, packingTotals, type PackingBox } from "@/components/PackingEditor";
 
 interface GRItem { id: number; grId: number; yarnId: number; yarnName: string; yarnCount: string; composition: string; colorName: string; colorCode: string; quantityOrdered: string; quantityReceived: string; packages: number; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; inspectionResult: string; notes: string; }
-interface GR { id: number; grNo: string; poId: number | null; poNo: string; factoryId: number; factoryName: string; shipToId: number | null; shipToName: string | null; shipToContactName: string | null; grDate: string; shippingMethod: string; trackingNo: string; totalPackages: number; totalGrossWeight: string; totalNetWeight: string; status: string; notes: string; items: GRItem[]; createdByName: string | null; updatedByName: string | null; }
+interface GR { id: number; grNo: string; poId: number | null; poNo: string; factoryId: number; factoryName: string; shipToId: number | null; shipToName: string | null; shipToContactName: string | null; quantityUnit: string; grDate: string; shippingMethod: string; trackingNo: string; totalPackages: number; totalGrossWeight: string; totalNetWeight: string; status: string; notes: string; items: GRItem[]; createdByName: string | null; updatedByName: string | null; }
 interface Factory { id: number; factoryName: string; relationship: string; }
 interface ShipTo { id: number; name: string; category: string; }
 interface PO { id: number; poNo: string; factoryId: number; factoryName: string; customerId: number; customerName: string; customerPoNo: string; shipToId: number | null; shipToName: string | null; shipToContactId: number | null; shipToContactName: string | null; soNo: string; orderCategory: string; status: string; items: { yarnId: number; yarnName: string; yarnCount: string; colorName: string; colorCode: string; quantity: string; }[]; }
 interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; }
-interface FormItem { yarnId: number; colorName: string; colorCode: string; quantityOrdered: string; quantityReceived: string; packages: string; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
+interface FormItem { yarnId: number; colorName: string; colorCode: string; quantityOrdered: string; quantityReceived: string; packingBoxes: PackingBox[]; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
 interface Props { permissions: Permissions; }
 
 const STATUS_COLORS: Record<string, string> = { "Shipped from Mill": "bg-blue-100 text-blue-800", "In Transit": "bg-amber-100 text-amber-800", "Arrived at Port": "bg-cyan-100 text-cyan-800", "Customs Clearance": "bg-purple-100 text-purple-800", Delivered: "bg-green-100 text-green-800", Completed: "bg-emerald-100 text-emerald-800", "On Hold": "bg-red-100 text-red-800" };
-const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantityOrdered: "", quantityReceived: "", packages: "", packingDetails: "", grossWeight: "", netWeight: "", lotNo: "", notes: "" };
+const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantityOrdered: "", quantityReceived: "", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" };
 
 export default function GoodsReceiptsPage({ permissions }: Props) {
   const [grs, setGrs] = useState<GR[]>([]);
@@ -33,6 +34,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
   const [fPoId, setFPoId] = useState(0);
   const [fFactory, setFFactory] = useState(0);
   const [fShipTo, setFShipTo] = useState(0);
+  const [fQtyUnit, setFQtyUnit] = useState("KGS");
   const [fGrDate, setFGrDate] = useState(new Date().toISOString().split("T")[0]);
   const [fShippingMethod, setFShippingMethod] = useState("");
   const [fTrackingNo, setFTrackingNo] = useState("");
@@ -47,16 +49,16 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
   const filtered = useMemo(() => { if (!search.trim()) return grs; const s = search.toLowerCase(); return grs.filter(g => g.grNo?.toLowerCase().includes(s) || g.factoryName?.toLowerCase().includes(s) || g.poNo?.toLowerCase().includes(s) || g.trackingNo?.toLowerCase().includes(s) || g.shipToName?.toLowerCase().includes(s)); }, [grs, search]);
 
   const openForm = (gr?: GR) => {
-    if (gr) { setEditing(gr); setFPoId(gr.poId || 0); setFFactory(gr.factoryId); setFShipTo(gr.shipToId || 0); setFGrDate(gr.grDate); setFShippingMethod(gr.shippingMethod || ""); setFTrackingNo(gr.trackingNo || ""); setFStatus(gr.status || "Shipped from Mill"); setFNotes(gr.notes || ""); setFAutoCreateDN(false); setFItems(gr.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantityOrdered || "", quantityReceived: i.quantityReceived || "", packages: String(i.packages || ""), packingDetails: i.packingDetails || "", grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" }))); }
-    else { setEditing(null); setFPoId(0); setFFactory(0); setFShipTo(0); setFGrDate(new Date().toISOString().split("T")[0]); setFShippingMethod(""); setFTrackingNo(""); setFStatus("Shipped from Mill"); setFNotes(""); setFAutoCreateDN(true); setFItems([{ ...EMPTY_ITEM }]); }
+    if (gr) { setEditing(gr); setFPoId(gr.poId || 0); setFFactory(gr.factoryId); setFShipTo(gr.shipToId || 0); setFQtyUnit(gr.quantityUnit || "KGS"); setFGrDate(gr.grDate); setFShippingMethod(gr.shippingMethod || ""); setFTrackingNo(gr.trackingNo || ""); setFStatus(gr.status || "Shipped from Mill"); setFNotes(gr.notes || ""); setFAutoCreateDN(false); setFItems(gr.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantityOrdered || "", quantityReceived: i.quantityReceived || "", packingBoxes: parsePacking(i.packingDetails), grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" }))); }
+    else { setEditing(null); setFPoId(0); setFFactory(0); setFShipTo(0); setFQtyUnit("KGS"); setFQtyUnit("KGS"); setFGrDate(new Date().toISOString().split("T")[0]); setFShippingMethod(""); setFTrackingNo(""); setFStatus("Shipped from Mill"); setFNotes(""); setFAutoCreateDN(true); setFItems([{ ...EMPTY_ITEM }]); }
     setShowForm(true);
   };
 
   const loadFromPO = (poId: number) => {
     const po = poList.find(p => p.id === poId);
     if (!po) return;
-    setFPoId(poId); setFFactory(po.factoryId); setFShipTo(po.shipToId || 0);
-    setFItems(po.items.map((i: PO["items"][0]) => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantity || "", quantityReceived: i.quantity || "", packages: "", packingDetails: "", grossWeight: "", netWeight: "", lotNo: "", notes: "" })));
+    setFPoId(poId); setFFactory(po.factoryId); setFShipTo(po.shipToId || 0); setFQtyUnit((po as PO & { quantityUnit?: string }).quantityUnit || "KGS");
+    setFItems(po.items.map((i: PO["items"][0]) => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantity || "", quantityReceived: i.quantity || "", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" })));
     setToast({ type: "success", text: `Loaded ${po.items.length} item(s) from ${po.poNo}` }); setTimeout(() => setToast(null), 3000);
   };
 
@@ -66,7 +68,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
     if (!validItems.length) { setToast({ type: "error", text: "Add at least one item" }); return; }
     setSaving(true);
     const po = poList.find(p => p.id === fPoId);
-    const res = await fetch("/api/goods-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, poId: fPoId || null, poNo: po?.poNo || null, factoryId: fFactory, shipToId: fShipTo || null, shipToContactId: po?.shipToContactId || null, grDate: fGrDate, shippingMethod: fShippingMethod, trackingNo: fTrackingNo, status: fStatus, notes: fNotes, items: validItems.map(i => ({ ...i, packages: i.packages ? parseInt(i.packages) : null })), autoCreateDN: !editing && fAutoCreateDN, soNo: po?.soNo || null, customerId: po?.customerId || null, customerPoNo: po?.customerPoNo || null, orderCategory: po?.orderCategory || "Bulk", userId: getUserId() }) });
+    const res = await fetch("/api/goods-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, poId: fPoId || null, poNo: po?.poNo || null, factoryId: fFactory, shipToId: fShipTo || null, shipToContactId: po?.shipToContactId || null, quantityUnit: fQtyUnit, grDate: fGrDate, shippingMethod: fShippingMethod, trackingNo: fTrackingNo, status: fStatus, notes: fNotes, items: validItems.map(i => { const t = packingTotals(i.packingBoxes); return { ...i, packages: t.count || null, packingDetails: serializePacking(i.packingBoxes), grossWeight: i.grossWeight || (t.gross ? t.gross.toFixed(2) : ""), netWeight: i.netWeight || (t.net ? t.net.toFixed(2) : "") }; }), autoCreateDN: !editing && fAutoCreateDN, soNo: po?.soNo || null, customerId: po?.customerId || null, customerPoNo: po?.customerPoNo || null, orderCategory: po?.orderCategory || "Bulk", userId: getUserId() }) });
     if (res.ok) { const d = await res.json(); setToast({ type: "success", text: editing ? "Updated" : `Goods Receipt created${d.dnNo ? ` + DN ${d.dnNo} auto-created` : ""}` }); setShowForm(false); load(); }
     else setToast({ type: "error", text: "Failed" });
     setSaving(false); setTimeout(() => setToast(null), 4000);
@@ -132,6 +134,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
               </div>
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
                 {viewing.poNo && <div>PO Ref: <span className="font-medium text-slate-700">{viewing.poNo}</span></div>}
+                <div>Unit: <span className="font-semibold text-slate-700">{viewing.quantityUnit || "KGS"}</span></div>
                 {viewing.shippingMethod && <div>Shipping: <span className="font-medium text-slate-700">{viewing.shippingMethod}</span></div>}
                 {viewing.trackingNo && <div>AWB / Tracking: <span className="font-medium text-slate-700">{viewing.trackingNo}</span></div>}
                 {viewing.totalPackages && <div>Packages: <span className="font-medium text-slate-700">{viewing.totalPackages}</span></div>}
@@ -143,7 +146,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
               {viewing.items.some(i => i.packingDetails) && (
                 <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3">Packing Details</h3>
-                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1">{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</div><pre className="text-xs text-slate-600 whitespace-pre-wrap font-sans bg-white border border-slate-200 rounded-lg p-3">{i.packingDetails}</pre></div>))}</div>
+                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1 flex items-center gap-2 flex-wrap"><span>{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</span>{i.quantityReceived && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">Invoice Qty: {i.quantityReceived} {viewing.quantityUnit || "KGS"}</span>}{i.quantityOrdered && <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">PO Qty: {i.quantityOrdered}</span>}</div><PackingView raw={i.packingDetails} weightUnit={viewing.quantityUnit === "LBS" ? "LB" : "KG"} /></div>))}</div>
                 </div>
               )}
               {viewing.notes && <div className="text-sm text-slate-600"><span className="text-xs text-slate-500 block mb-1">Notes</span>{viewing.notes}</div>}
@@ -172,7 +175,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label><select value={fStatus} onChange={e => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>Shipped from Mill</option><option>In Transit</option><option>Arrived at Port</option><option>Customs Clearance</option><option>Delivered</option><option>Completed</option><option>On Hold</option></select></div>
                 </div>
                 <div className="space-y-3">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">GR Date *</label><input type="date" value={fGrDate} onChange={e => setFGrDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div>
+                  <div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">GR Date *</label><input type="date" value={fGrDate} onChange={e => setFGrDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Quantity Unit</label><select value={fQtyUnit} onChange={e => setFQtyUnit(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="KGS">KGS</option><option value="LBS">LBS</option><option value="MTR">MTR</option><option value="YDS">YDS</option><option value="CONES">CONES</option><option value="PCS">PCS</option></select></div></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Shipping Method</label><select value={fShippingMethod} onChange={e => setFShippingMethod(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="">— Select —</option><option>Sea Freight</option><option>Air Freight</option><option>Courier (DHL/FedEx/UPS)</option><option>Truck / Land</option><option>Rail</option><option>Ex-Works / Self Pickup</option></select></div>
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">AWB / Tracking No.</label><input type="text" value={fTrackingNo} onChange={e => setFTrackingNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Tracking / AWB number" /></div>
@@ -194,14 +197,13 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
                     <div className="grid grid-cols-6 gap-2 mt-2">
                       <div><input type="text" value={item.quantityOrdered} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityOrdered: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PO Qty" /></div>
                       <div><input type="text" value={item.quantityReceived} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityReceived: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Invoice Qty" /></div>
-                      <div><input type="text" value={item.packages} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, packages: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Total Pkgs" /></div>
                       <div><input type="text" value={item.grossWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, grossWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Gross Wt (KG)" /></div>
                       <div><input type="text" value={item.netWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, netWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Net Wt (KG)" /></div>
                       <div><input type="text" value={item.notes} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, notes: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Remarks" /></div>
                     </div>
                     <div className="mt-2">
-                      <label className="block text-[11px] font-medium text-slate-600 mb-1">Packing Details</label>
-                      <textarea value={item.packingDetails} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingDetails: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" rows={3} placeholder={"e.g.\n1 of 10 boxes - 12 cones\n2 of 10 boxes - 12 cones"} />
+                      <div className="text-[11px] text-slate-500 mb-1">Invoice Qty: <span className="font-semibold text-slate-700">{item.quantityReceived || "—"} {fQtyUnit}</span></div>
+                      <PackingEditor boxes={item.packingBoxes} onChange={(bx) => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingBoxes: bx } : l))} weightUnit={fQtyUnit === "LBS" ? "LB" : "KG"} />
                     </div>
                   </div>
                 ))}</div>
