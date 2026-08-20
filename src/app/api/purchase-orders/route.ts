@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
           "Confirmed": "Confirmed",
           "In Production": "In Production",
           "Shipped": "Shipped",
-          "Received": "Delivered",
+          "Delivered": "Delivered",
           "Closed": "Delivered",
           "Cancelled": "Cancelled",
         };

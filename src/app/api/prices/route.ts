@@ -10,6 +10,7 @@ const priceSelect = {
   price: prices.price,
   currency: prices.currency,
   unit: prices.unit,
+  weightBasis: prices.weightBasis,
   recordDate: prices.recordDate,
   incoterms: prices.incoterms,
   remarks: prices.remarks,

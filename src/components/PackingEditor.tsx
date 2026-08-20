@@ -55,7 +55,7 @@ interface EditorProps {
 }
 
 /** Structured, box-by-box packing list editor. */
-export function PackingEditor({ boxes, onChange, weightUnit = "KG" }: EditorProps) {
+export function PackingEditor({ boxes, onChange, weightUnit = "" }: EditorProps) {
   const totals = packingTotals(boxes);
 
   const update = (idx: number, patch: Partial<PackingBox>) =>
@@ -110,10 +110,10 @@ export function PackingEditor({ boxes, onChange, weightUnit = "KG" }: EditorProp
                   <div className="flex items-center gap-1">Cones<button type="button" onClick={() => fillDown("cones")} title="Fill down" className="text-slate-400 hover:text-blue-600">↓</button></div>
                 </th>
                 <th className="px-2 py-1.5 font-medium w-24">
-                  <div className="flex items-center gap-1">Gross ({weightUnit})<button type="button" onClick={() => fillDown("grossWeight")} title="Fill down" className="text-slate-400 hover:text-blue-600">↓</button></div>
+                  <div className="flex items-center gap-1">Gross Wt<button type="button" onClick={() => fillDown("grossWeight")} title="Fill down" className="text-slate-400 hover:text-blue-600">↓</button></div>
                 </th>
                 <th className="px-2 py-1.5 font-medium w-24">
-                  <div className="flex items-center gap-1">Net ({weightUnit})<button type="button" onClick={() => fillDown("netWeight")} title="Fill down" className="text-slate-400 hover:text-blue-600">↓</button></div>
+                  <div className="flex items-center gap-1">Net Wt<button type="button" onClick={() => fillDown("netWeight")} title="Fill down" className="text-slate-400 hover:text-blue-600">↓</button></div>
                 </th>
                 <th className="px-2 py-1.5 font-medium w-28">
                   <div className="flex items-center gap-1">Lot No.<button type="button" onClick={() => fillDown("lotNo")} title="Fill down" className="text-slate-400 hover:text-blue-600">↓</button></div>
@@ -150,7 +150,7 @@ export function PackingEditor({ boxes, onChange, weightUnit = "KG" }: EditorProp
 }
 
 /** Read-only packing table for detail views. */
-export function PackingView({ raw, weightUnit = "KG" }: { raw: string | null | undefined; weightUnit?: string }) {
+export function PackingView({ raw, weightUnit = "" }: { raw: string | null | undefined; weightUnit?: string }) {
   const boxes = parsePacking(raw);
   if (!boxes.length) return null;
   const totals = packingTotals(boxes);
@@ -161,8 +161,8 @@ export function PackingView({ raw, weightUnit = "KG" }: { raw: string | null | u
           <tr className="bg-slate-50 text-slate-600 text-left">
             <th className="px-2 py-1.5 font-medium">Box</th>
             <th className="px-2 py-1.5 font-medium">Cones</th>
-            <th className="px-2 py-1.5 font-medium">Gross ({weightUnit})</th>
-            <th className="px-2 py-1.5 font-medium">Net ({weightUnit})</th>
+            <th className="px-2 py-1.5 font-medium">Gross Wt</th>
+            <th className="px-2 py-1.5 font-medium">Net Wt</th>
             <th className="px-2 py-1.5 font-medium">Lot No.</th>
           </tr>
         </thead>

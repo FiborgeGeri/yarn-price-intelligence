@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
         // Status mapping
         const statusMap: Record<string, string> = {
           "Confirmed": "Confirmed", "In Production": "In Production",
-          "Shipped": "Shipped", "Delivered": "Received", "Cancelled": "Cancelled",
+          "Shipped": "Shipped", "Delivered": "Delivered", "Cancelled": "Cancelled",
         };
         const poStatus = statusMap[status] || undefined;
 

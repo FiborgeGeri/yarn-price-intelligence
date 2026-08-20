@@ -47,7 +47,7 @@ export default function Home() {
   const handleLogin = (u: User, token: string) => { setUser(u); localStorage.setItem("auth_user", JSON.stringify(u)); localStorage.setItem("auth_token", token); };
   const handleLogout = () => { setUser(null); localStorage.removeItem("auth_user"); localStorage.removeItem("auth_token"); };
 
-  if (loading) return <div className="flex items-center justify-center h-screen bg-slate-900"><div className="text-center"><div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" /><p className="text-slate-300 text-lg">Loading Yarn Price Intelligence...</p></div></div>;
+  if (loading) return <div className="flex items-center justify-center h-screen bg-[radial-gradient(circle_at_82%_12%,rgba(229,136,93,0.18),transparent_30rem),linear-gradient(145deg,#fafafa,#f2f2f3,#f8f3f0)]"><div className="text-center rounded-3xl bg-white/55 backdrop-blur-2xl border border-white/80 px-10 py-8 shadow-[0_24px_70px_rgba(64,52,46,0.08)]"><div className="w-12 h-12 border-4 border-[#edaf92] border-t-[#d97449] rounded-full animate-spin mx-auto mb-4" /><p className="text-[#625c59] text-base">Loading Yarn Price Intelligence...</p></div></div>;
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
   const renderPage = () => {

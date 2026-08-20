@@ -18,7 +18,7 @@ interface Customer { id: number; name: string; company: string; }
 interface Contact { id: number; customerId: number; contactName: string; department: string; position: string; email: string; phone: string; }
 interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; micron: string; composition: string; treatmentName: string; latestPrice: number | null; latestCurrency: string | null; latestUnit: string | null; }
 interface Props { permissions: Permissions; }
-interface LineItem { id?: number; yarnId: number; costPrice: string; quotedPrice: string; currency: string; unit: string; incoterms: string; notes: string; }
+interface LineItem { id?: number; yarnId: number; costPrice: string; quotedPrice: string; currency: string; unit: string; weightBasis: string; incoterms: string; notes: string; }
 interface QuoteGroup {
   quoteNo: string; customerId: number; contactId: number | null; customerName: string; customerCompany: string;
   contactName: string | null; contactEmail: string | null;
@@ -171,7 +171,7 @@ export default function QuotationsPage({ permissions }: Props) {
   const [mCustomer, setMCustomer] = useState(0); const [mContact, setMContact] = useState(0);
   const [mQuoteDate, setMQuoteDate] = useState(new Date().toISOString().split("T")[0]); const [mValidUntil, setMValidUntil] = useState("");
   const [mStatus, setMStatus] = useState("Draft");
-  const [mLines, setMLines] = useState<LineItem[]>([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", incoterms: "", notes: "" }]);
+  const [mLines, setMLines] = useState<LineItem[]>([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]);
   const [mSaving, setMSaving] = useState(false);
 
   const load = async () => { setLoading(true); const [q, c, cc, y] = await Promise.all([fetch("/api/quotations").then((r) => r.json()), fetch("/api/customers").then((r) => r.json()), fetch("/api/customer-contacts").then((r) => r.json()), fetch("/api/yarns").then((r) => r.json())]); setRows(q); setCustomerList(c); setContactList(cc); setYarnList(y); setLoading(false); };
@@ -217,12 +217,12 @@ export default function QuotationsPage({ permissions }: Props) {
       setEditingGroup(group); setMCustomer(group.customerId); setMContact(group.contactId || 0);
       setMQuoteDate(group.quoteDate || new Date().toISOString().split("T")[0]); setMValidUntil(group.validUntil || "");
       setMStatus(group.status || "Draft");
-      setMLines(group.rows.map((r) => ({ id: r.id, yarnId: r.yarnId, costPrice: String(r.costPrice), quotedPrice: String(r.quotedPrice), currency: r.currency || "USD", unit: r.unit || "per KG", incoterms: r.incoterms || "", notes: r.notes || "" })));
+      setMLines(group.rows.map((r) => ({ id: r.id, yarnId: r.yarnId, costPrice: String(r.costPrice), quotedPrice: String(r.quotedPrice), currency: r.currency || "USD", unit: r.unit || "per KG", weightBasis: r.weightBasis || "condition", incoterms: r.incoterms || "", notes: r.notes || "" })));
     } else {
       setEditingGroup(null); setMCustomer(0); setMContact(0);
       setMQuoteDate(new Date().toISOString().split("T")[0]); setMValidUntil("");
       setMStatus("Draft");
-      setMLines([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", incoterms: "", notes: "" }]);
+      setMLines([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]);
     }
     setShowMulti(true);
   };
@@ -230,7 +230,7 @@ export default function QuotationsPage({ permissions }: Props) {
   const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!fCustomer || !fYarn || !fCostPrice || !fQuotedPrice) return; setSaving(true); const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing?.id, quoteNo: editing?.quoteNo, customerId: fCustomer, contactId: fContact || null, yarnId: fYarn, costPrice: fCostPrice, quotedPrice: fQuotedPrice, currency: fCurrency, unit: fUnit, weightBasis: fWeightBasis, quoteDate: fQuoteDate, validUntil: fValidUntil, incoterms: fIncoterms, status: fStatus, notes: fNotes, userId: getUserId() }) }); if (res.ok) { setToast({ type: "success", text: editing ? "Updated" : "Created" }); setShowForm(false); load(); } else { const d = await res.json().catch(() => ({ error: "Failed" })); setToast({ type: "error", text: d.error || "Failed" }); } setSaving(false); setTimeout(() => setToast(null), 3000); };
 
   const updateLine = (idx: number, field: keyof LineItem, value: string) => setMLines((p) => p.map((l, i) => i === idx ? { ...l, [field]: value } : l));
-  const addLine = () => setMLines((p) => [...p, { yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", incoterms: "", notes: "" }]);
+  const addLine = () => setMLines((p) => [...p, { yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]);
   const removeLine = (idx: number) => setMLines((p) => p.filter((_, i) => i !== idx));
   const [lineTermPrices, setLineTermPrices] = useState<Record<number, LatestTermPrice[]>>({});
   const handleLineYarnChange = (idx: number, yarnId: number) => {
@@ -240,7 +240,7 @@ export default function QuotationsPage({ permissions }: Props) {
         setLineTermPrices((prev) => ({ ...prev, [idx]: tp }));
         // Auto-apply if only one term
         if (tp.length === 1) {
-          setMLines((p) => p.map((l, i) => i !== idx ? l : { ...l, costPrice: String(tp[0].price), currency: tp[0].currency, unit: tp[0].unit, incoterms: tp[0].incoterms }));
+          setMLines((p) => p.map((l, i) => i !== idx ? l : { ...l, costPrice: String(tp[0].price), currency: tp[0].currency, unit: tp[0].unit, weightBasis: tp[0].weightBasis || "condition", incoterms: tp[0].incoterms }));
         }
       });
     } else {
@@ -257,8 +257,8 @@ export default function QuotationsPage({ permissions }: Props) {
     try {
       if (editingGroup) { const origIds = editingGroup.rows.map((r) => r.id); const curIds = validLines.map((l) => l.id).filter(Boolean) as number[]; for (const id of origIds.filter((id) => !curIds.includes(id))) await fetch(`/api/quotations?id=${id}`, { method: "DELETE" }); }
       let processed = 0; let firstError = "";
-      for (const line of validLines) { const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: line.id, quoteNo, customerId: mCustomer, contactId: mContact || null, yarnId: line.yarnId, costPrice: line.costPrice, quotedPrice: line.quotedPrice, currency: line.currency, unit: line.unit, quoteDate: mQuoteDate, validUntil: mValidUntil, incoterms: line.incoterms, status: mStatus, notes: line.notes, userId: getUserId() }) }); if (res.ok) processed++; else if (!firstError) { const d = await res.json().catch(() => ({ error: "Failed" })); firstError = d.error || "Failed"; } }
-      if (processed === 0) { setToast({ type: "error", text: firstError || "Failed" }); } else { setToast({ type: "success", text: `${editingGroup ? "Updated" : "Created"} ${quoteNo} (${processed} items)` }); setShowMulti(false); setEditingGroup(null); setMLines([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", incoterms: "", notes: "" }]); load(); }
+      for (const line of validLines) { const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: line.id, quoteNo, customerId: mCustomer, contactId: mContact || null, yarnId: line.yarnId, costPrice: line.costPrice, quotedPrice: line.quotedPrice, currency: line.currency, unit: line.unit, weightBasis: line.weightBasis, quoteDate: mQuoteDate, validUntil: mValidUntil, incoterms: line.incoterms, status: mStatus, notes: line.notes, userId: getUserId() }) }); if (res.ok) processed++; else if (!firstError) { const d = await res.json().catch(() => ({ error: "Failed" })); firstError = d.error || "Failed"; } }
+      if (processed === 0) { setToast({ type: "error", text: firstError || "Failed" }); } else { setToast({ type: "success", text: `${editingGroup ? "Updated" : "Created"} ${quoteNo} (${processed} items)` }); setShowMulti(false); setEditingGroup(null); setMLines([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]); load(); }
     } catch { setToast({ type: "error", text: "Failed to save" }); }
     setMSaving(false); setTimeout(() => setToast(null), 4000);
   };
@@ -367,14 +367,15 @@ export default function QuotationsPage({ permissions }: Props) {
                     <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="flex items-center justify-between mb-2"><span className="text-xs font-medium text-slate-500">Item {idx + 1}</span>{mLines.length > 1 && <button type="button" onClick={() => removeLine(idx)} className="text-xs text-red-500 hover:text-red-700">Remove</button>}</div>
                       <YarnFilterPicker yarnList={yarnList} value={line.yarnId} onChange={(id) => handleLineYarnChange(idx, id)} />
-                      {(lineTermPrices[idx]?.length || 0) > 0 && <TermPriceBadges prices={lineTermPrices[idx]} onSelect={(p) => { setMLines((prev) => prev.map((l, i) => i !== idx ? l : { ...l, costPrice: String(p.price), currency: p.currency, unit: p.unit, incoterms: p.incoterms })); }} />}
+                      {(lineTermPrices[idx]?.length || 0) > 0 && <TermPriceBadges prices={lineTermPrices[idx]} onSelect={(p) => { setMLines((prev) => prev.map((l, i) => i !== idx ? l : { ...l, costPrice: String(p.price), currency: p.currency, unit: p.unit, weightBasis: p.weightBasis || "condition", incoterms: p.incoterms })); }} />}
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div><input type="number" step="0.01" value={line.costPrice} onChange={(e) => updateLine(idx, "costPrice", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Cost" /></div>
                         <div><input type="number" step="0.01" value={line.quotedPrice} onChange={(e) => updateLine(idx, "quotedPrice", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Quoted" /></div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 mt-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
                         <div><select value={line.currency} onChange={(e) => updateLine(idx, "currency", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"><option>USD</option><option>EUR</option><option>GBP</option><option>CNY</option><option>JPY</option></select></div>
                         <div><select value={line.unit} onChange={(e) => updateLine(idx, "unit", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"><option>per KG</option><option>per LB</option><option>per Cone</option></select></div>
+                        <div><select value={line.weightBasis} onChange={(e) => updateLine(idx, "weightBasis", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"><option value="condition">Condition Wt</option><option value="net">Net Weight</option></select></div>
                         <div><input type="text" value={line.incoterms} onChange={(e) => updateLine(idx, "incoterms", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Incoterms (e.g. FOB)" /></div>
                       </div>
                       {lm != null && <div className={`mt-1 text-xs font-mono ${lm > 0 ? "text-green-600" : "text-red-500"}`}>Margin: {lm > 0 ? "+" : ""}{lm.toFixed(2)} {line.currency}/{line.unit.replace("per ", "")} ({lmp?.toFixed(1)}%)</div>}

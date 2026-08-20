@@ -51,7 +51,7 @@ export async function GET() {
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
         factoryName: factories.factoryName,
         colorName: dnItems.colorName, colorCode: dnItems.colorCode,
-        quantity: dnItems.quantity, packages: dnItems.packages,
+        quantity: dnItems.quantity, weightBasis: dnItems.weightBasis, packages: dnItems.packages,
         packingDetails: dnItems.packingDetails,
         grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight,
         lotNo: dnItems.lotNo, notes: dnItems.notes,

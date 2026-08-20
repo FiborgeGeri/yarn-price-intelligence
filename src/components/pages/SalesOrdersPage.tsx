@@ -539,7 +539,20 @@ export default function SalesOrdersPage({ permissions }: Props) {
               )}
               <div className="border-t border-slate-200 pt-3 flex items-center justify-between">
                 <AuditInfo createdByName={(viewing as SalesOrder & { createdByName?: string }).createdByName} updatedByName={(viewing as SalesOrder & { updatedByName?: string }).updatedByName} />
-                {permissions.canEdit && <button onClick={() => { setViewing(null); openForm(viewing); }} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Edit Order</button>}
+                <div className="flex gap-2">
+                  {permissions.canEdit && viewing.status === "Confirmed" && (
+                    <button onClick={async () => {
+                      const res = await fetch("/api/sales-orders", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: viewing.id, status: "In Production", customerId: viewing.customerId, soDate: viewing.soDate, contactId: viewing.contactId, shipToId: viewing.shipToId, shipToContactId: (viewing as SalesOrder & { shipToContactId?: number }).shipToContactId, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes })), userId: getUserId() }),
+                      });
+                      if (res.ok) { setToast({ type: "success", text: "Status changed to In Production (SO + PO synced)" }); setViewing(null); load(); }
+                      else setToast({ type: "error", text: "Failed to update status" });
+                      setTimeout(() => setToast(null), 3000);
+                    }} className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">▶ Start Production</button>
+                  )}
+                  {permissions.canEdit && <button onClick={() => { setViewing(null); openForm(viewing); }} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Edit Order</button>}
+                </div>
               </div>
             </div>
           </div>

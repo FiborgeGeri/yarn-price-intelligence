@@ -358,6 +358,7 @@ export const dnItems = pgTable("dn_items", {
   colorName: varchar("color_name", { length: 200 }),
   colorCode: varchar("color_code", { length: 100 }),
   quantity: varchar("quantity", { length: 100 }),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
   packages: integer("packages"),
   packingDetails: text("packing_details"),
   grossWeight: varchar("gross_weight", { length: 50 }),

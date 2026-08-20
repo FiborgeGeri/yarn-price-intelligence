@@ -88,22 +88,31 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
 
       {/* Alerts */}
       {(k.overdueCount > 0 || k.expiringQuotes > 0 || k.stalePriceCount > 0) && (
-        <div className="flex flex-wrap gap-2">
-          {k.overdueCount > 0 && (
-            <button onClick={() => onNavigate("sales-orders")} className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium hover:bg-red-100">
-              ⚠ {k.overdueCount} overdue delivery{k.overdueCount > 1 ? "ies" : ""}
-            </button>
-          )}
-          {k.expiringQuotes > 0 && (
-            <button onClick={() => onNavigate("quotations")} className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium hover:bg-amber-100">
-              ⏳ {k.expiringQuotes} quotation{k.expiringQuotes > 1 ? "s" : ""} expiring in 14 days
-            </button>
-          )}
-          {k.stalePriceCount > 0 && (
-            <button onClick={() => onNavigate("price-history")} className="px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-200">
-              🕓 {k.stalePriceCount} price{k.stalePriceCount > 1 ? "s" : ""} older than 30 days
-            </button>
-          )}
+        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-slate-200 shadow-sm p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-5 h-5 rounded-full bg-red-50 border border-red-200 flex items-center justify-center shrink-0"><svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg></div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Alerts</span>
+          </div>
+          <div className="space-y-1.5">
+            {k.overdueCount > 0 && (
+              <button onClick={() => onNavigate("sales-orders")} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-red-50/60 transition-colors text-left">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                <span className="text-xs text-slate-700"><strong className="text-red-600">{k.overdueCount}</strong> overdue delivery{k.overdueCount > 1 ? "ies" : ""} need attention</span>
+              </button>
+            )}
+            {k.expiringQuotes > 0 && (
+              <button onClick={() => onNavigate("quotations")} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-amber-50/60 transition-colors text-left">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-xs text-slate-700"><strong className="text-amber-600">{k.expiringQuotes}</strong> quotation{k.expiringQuotes > 1 ? "s" : ""} expiring within 14 days</span>
+              </button>
+            )}
+            {k.stalePriceCount > 0 && (
+              <button onClick={() => onNavigate("price-history")} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100/60 transition-colors text-left">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                <span className="text-xs text-slate-700"><strong className="text-slate-600">{k.stalePriceCount}</strong> price{k.stalePriceCount > 1 ? "s" : ""} not updated in 30+ days</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 

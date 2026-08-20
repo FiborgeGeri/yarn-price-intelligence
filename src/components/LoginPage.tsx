@@ -23,11 +23,8 @@ export default function LoginPage({ onLogin }: Props) {
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-      } else {
-        onLogin(data.user, data.token);
-      }
+      if (!res.ok) setError(data.error || "Login failed");
+      else onLogin(data.user, data.token);
     } catch {
       setError("Connection error");
     }
@@ -35,52 +32,49 @@ export default function LoginPage({ onLogin }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    <div className="relative min-h-screen overflow-hidden flex items-center justify-center px-4 bg-[linear-gradient(145deg,#fafafa_0%,#f0f0f1_48%,#f7f1ee_100%)]">
+      <div className="pointer-events-none absolute -right-28 -top-24 h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle_at_35%_35%,rgba(255,211,188,0.9),rgba(230,133,88,0.62)_48%,rgba(226,123,74,0.06)_74%,transparent_75%)] blur-[1px]" />
+      <div className="pointer-events-none absolute -bottom-52 -left-40 h-[38rem] w-[38rem] rounded-full bg-[radial-gradient(circle,rgba(243,201,181,0.42),rgba(245,226,218,0.2)_58%,transparent_72%)]" />
+      <div className="pointer-events-none absolute left-[12%] top-[14%] h-28 w-28 rounded-full border border-white/80 bg-white/28 backdrop-blur-xl" />
+
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="text-center mb-7">
+          <div className="relative w-20 h-20 rounded-[1.75rem] flex items-center justify-center mx-auto mb-4 bg-gradient-to-br from-white/80 via-[#f8d5c5]/68 to-[#e8895e]/76 border border-white/90 shadow-[0_20px_55px_rgba(206,110,69,0.16)] backdrop-blur-xl">
+            <div className="absolute inset-2 rounded-[1.35rem] bg-white/18 border border-white/40" />
+            <svg className="relative w-9 h-9 text-[#a75334]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">Fiborge&apos;s Sales &amp; Sourcing Hub</h1>
+          <h1 className="text-2xl font-semibold text-[#252222]">Welcome to Fiborge&apos;s Hub</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-slate-800 rounded-xl p-6 shadow-xl">
-          {error && (
-            <div className="mb-4 p-3 bg-red-900/30 text-red-400 rounded-lg text-sm border border-red-800">
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="bg-white/70 backdrop-blur-2xl rounded-[1.5rem] p-6 shadow-[0_24px_70px_rgba(64,52,46,0.11)] border border-white/90">
+          {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-xl text-sm border border-red-200">{error}</div>}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
+            <label className="block text-sm font-medium text-[#514c4a] mb-1.5">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3.5 py-2.5 bg-white/76 border border-white rounded-xl text-[#242222] placeholder-[#aaa4a1] shadow-[inset_0_0_0_1px_rgba(196,190,187,0.38)] focus:outline-none focus:ring-2 focus:ring-[#e58a61]/30"
               placeholder="Enter username"
               required
             />
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-[#514c4a] mb-1.5">Password</label>
             <div className="relative">
               <input
                 type={showPw ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                className="w-full px-3.5 py-2.5 pr-10 bg-white/76 border border-white rounded-xl text-[#242222] placeholder-[#aaa4a1] shadow-[inset_0_0_0_1px_rgba(196,190,187,0.38)] focus:outline-none focus:ring-2 focus:ring-[#e58a61]/30"
                 placeholder="Enter password"
                 required
               />
-              <button
-                type="button"
-                onClick={() => setShowPw(!showPw)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200"
-              >
+              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#918b88] hover:text-[#b55f3e]">
                 {showPw ? (
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                 ) : (
@@ -90,17 +84,9 @@ export default function LoginPage({ onLogin }: Props) {
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
+          <button type="submit" disabled={loading} className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {loading ? "Signing in..." : "Sign In"}
           </button>
-
-          <p className="text-xs text-slate-500 text-center mt-4">
-            Demo: admin / admin123
-          </p>
         </form>
       </div>
     </div>

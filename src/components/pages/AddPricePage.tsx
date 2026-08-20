@@ -57,6 +57,14 @@ function normalizeRecordDate(input: string | undefined | null): string | null {
   return null;
 }
 
+function normalizeWeightBasis(input: string | undefined | null): "condition" | "net" | null {
+  const value = (input || "").trim().toLowerCase();
+  if (!value) return "condition";
+  if (["condition", "condition weight", "conditioned", "conditioned weight", "cond", "cw"].includes(value)) return "condition";
+  if (["net", "net weight", "nw"].includes(value)) return "net";
+  return null;
+}
+
 function FilterInput({
   label,
   value,
@@ -359,12 +367,15 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
     if (!bulkText.trim()) return;
     setBulkResult(null);
     const lines = bulkText.trim().split("\n").filter((l) => l.trim());
-    const rows: Array<{ yarnId: number; price: string; currency: string; unit: string; recordDate: string; incoterms: string; remarks: string; }> = [];
+    const rows: Array<{ yarnId: number; price: string; currency: string; unit: string; weightBasis: "condition" | "net"; recordDate: string; incoterms: string; remarks: string; }> = [];
+    const invalid: string[] = [];
 
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
       const cols = line.split("\t");
-      if (cols.length < 6) continue;
-      const [yarnName, csvFactory, csvYarnCount, csvMicron, csvTreatment, priceStr, curr, unitStr, dateStr, inc, rem] = cols;
+      if (cols.length < 6) { invalid.push(`Row ${lineIndex + 1}: not enough columns`); continue; }
+      const [yarnName, csvFactory, csvYarnCount, csvMicron, csvTreatment, priceStr, curr, unitStr, basisStr, dateStr, inc, rem] = cols;
+      if (lineIndex === 0 && /yarn\s*name/i.test(yarnName || "") && /price/i.test(priceStr || "")) continue;
 
       let matched: Yarn | null = null;
       let bestScore = 0;
@@ -392,15 +403,35 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
       }
 
       const normalizedDate = normalizeRecordDate(dateStr?.trim() || new Date().toISOString().split("T")[0]);
-      if (matched && priceStr && normalizedDate) {
-        rows.push({ yarnId: matched.id, price: priceStr.trim(), currency: curr?.trim() || "USD", unit: unitStr?.trim() || "per KG", recordDate: normalizedDate, incoterms: inc?.trim() || "", remarks: rem?.trim() || "" });
+      const weightBasis = normalizeWeightBasis(basisStr);
+      const numericPrice = parseFloat(priceStr?.trim() || "");
+      if (matched && Number.isFinite(numericPrice) && numericPrice > 0 && normalizedDate && weightBasis) {
+        rows.push({
+          yarnId: matched.id,
+          price: priceStr.trim(),
+          currency: curr?.trim().toUpperCase() || "USD",
+          unit: unitStr?.trim() || "per KG",
+          weightBasis,
+          recordDate: normalizedDate,
+          incoterms: inc?.trim() || "",
+          remarks: rem?.trim() || "",
+        });
+      } else {
+        const reasons = [
+          !matched && "yarn not matched",
+          (!Number.isFinite(numericPrice) || numericPrice <= 0) && "invalid price",
+          !weightBasis && "invalid weight basis",
+          !normalizedDate && "invalid date",
+        ].filter(Boolean).join(", ");
+        invalid.push(`Row ${lineIndex + 1}: ${reasons || "invalid data"}`);
       }
     }
 
     if (rows.length === 0) {
-      setToast({ type: "error", text: "No valid rows found" });
+      setToast({ type: "error", text: invalid[0] || "No valid rows found" });
       return;
     }
+    if (invalid.length > 0 && !confirm(`${rows.length} valid row(s) and ${invalid.length} invalid row(s).\n\n${invalid.slice(0, 5).join("\n")}\n\nImport valid rows only?`)) return;
 
     setSaving(true);
     try {
@@ -452,10 +483,15 @@ export default function AddPricePage({ permissions, onNavigate }: Props) {
 
           {!bulkResult && (
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-              <h2 className="text-lg font-semibold mb-3">Bulk Price Import</h2>
-              <p className="text-sm text-slate-500 mb-3">Paste tab-separated data. Columns: <strong>Yarn Name, Factory, Yarn Count, Micron, Treatment, Price, Currency, Unit, Date, Incoterms, Remarks</strong></p>
-              <p className="text-xs text-slate-400 mb-3">Treatment is used to match the correct yarn variant. Accepted date formats: <strong>yyyy-mm-dd</strong> or <strong>dd/mm/yyyy</strong>. All imported dates are saved as <strong>yyyy-mm-dd</strong>.</p>
-              <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} className="w-full h-48 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={"Yarn Name\tFactory\tYarn Count\tMicron\tTreatment\tPrice\tCurrency\tUnit\tRecord Date\tIncoterms\tRemarks\nSIMPHONIE\tIndorama\tNM 30/2\t19.5\tUntreated\t27.85\tUSD\tper KG\t2026-07-20\tCIF Shanghai\tNote here\nCAIRNS\tIndorama\tNM 48/2\t19.5\tAnti-Shrinkage\t30.50\tUSD\tper KG\t24/07/2025\tCIF Shanghai\t"} />
+              <h2 className="text-lg font-semibold mb-2">Bulk Price Import</h2>
+              <p className="text-sm text-slate-500 mb-3">Each row is one commercial price term. Repeat the same yarn on multiple rows for different currencies, units, weight bases, or incoterms.</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 mb-3 overflow-x-auto">
+                <div className="text-[11px] font-mono text-slate-600 whitespace-nowrap">Yarn Name · Factory · Yarn Count · Micron · Treatment · Price · Currency · Unit · Weight Basis · Record Date · Incoterms · Remarks</div>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Weight Basis accepts <strong>Condition Weight</strong>, <strong>Cond</strong>, <strong>Net Weight</strong>, or <strong>Net</strong>. Dates accept <strong>yyyy-mm-dd</strong> or <strong>dd/mm/yyyy</strong>. The header row is optional and ignored automatically.
+              </p>
+              <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} className="w-full h-56 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={"Yarn Name\tFactory\tYarn Count\tMicron\tTreatment\tPrice\tCurrency\tUnit\tWeight Basis\tRecord Date\tIncoterms\tRemarks\nSIMPHONIE\tIndorama\tNM 30/2\t19.5\tUntreated\t27.85\tUSD\tper KG\tCondition Weight\t2026-07-20\tCIF Shanghai\tUSD condition price\nSIMPHONIE\tIndorama\tNM 30/2\t19.5\tUntreated\t197.00\tCNY\tper KG\tNet Weight\t2026-07-20\tDDP China\tCNY net price"} />
               <div className="flex gap-3 mt-4"><button onClick={handleBulkSubmit} disabled={saving || !bulkText.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">{saving ? "Importing..." : "Import Prices"}</button><a href="/api/export/price-template" className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors">Download Template</a></div>
             </div>
           )}

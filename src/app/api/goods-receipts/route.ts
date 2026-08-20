@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
       const grPoNo = grRecord[0]?.poNo;
       if (grPoNo && status) {
         const poStatusMap: Record<string, string> = {
-          "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Arrived at Port": "Shipped", "Customs Clearance": "Shipped", "Delivered": "Received", "Completed": "Closed",
+          "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Arrived at Port": "Shipped", "Customs Clearance": "Shipped", "Delivered": "Delivered", "Completed": "Closed",
         };
         const soStatusMap: Record<string, string> = {
           "Shipped from Mill": "Shipped", "In Transit": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",

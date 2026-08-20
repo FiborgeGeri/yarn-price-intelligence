@@ -134,19 +134,19 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
               </div>
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
                 {viewing.poNo && <div>PO Ref: <span className="font-medium text-slate-700">{viewing.poNo}</span></div>}
-                <div>Unit: <span className="font-semibold text-slate-700">{viewing.quantityUnit || "KGS"}</span></div>
+                <div>Unit: <span className="font-semibold text-slate-700">{viewing.quantityUnit || ""}</span></div>
                 {viewing.shippingMethod && <div>Shipping: <span className="font-medium text-slate-700">{viewing.shippingMethod}</span></div>}
                 {viewing.trackingNo && <div>AWB / Tracking: <span className="font-medium text-slate-700">{viewing.trackingNo}</span></div>}
                 {viewing.totalPackages && <div>Packages: <span className="font-medium text-slate-700">{viewing.totalPackages}</span></div>}
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto">
-                <table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Color</th><th className="px-4 py-3 font-medium">PO Qty</th><th className="px-4 py-3 font-medium">Invoice Qty</th><th className="px-4 py-3 font-medium">Total Pkgs</th><th className="px-4 py-3 font-medium">Gross Wt</th><th className="px-4 py-3 font-medium">Net Wt</th><th className="px-4 py-3 font-medium">Lot No.</th></tr></thead>
+                <table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Color</th><th className="px-4 py-3 font-medium">PO Qty</th><th className="px-4 py-3 font-medium">Weight</th><th className="px-4 py-3 font-medium">Total Pkgs</th><th className="px-4 py-3 font-medium">Gross Wt</th><th className="px-4 py-3 font-medium">Net Wt</th><th className="px-4 py-3 font-medium">Lot No.</th></tr></thead>
                 <tbody>{viewing.items.map(i => (<tr key={i.id} className="border-t border-slate-200"><td className="px-4 py-3"><div className="font-medium">{i.yarnName}</div><div className="text-xs text-slate-400">{i.yarnCount}</div></td><td className="px-4 py-3 text-xs">{i.colorName || i.colorCode || "—"}</td><td className="px-4 py-3 text-xs text-slate-500">{i.quantityOrdered || "—"}</td><td className="px-4 py-3 text-xs font-medium">{i.quantityReceived || "—"}</td><td className="px-4 py-3 text-xs">{i.packages || "—"}</td><td className="px-4 py-3 text-xs">{i.grossWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.netWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.lotNo || "—"}</td></tr>))}</tbody></table>
               </div>
               {viewing.items.some(i => i.packingDetails) && (
                 <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3">Packing Details</h3>
-                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1 flex items-center gap-2 flex-wrap"><span>{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</span>{i.quantityReceived && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">Invoice Qty: {i.quantityReceived} {viewing.quantityUnit || "KGS"}</span>}{i.quantityOrdered && <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">PO Qty: {i.quantityOrdered}</span>}</div><PackingView raw={i.packingDetails} weightUnit={viewing.quantityUnit === "LBS" ? "LB" : "KG"} /></div>))}</div>
+                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1 flex items-center gap-2 flex-wrap"><span>{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</span>{i.quantityReceived && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">Weight: {i.quantityReceived} {viewing.quantityUnit || ""}</span>}{i.quantityOrdered && <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">PO Qty: {i.quantityOrdered}</span>}</div><PackingView raw={i.packingDetails} weightUnit="" /></div>))}</div>
                 </div>
               )}
               {viewing.notes && <div className="text-sm text-slate-600"><span className="text-xs text-slate-500 block mb-1">Notes</span>{viewing.notes}</div>}
@@ -196,13 +196,13 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
                     </div>
                     <div className="grid grid-cols-6 gap-2 mt-2">
                       <div><input type="text" value={item.quantityOrdered} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityOrdered: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PO Qty" /></div>
-                      <div><input type="text" value={item.quantityReceived} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityReceived: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Invoice Qty" /></div>
+                      <div><input type="text" value={item.quantityReceived} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityReceived: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Weight" /></div>
                       <div><input type="text" value={item.grossWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, grossWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Gross Wt (KG)" /></div>
                       <div><input type="text" value={item.netWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, netWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Net Wt (KG)" /></div>
                       <div><input type="text" value={item.notes} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, notes: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Remarks" /></div>
                     </div>
                     <div className="mt-2">
-                      <div className="text-[11px] text-slate-500 mb-1">Invoice Qty: <span className="font-semibold text-slate-700">{item.quantityReceived || "—"} {fQtyUnit}</span></div>
+                      <div className="text-[11px] text-slate-500 mb-1">Weight: <span className="font-semibold text-slate-700">{item.quantityReceived || "—"}{fQtyUnit ? " " + fQtyUnit : ""}</span></div>
                       <PackingEditor boxes={item.packingBoxes} onChange={(bx) => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingBoxes: bx } : l))} weightUnit={fQtyUnit === "LBS" ? "LB" : "KG"} />
                     </div>
                   </div>

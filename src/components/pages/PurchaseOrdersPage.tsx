@@ -377,8 +377,9 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           <option value="">All Status</option>
           <option>Draft</option>
           <option>Confirmed</option>
+          <option>In Production</option>
           <option>Shipped</option>
-          <option>Received</option>
+          <option>Delivered</option>
           <option>Closed</option>
           <option>Cancelled</option>
         </select>
@@ -532,7 +533,18 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               )}
 
               <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} className="border-t border-slate-200 pt-3" />
-              <div className="pt-2 flex gap-2">
+              <div className="pt-2 flex gap-2 flex-wrap">
+                {permissions.canEdit && viewing.status === "Confirmed" && (
+                  <button onClick={async () => {
+                    const res = await fetch("/api/purchase-orders", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: viewing.id, status: "In Production", factoryId: viewing.factoryId, poDate: viewing.poDate, poNo: viewing.poNo, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes })), userId: getUserId() }),
+                    });
+                    if (res.ok) { setToast({ type: "success", text: "PO set to In Production (SO synced)" }); setViewing(null); load(); }
+                    else setToast({ type: "error", text: "Failed" });
+                    setTimeout(() => setToast(null), 3000);
+                  }} className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">▶ Start Production</button>
+                )}
                 <a href={`/api/export/po?id=${viewing.id}`} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 inline-flex items-center gap-1.5">
                   <IconDownload className="w-3.5 h-3.5" /> Export PO
                 </a>
@@ -611,8 +623,9 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                     <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
                       <option>Draft</option>
                       <option>Confirmed</option>
+                      <option>In Production</option>
                       <option>Shipped</option>
-                      <option>Received</option>
+                      <option>Delivered</option>
                       <option>Closed</option>
                       <option>Cancelled</option>
                     </select>

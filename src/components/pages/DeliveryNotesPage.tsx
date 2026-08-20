@@ -5,16 +5,16 @@ import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import { PackingEditor, PackingView, parsePacking, serializePacking, packingTotals, type PackingBox } from "@/components/PackingEditor";
 
-interface DNItem { id: number; dnId: number; yarnId: number; yarnName: string; yarnCount: string; composition: string; factoryName: string; colorName: string; colorCode: string; quantity: string; packages: number; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
+interface DNItem { id: number; dnId: number; yarnId: number; yarnName: string; yarnCount: string; composition: string; factoryName: string; colorName: string; colorCode: string; quantity: string; weightBasis: string; packages: number; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
 interface DN { id: number; dnNo: string; soId: number | null; soNo: string; customerPoNo: string | null; customerId: number; customerName: string; contactName: string | null; shipToId: number | null; shipToName: string | null; shipToContactName: string | null; orderCategory: string; quantityUnit: string; dnDate: string; shippingMethod: string; trackingNo: string; totalPackages: number; totalGrossWeight: string; totalNetWeight: string; status: string; notes: string; items: DNItem[]; createdByName: string | null; updatedByName: string | null; }
 interface Customer { id: number; name: string; }
 interface ShipTo { id: number; name: string; category: string; }
 interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; }
-interface FormItem { yarnId: number; colorName: string; colorCode: string; quantity: string; packingBoxes: PackingBox[]; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
+interface FormItem { yarnId: number; colorName: string; colorCode: string; quantity: string; weightBasis: string; packingBoxes: PackingBox[]; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
 interface Props { permissions: Permissions; }
 
 const STATUS_COLORS: Record<string, string> = { Draft: "bg-slate-100 text-slate-700", Packed: "bg-blue-100 text-blue-800", Shipped: "bg-amber-100 text-amber-800", Delivered: "bg-green-100 text-green-800", Cancelled: "bg-red-100 text-red-800" };
-const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantity: "", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" };
+const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantity: "", weightBasis: "condition", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" };
 
 export default function DeliveryNotesPage({ permissions }: Props) {
   const [dns, setDns] = useState<DN[]>([]);
@@ -81,7 +81,7 @@ export default function DeliveryNotesPage({ permissions }: Props) {
       setFTrackingNo(dn.trackingNo || "");
       setFStatus(dn.status || "Draft");
       setFNotes(dn.notes || "");
-      setFItems(dn.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantity: i.quantity || "", packingBoxes: parsePacking(i.packingDetails), grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" })));
+      setFItems(dn.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantity: i.quantity || "", weightBasis: i.weightBasis || "condition", packingBoxes: parsePacking(i.packingDetails), grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" })));
     } else {
       setEditing(null);
       setFCustomer(0);
@@ -200,13 +200,13 @@ export default function DeliveryNotesPage({ permissions }: Props) {
                 {viewing.trackingNo && <div>Tracking: <span className="font-medium text-slate-700">{viewing.trackingNo}</span></div>}
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto">
-                <table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Color</th><th className="px-4 py-3 font-medium">Invoice Qty</th><th className="px-4 py-3 font-medium">Total Pkgs</th><th className="px-4 py-3 font-medium">Gross Wt</th><th className="px-4 py-3 font-medium">Net Wt</th><th className="px-4 py-3 font-medium">Lot No.</th></tr></thead>
-                <tbody>{viewing.items.map(i => (<tr key={i.id} className="border-t border-slate-200"><td className="px-4 py-3"><div className="font-medium">{i.yarnName}</div><div className="text-xs text-slate-400">{i.yarnCount} · {i.factoryName}</div></td><td className="px-4 py-3 text-xs">{i.colorName || i.colorCode || "—"}</td><td className="px-4 py-3 text-xs">{i.quantity || "—"}</td><td className="px-4 py-3 text-xs">{i.packages || "—"}</td><td className="px-4 py-3 text-xs">{i.grossWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.netWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.lotNo || "—"}</td></tr>))}</tbody></table>
+                <table className="w-full text-sm"><thead><tr className="text-left text-slate-600"><th className="px-4 py-3 font-medium">Yarn</th><th className="px-4 py-3 font-medium">Color</th><th className="px-4 py-3 font-medium">Invoice Qty</th><th className="px-4 py-3 font-medium">Wt Basis</th><th className="px-4 py-3 font-medium">Total Pkgs</th><th className="px-4 py-3 font-medium">Gross Wt</th><th className="px-4 py-3 font-medium">Net Wt</th><th className="px-4 py-3 font-medium">Lot No.</th></tr></thead>
+                <tbody>{viewing.items.map(i => (<tr key={i.id} className="border-t border-slate-200"><td className="px-4 py-3"><div className="font-medium">{i.yarnName}</div><div className="text-xs text-slate-400">{i.yarnCount} · {i.factoryName}</div></td><td className="px-4 py-3 text-xs">{i.colorName || i.colorCode || "—"}</td><td className="px-4 py-3 text-xs">{i.quantity || "—"}</td><td className="px-4 py-3 text-xs">{i.weightBasis === "net" ? <span className="px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded text-[10px] font-medium">Net</span> : <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[10px] font-medium">Cond.</span>}</td><td className="px-4 py-3 text-xs">{i.packages || "—"}</td><td className="px-4 py-3 text-xs">{i.grossWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.netWeight || "—"}</td><td className="px-4 py-3 text-xs">{i.lotNo || "—"}</td></tr>))}</tbody></table>
               </div>
               {viewing.items.some(i => i.packingDetails) && (
                 <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3">Packing Details</h3>
-                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1 flex items-center gap-2 flex-wrap"><span>{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</span>{i.quantity && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">Invoice Qty: {i.quantity} {viewing.quantityUnit || "KGS"}</span>}</div><PackingView raw={i.packingDetails} weightUnit={viewing.quantityUnit === "LBS" ? "LB" : "KG"} /></div>))}</div>
+                  <div className="space-y-3">{viewing.items.filter(i => i.packingDetails).map(i => (<div key={i.id}><div className="text-xs font-medium text-slate-700 mb-1 flex items-center gap-2 flex-wrap"><span>{i.yarnName}{i.colorName ? ` · ${i.colorName}` : ""}</span>{i.quantity && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">Invoice Qty: {i.quantity} {viewing.quantityUnit || "KGS"}</span>}</div><PackingView raw={i.packingDetails} weightUnit="" /></div>))}</div>
                 </div>
               )}
               {viewing.notes && <div className="text-sm text-slate-600"><span className="text-xs text-slate-500 block mb-1">Notes</span>{viewing.notes}</div>}
