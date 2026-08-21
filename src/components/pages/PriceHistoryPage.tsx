@@ -7,7 +7,7 @@ import { IconTrash, IconDownload } from "@/components/Icons";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
 
 interface PriceRecord {
-  id: number; yarnId: number; price: number; currency: string; unit: string;
+  id: number; yarnId: number; price: number; currency: string; unit: string; weightBasis: string;
   recordDate: string; incoterms: string; remarks: string;
   yarnName: string; yarnCount: string; micron: string; composition: string;
   factoryName: string; factoryId: number; relationship: string; treatmentName: string;
@@ -272,6 +272,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
                         <span className="font-mono font-semibold">{r.currency} {r.price.toFixed(2)}</span>
                         <span className="text-slate-400">/</span>
                         <span className="text-slate-500">{(r.unit || "per KG").replace("per ", "")}</span>
+                        <span className={`px-1 py-0.5 rounded text-[9px] font-bold ${(r as unknown as PriceRecord).weightBasis === "net" ? "bg-orange-50 text-orange-600" : "bg-green-50 text-green-600"}`}>{(r as unknown as PriceRecord).weightBasis === "net" ? "Net" : "Cond."}</span>
                         {r.incoterms && (
                           <>
                             <span className="text-slate-300">·</span>
@@ -344,6 +345,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className="text-xl font-bold font-mono text-slate-900">{r.currency} {r.price.toFixed(2)}</div>
                         <span className="text-sm text-slate-500">{r.unit || "per KG"}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${r.weightBasis === "net" ? "bg-orange-50 text-orange-600 border border-orange-200" : "bg-green-50 text-green-600 border border-green-200"}`}>{r.weightBasis === "net" ? "Net" : "Cond."}</span>
                         {r.incoterms && (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">{r.incoterms}</span>
                         )}

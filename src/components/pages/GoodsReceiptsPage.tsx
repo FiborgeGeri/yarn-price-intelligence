@@ -5,17 +5,17 @@ import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import { PackingEditor, PackingView, parsePacking, serializePacking, packingTotals, type PackingBox } from "@/components/PackingEditor";
 
-interface GRItem { id: number; grId: number; yarnId: number; yarnName: string; yarnCount: string; composition: string; colorName: string; colorCode: string; quantityOrdered: string; quantityReceived: string; packages: number; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; inspectionResult: string; notes: string; }
+interface GRItem { id: number; grId: number; yarnId: number; yarnName: string; yarnCount: string; composition: string; colorName: string; colorCode: string; quantityOrdered: string; quantityReceived: string; weightBasis: string; packages: number; packingDetails: string; grossWeight: string; netWeight: string; lotNo: string; inspectionResult: string; notes: string; }
 interface GR { id: number; grNo: string; poId: number | null; poNo: string; factoryId: number; factoryName: string; shipToId: number | null; shipToName: string | null; shipToContactName: string | null; quantityUnit: string; grDate: string; shippingMethod: string; trackingNo: string; totalPackages: number; totalGrossWeight: string; totalNetWeight: string; status: string; notes: string; items: GRItem[]; createdByName: string | null; updatedByName: string | null; }
 interface Factory { id: number; factoryName: string; relationship: string; }
 interface ShipTo { id: number; name: string; category: string; }
 interface PO { id: number; poNo: string; factoryId: number; factoryName: string; customerId: number; customerName: string; customerPoNo: string; shipToId: number | null; shipToName: string | null; shipToContactId: number | null; shipToContactName: string | null; soNo: string; orderCategory: string; status: string; items: { yarnId: number; yarnName: string; yarnCount: string; colorName: string; colorCode: string; quantity: string; }[]; }
 interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; }
-interface FormItem { yarnId: number; colorName: string; colorCode: string; quantityOrdered: string; quantityReceived: string; packingBoxes: PackingBox[]; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
+interface FormItem { yarnId: number; colorName: string; colorCode: string; quantityOrdered: string; quantityReceived: string; weightBasis: string; packingBoxes: PackingBox[]; grossWeight: string; netWeight: string; lotNo: string; notes: string; }
 interface Props { permissions: Permissions; }
 
 const STATUS_COLORS: Record<string, string> = { "Shipped from Mill": "bg-blue-100 text-blue-800", "In Transit": "bg-amber-100 text-amber-800", "Arrived at Port": "bg-cyan-100 text-cyan-800", "Customs Clearance": "bg-purple-100 text-purple-800", Delivered: "bg-green-100 text-green-800", Completed: "bg-emerald-100 text-emerald-800", "On Hold": "bg-red-100 text-red-800" };
-const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantityOrdered: "", quantityReceived: "", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" };
+const EMPTY_ITEM: FormItem = { yarnId: 0, colorName: "", colorCode: "", quantityOrdered: "", quantityReceived: "", weightBasis: "condition", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" };
 
 export default function GoodsReceiptsPage({ permissions }: Props) {
   const [grs, setGrs] = useState<GR[]>([]);
@@ -49,7 +49,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
   const filtered = useMemo(() => { if (!search.trim()) return grs; const s = search.toLowerCase(); return grs.filter(g => g.grNo?.toLowerCase().includes(s) || g.factoryName?.toLowerCase().includes(s) || g.poNo?.toLowerCase().includes(s) || g.trackingNo?.toLowerCase().includes(s) || g.shipToName?.toLowerCase().includes(s)); }, [grs, search]);
 
   const openForm = (gr?: GR) => {
-    if (gr) { setEditing(gr); setFPoId(gr.poId || 0); setFFactory(gr.factoryId); setFShipTo(gr.shipToId || 0); setFQtyUnit(gr.quantityUnit || "KGS"); setFGrDate(gr.grDate); setFShippingMethod(gr.shippingMethod || ""); setFTrackingNo(gr.trackingNo || ""); setFStatus(gr.status || "Shipped from Mill"); setFNotes(gr.notes || ""); setFAutoCreateDN(false); setFItems(gr.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantityOrdered || "", quantityReceived: i.quantityReceived || "", packingBoxes: parsePacking(i.packingDetails), grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" }))); }
+    if (gr) { setEditing(gr); setFPoId(gr.poId || 0); setFFactory(gr.factoryId); setFShipTo(gr.shipToId || 0); setFQtyUnit(gr.quantityUnit || "KGS"); setFGrDate(gr.grDate); setFShippingMethod(gr.shippingMethod || ""); setFTrackingNo(gr.trackingNo || ""); setFStatus(gr.status || "Shipped from Mill"); setFNotes(gr.notes || ""); setFAutoCreateDN(false); setFItems(gr.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantityOrdered || "", quantityReceived: i.quantityReceived || "", packingBoxes: parsePacking(i.packingDetails), weightBasis: i.weightBasis || "condition", grossWeight: i.grossWeight || "", netWeight: i.netWeight || "", lotNo: i.lotNo || "", notes: i.notes || "" }))); }
     else { setEditing(null); setFPoId(0); setFFactory(0); setFShipTo(0); setFQtyUnit("KGS"); setFQtyUnit("KGS"); setFGrDate(new Date().toISOString().split("T")[0]); setFShippingMethod(""); setFTrackingNo(""); setFStatus("Shipped from Mill"); setFNotes(""); setFAutoCreateDN(true); setFItems([{ ...EMPTY_ITEM }]); }
     setShowForm(true);
   };
@@ -58,7 +58,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
     const po = poList.find(p => p.id === poId);
     if (!po) return;
     setFPoId(poId); setFFactory(po.factoryId); setFShipTo(po.shipToId || 0); setFQtyUnit((po as PO & { quantityUnit?: string }).quantityUnit || "KGS");
-    setFItems(po.items.map((i: PO["items"][0]) => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantity || "", quantityReceived: i.quantity || "", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" })));
+    setFItems(po.items.map((i: PO["items"][0]) => ({ yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "", quantityOrdered: i.quantity || "", quantityReceived: i.quantity || "", weightBasis: "condition", packingBoxes: [], grossWeight: "", netWeight: "", lotNo: "", notes: "" })));
     setToast({ type: "success", text: `Loaded ${po.items.length} item(s) from ${po.poNo}` }); setTimeout(() => setToast(null), 3000);
   };
 
@@ -96,7 +96,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
             <th className="px-4 py-3 font-medium">PO Ref</th>
             <th className="px-4 py-3 font-medium">Yarn Mill</th>
             <th className="px-4 py-3 font-medium">Ship-To</th>
-            <th className="px-4 py-3 font-medium text-center">Items</th>
+            <th className="px-4 py-3 font-medium text-left">Items</th>
             <th className="px-4 py-3 font-medium">GR Date</th>
             <th className="px-4 py-3 font-medium">AWB / Tracking</th>
             <th className="px-4 py-3 font-medium">Status</th>
@@ -191,19 +191,19 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
                     <div className="flex items-center justify-between mb-2"><span className="text-xs font-medium text-slate-500">Item {idx + 1}</span>{fItems.length > 1 && <button type="button" onClick={() => setFItems(p => p.filter((_, i) => i !== idx))} className="text-xs text-red-500 hover:text-red-700">Remove</button>}</div>
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-2"><select value={item.yarnId} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, yarnId: Number(e.target.value) } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"><option value={0}>Select yarn...</option>{yarnList.map(y => <option key={y.id} value={y.id}>{y.yarnName} · {y.yarnCount || "—"} · {y.factoryName}</option>)}</select></div>
-                      <div><input type="text" value={item.colorName} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, colorName: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Color" /></div>
-                      <div><input type="text" value={item.lotNo} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, lotNo: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Lot No." /></div>
+                      <div><input type="text" value={item.colorName} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, colorName: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Color Name" /></div>
+                      <div><input type="text" value={item.colorCode} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, colorCode: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Color Code" /></div>
                     </div>
                     <div className="grid grid-cols-6 gap-2 mt-2">
                       <div><input type="text" value={item.quantityOrdered} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityOrdered: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PO Qty" /></div>
-                      <div><input type="text" value={item.quantityReceived} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityReceived: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Weight" /></div>
-                      <div><input type="text" value={item.grossWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, grossWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Gross Wt (KG)" /></div>
-                      <div><input type="text" value={item.netWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, netWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Net Wt (KG)" /></div>
+                      <div><input type="text" value={item.quantityReceived} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, quantityReceived: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Cond/Net WT" /></div>
+                      <div><select value={item.weightBasis} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, weightBasis: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"><option value="condition">Cond.</option><option value="net">Net</option></select></div>
+                      <div><input type="text" value={item.grossWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, grossWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Gross Wt" /></div>
+                      <div><input type="text" value={item.netWeight} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, netWeight: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Net Wt" /></div>
                       <div><input type="text" value={item.notes} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, notes: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Remarks" /></div>
                     </div>
                     <div className="mt-2">
-                      <div className="text-[11px] text-slate-500 mb-1">Weight: <span className="font-semibold text-slate-700">{item.quantityReceived || "—"}{fQtyUnit ? " " + fQtyUnit : ""}</span></div>
-                      <PackingEditor boxes={item.packingBoxes} onChange={(bx) => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingBoxes: bx } : l))} weightUnit={fQtyUnit === "LBS" ? "LB" : "KG"} />
+                      <PackingEditor boxes={item.packingBoxes} onChange={(bx) => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingBoxes: bx } : l))} />
                     </div>
                   </div>
                 ))}</div>

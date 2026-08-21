@@ -141,9 +141,10 @@ export async function GET(req: NextRequest) {
       dyeMap.set(r.yarnId, [...(dyeMap.get(r.yarnId) || []), r.name]);
     }
 
-    // One article can have separate CNY and USD quotation lines.
+    // Collect all unique incoterms across rows for dynamic columns
+    const allTerms = [...new Set(rows.map(r => r.incoterms || "OTHER"))].sort();
     const articleMap = new Map<number, {
-      yarnName: string; quality: string; dyeMethod: string; china: string[]; hk: string[]; notes: string[];
+      yarnName: string; quality: string; dyeMethod: string; prices: Record<string, string[]>; notes: string[];
     }>();
     for (const row of rows) {
       const key = row.yarnId || row.id;
@@ -152,16 +153,15 @@ export async function GET(req: NextRequest) {
           yarnName: row.yarnName || "",
           quality: [row.yarnCount, row.composition].filter(Boolean).join(" ").toUpperCase(),
           dyeMethod: normaliseDyeMethod(dyeMap.get(row.yarnId || 0) || []),
-          china: [],
-          hk: [],
+          prices: {},
           notes: [],
         });
       }
       const article = articleMap.get(key)!;
       const label = moneyLabel(row.currency, row.quotedPrice, row.unit, row.weightBasis);
-      const currency = (row.currency || "USD").toUpperCase();
-      if (currency === "CNY" || currency === "RMB") article.china.push(label);
-      else article.hk.push(label);
+      const termKey = row.incoterms || "OTHER";
+      if (!article.prices[termKey]) article.prices[termKey] = [];
+      article.prices[termKey].push(label);
       if (row.notes) article.notes.push(row.notes);
     }
     const articles = Array.from(articleMap.values());
@@ -184,13 +184,7 @@ export async function GET(req: NextRequest) {
       views: [{ showGridLines: false }],
       properties: { defaultRowHeight: 16 },
     });
-    ws.columns = [
-      { key: "article", width: 20 },
-      { key: "quality", width: 50 },
-      { key: "china", width: 19 },
-      { key: "hk", width: 19 },
-      { key: "dye", width: 17 },
-    ];
+    // Column widths set dynamically based on incoterms count
 
     // Header: company / quotation identity.
     ws.mergeCells("A1:B1");
@@ -232,19 +226,23 @@ export async function GET(req: NextRequest) {
     ws.getCell("A7").font = { name: "Arial", size: 9, color: { argb: MID }, italic: true };
     ws.mergeCells("A7:B7");
 
-    // Main table header.
+    // Main table header — dynamic columns based on actual incoterms.
     const headerStart = 9;
     ws.mergeCells(`A${headerStart}:A${headerStart + 1}`);
     ws.mergeCells(`B${headerStart}:B${headerStart + 1}`);
-    ws.mergeCells(`C${headerStart}:D${headerStart}`);
-    ws.mergeCells(`E${headerStart}:E${headerStart + 1}`);
+    const lastHeaderCol = String.fromCharCode(65 + 2 + allTerms.length); // e.g. E for 2 terms
+    if (allTerms.length > 1) {
+      ws.mergeCells(`C${headerStart}:${String.fromCharCode(67 + allTerms.length - 1)}${headerStart}`);
+    }
+    ws.mergeCells(`${lastHeaderCol}${headerStart}:${lastHeaderCol}${headerStart + 1}`);
     ws.getCell(`A${headerStart}`).value = "ARTICLE";
     ws.getCell(`B${headerStart}`).value = "QUALITY";
     ws.getCell(`C${headerStart}`).value = "PRICE";
-    ws.getCell(`C${headerStart + 1}`).value = "TO CHINA";
-    ws.getCell(`D${headerStart + 1}`).value = "CIF HK";
-    ws.getCell(`E${headerStart}`).value = "DYED METHOD";
-    styleRange(ws, `A${headerStart}:E${headerStart + 1}`, (cell) => {
+    allTerms.forEach((term, i) => {
+      ws.getCell(headerStart + 1, 3 + i).value = term.toUpperCase();
+    });
+    ws.getCell(`${lastHeaderCol}${headerStart}`).value = "DYED METHOD";
+    styleRange(ws, `A${headerStart}:${lastHeaderCol}${headerStart + 1}`, (cell) => {
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: LIGHT } };
       cell.font = { name: "Arial", size: 9, bold: true, color: { argb: BLACK } };
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
@@ -254,16 +252,19 @@ export async function GET(req: NextRequest) {
     ws.getRow(headerStart + 1).height = 18;
 
     let rowNo = headerStart + 2;
+    const totalCols = 2 + allTerms.length + 1; // article + quality + terms + dye
+    const lastColLetter = String.fromCharCode(64 + totalCols);
     for (const article of articles) {
       ws.getCell(rowNo, 1).value = article.yarnName;
       ws.getCell(rowNo, 2).value = article.quality;
-      ws.getCell(rowNo, 3).value = article.china.join("\n");
-      ws.getCell(rowNo, 4).value = article.hk.join("\n");
-      ws.getCell(rowNo, 5).value = article.dyeMethod;
-      styleRange(ws, `A${rowNo}:E${rowNo}`, (cell) => {
+      allTerms.forEach((term, i) => {
+        ws.getCell(rowNo, 3 + i).value = (article.prices[term] || []).join("\n");
+      });
+      ws.getCell(rowNo, 3 + allTerms.length).value = article.dyeMethod;
+      styleRange(ws, `A${rowNo}:${lastColLetter}${rowNo}`, (cell) => {
         cell.font = { name: "Arial", size: 8.5, color: { argb: BLACK } };
         const columnNumber = Number(cell.col);
-        cell.alignment = { horizontal: columnNumber === 3 || columnNumber === 4 ? "center" : "left", vertical: "middle", wrapText: true };
+        cell.alignment = { horizontal: columnNumber >= 3 && columnNumber < 3 + allTerms.length + 1 ? "center" : "left", vertical: "middle", wrapText: true };
         cell.border = borderStyle();
       });
       ws.getRow(rowNo).height = 34;
@@ -272,7 +273,7 @@ export async function GET(req: NextRequest) {
 
     // Remarks.
     rowNo += 1;
-    ws.mergeCells(`A${rowNo}:E${rowNo}`);
+    ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
     ws.getCell(rowNo, 1).value = "REMARK:";
     ws.getCell(rowNo, 1).font = { name: "Arial", size: 10, bold: true, color: { argb: BLACK } };
     ws.getCell(rowNo, 1).border = { bottom: { style: "thin", color: { argb: BLACK } } };
@@ -292,13 +293,13 @@ export async function GET(req: NextRequest) {
     ];
 
     for (const [title, body] of remarks) {
-      ws.mergeCells(`A${rowNo}:E${rowNo}`);
+      ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
       ws.getCell(rowNo, 1).value = title;
       ws.getCell(rowNo, 1).font = { name: "Arial", size: 9, bold: true, color: { argb: BLACK } };
       ws.getCell(rowNo, 1).alignment = { vertical: "top", horizontal: "left" };
       ws.getRow(rowNo).height = 16;
       rowNo++;
-      ws.mergeCells(`A${rowNo}:E${rowNo}`);
+      ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
       ws.getCell(rowNo, 1).value = body;
       ws.getCell(rowNo, 1).font = { name: "Arial", size: 8.5, color: { argb: MID } };
       ws.getCell(rowNo, 1).alignment = { vertical: "top", horizontal: "left", wrapText: true, indent: 1 };
@@ -307,12 +308,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Footer.
-    ws.mergeCells(`A${rowNo}:E${rowNo}`);
+    ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
     ws.getCell(rowNo, 1).value = "◉  FIBORGE COMPANY LIMITED";
     ws.getCell(rowNo, 1).font = { name: "Arial", size: 10, bold: true, color: { argb: BLACK } };
     ws.getCell(rowNo, 1).alignment = { horizontal: "center", vertical: "middle" };
     rowNo++;
-    ws.mergeCells(`A${rowNo}:E${rowNo}`);
+    ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
     ws.getCell(rowNo, 1).value = "富維企業有限公司";
     ws.getCell(rowNo, 1).font = { name: "Microsoft JhengHei", size: 10, bold: true, color: { argb: BLACK } };
     ws.getCell(rowNo, 1).alignment = { horizontal: "center", vertical: "middle" };

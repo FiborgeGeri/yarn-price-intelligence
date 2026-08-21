@@ -399,6 +399,7 @@ export const grItems = pgTable("gr_items", {
   colorCode: varchar("color_code", { length: 100 }),
   quantityOrdered: varchar("quantity_ordered", { length: 100 }),
   quantityReceived: varchar("quantity_received", { length: 100 }),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
   packages: integer("packages"),
   packingDetails: text("packing_details"),
   grossWeight: varchar("gross_weight", { length: 50 }),

@@ -155,7 +155,7 @@ export default function DeliveryNotesPage({ permissions }: Props) {
             <th className="px-4 py-3 font-medium">SO Ref</th>
             <th className="px-4 py-3 font-medium">Customer</th>
             <th className="px-4 py-3 font-medium">Ship-To</th>
-            <th className="px-4 py-3 font-medium text-center">Items</th>
+            <th className="px-4 py-3 font-medium text-left">Items</th>
             <th className="px-4 py-3 font-medium">DN Date</th>
             <th className="px-4 py-3 font-medium">Tracking</th>
             <th className="px-4 py-3 font-medium">Status</th>
@@ -260,7 +260,7 @@ export default function DeliveryNotesPage({ permissions }: Props) {
                     </div>
                     <div className="mt-2">
                       <div className="text-[11px] text-slate-500 mb-1">Invoice Qty: <span className="font-semibold text-slate-700">{item.quantity || "—"} {fQtyUnit}</span></div>
-                      <PackingEditor boxes={item.packingBoxes} onChange={(bx) => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingBoxes: bx } : l))} weightUnit={fQtyUnit === "LBS" ? "LB" : "KG"} />
+                      <PackingEditor boxes={item.packingBoxes} onChange={(bx) => setFItems(p => p.map((l, i) => i === idx ? { ...l, packingBoxes: bx } : l))} />
                     </div>
                     <div className="mt-2"><input type="text" value={item.notes} onChange={e => setFItems(p => p.map((l, i) => i === idx ? { ...l, notes: e.target.value } : l))} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Notes" /></div>
                   </div>

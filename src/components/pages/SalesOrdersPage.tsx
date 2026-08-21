@@ -381,7 +381,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">Customer PO</th>
               <th className="px-4 py-3 font-medium">Customer</th>
               <th className="px-4 py-3 font-medium">Ship-To</th>
-              <th className="px-4 py-3 font-medium text-center">Items</th>
+              <th className="px-4 py-3 font-medium text-left">Items</th>
               <th className="px-4 py-3 font-medium">SO Date</th>
               <th className="px-4 py-3 font-medium">Delivery Date</th>
               <th className="px-4 py-3 font-medium">Status</th>

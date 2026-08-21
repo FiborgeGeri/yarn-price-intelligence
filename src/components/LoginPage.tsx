@@ -44,6 +44,7 @@ export default function LoginPage({ onLogin }: Props) {
             <svg className="relative w-9 h-9 text-[#a75334]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
+            {/* Replace this SVG with: <Image src="/logo.png" alt="Fiborge" width={36} height={36} /> */}
           </div>
           <h1 className="text-2xl font-semibold text-[#252222]">Welcome to Fiborge&apos;s Hub</h1>
         </div>

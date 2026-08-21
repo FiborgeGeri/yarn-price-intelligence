@@ -5,6 +5,7 @@ interface TermPrice {
   price: number;
   currency: string;
   unit: string;
+  weightBasis: string;
   incoterms: string;
   recordDate: string;
 }
@@ -144,13 +145,18 @@ export function YarnDetailModal({
                       </span>
                       <span className="text-sm text-slate-500 ml-1">/ {tp.unit.replace("per ", "")}</span>
                     </div>
-                    <div className="text-right">
-                      {tp.incoterms && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
-                          {tp.incoterms}
+                    <div className="text-right flex flex-col items-end gap-1">
+                      <div className="flex gap-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${tp.weightBasis === "net" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-green-50 text-green-700 border-green-200"}`}>
+                          {tp.weightBasis === "net" ? "Net" : "Cond."}
                         </span>
-                      )}
-                      <div className="text-[10px] text-slate-400 mt-0.5">{tp.recordDate}</div>
+                        {tp.incoterms && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
+                            {tp.incoterms}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400">{tp.recordDate}</div>
                     </div>
                   </div>
                 ))}

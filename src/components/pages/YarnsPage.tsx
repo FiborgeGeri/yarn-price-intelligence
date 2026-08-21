@@ -271,13 +271,14 @@ export default function YarnsPage({ permissions }: Props) {
             <th className="px-4 py-3 font-medium">Count</th>
             <th className="px-4 py-3 font-medium">Micron</th>
             <th className="px-4 py-3 font-medium">Type</th>
+            <th className="px-4 py-3 font-medium">Spinning</th>
             <th className="px-4 py-3 font-medium">Dye Method</th>
             <th className="px-4 py-3 font-medium">Treatment</th>
             {(permissions.canEdit || permissions.canDelete) && <th className="px-4 py-3 font-medium w-28">Actions</th>}
           </tr></thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">No yarns found</td></tr>
+              <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400">No yarns found</td></tr>
             ) : filtered.map((y) => (
               <tr key={y.id} className={`border-t border-slate-100 hover:bg-slate-50 ${selected.has(y.id) ? "bg-blue-50/50" : ""}`}>
                 {permissions.canDelete && <td className="px-4 py-3"><input type="checkbox" checked={selected.has(y.id)} onChange={() => toggleSelect(y.id)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></td>}
@@ -292,6 +293,7 @@ export default function YarnsPage({ permissions }: Props) {
                 <td className="px-4 py-3 text-slate-600 text-xs">{y.yarnCount || "—"}</td>
                 <td className="px-4 py-3 text-xs">{y.micron ? `${parseFloat(y.micron).toFixed(1)}μm` : "—"}</td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{y.yarnTypeName || "—"}</td>
+                <td className="px-4 py-3 text-slate-600 text-xs">{y.spinningTypeName || "—"}</td>
                 <td className="px-4 py-3 text-xs">{y.dyeMethodNames?.length ? y.dyeMethodNames.join(", ") : "—"}</td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{y.treatmentName || "—"}</td>
                 {(permissions.canEdit || permissions.canDelete) && (

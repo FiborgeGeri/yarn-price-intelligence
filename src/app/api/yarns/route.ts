@@ -104,6 +104,7 @@ export async function GET(req: NextRequest) {
       price: number;
       currency: string;
       unit: string;
+      weightBasis: string;
       incoterms: string;
       recordDate: string;
     }
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest) {
           price: prices.price,
           currency: prices.currency,
           unit: prices.unit,
+          weightBasis: prices.weightBasis,
           incoterms: prices.incoterms,
           recordDate: prices.recordDate,
         })
@@ -138,9 +140,9 @@ export async function GET(req: NextRequest) {
         }
 
         if (!allTermPrices[p.yarnId]) allTermPrices[p.yarnId] = [];
-        const key = `${p.currency || "USD"}|${p.unit || "per KG"}|${p.incoterms || ""}`;
+        const key = `${p.currency || "USD"}|${p.unit || "per KG"}|${p.weightBasis || "condition"}|${p.incoterms || ""}`;
         const existing = allTermPrices[p.yarnId].find(
-          (tp) => `${tp.currency}|${tp.unit}|${tp.incoterms}` === key
+          (tp) => `${tp.currency}|${tp.unit}|${tp.weightBasis}|${tp.incoterms}` === key
         );
 
         if (!existing) {
@@ -148,6 +150,7 @@ export async function GET(req: NextRequest) {
             price: p.price,
             currency: p.currency || "USD",
             unit: p.unit || "per KG",
+            weightBasis: p.weightBasis || "condition",
             incoterms: p.incoterms || "",
             recordDate: p.recordDate,
           });

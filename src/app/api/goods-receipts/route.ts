@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
             await db.insert(dnItems).values({
               dnId: dn.id, yarnId: item.yarnId, colorName: item.colorName || null,
               colorCode: item.colorCode || null, quantity: item.quantityReceived || item.quantityOrdered || null,
+              weightBasis: item.weightBasis || "condition",
               packages: item.packages || null, packingDetails: item.packingDetails || null,
               grossWeight: item.grossWeight || null, netWeight: item.netWeight || null,
               lotNo: item.lotNo || null,
