@@ -105,7 +105,7 @@ export default function GoodsReceiptsPage({ permissions }: Props) {
           <tbody>
             {filtered.length === 0 ? <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No goods receipts</td></tr> : filtered.map(g => (
               <tr key={g.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3"><button onClick={() => setViewing(g)} className="font-medium text-blue-700 hover:underline">{g.grNo}</button></td>
+                <td className="px-4 py-3 text-left"><button onClick={() => setViewing(g)} className="font-medium text-blue-700 hover:underline">{g.grNo}</button></td>
                 <td className="px-4 py-3 text-xs text-slate-600">{g.poNo || "—"}</td>
                 <td className="px-4 py-3 text-xs">{g.factoryName}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{g.shipToName || "—"}</td>

@@ -392,7 +392,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">PO No.</th>
               <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 font-medium">Yarn Mill</th>
-              <th className="px-4 py-3 font-medium">Customer PO</th>
+              <th className="px-4 py-3 font-medium">Client PO</th>
               <th className="px-4 py-3 font-medium">SO Ref</th>
               <th className="px-4 py-3 font-medium text-left">Items</th>
               <th className="px-4 py-3 font-medium">PO Date</th>
@@ -405,7 +405,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No purchase orders</td></tr>
             ) : filtered.map((p) => (
               <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3"><button onClick={() => setViewing(p)} className="font-medium text-blue-700 hover:underline">{p.poNo}</button></td>
+                <td className="px-4 py-3 text-left"><button onClick={() => setViewing(p)} className="font-medium text-blue-700 hover:underline">{p.poNo}</button></td>
                 <td className="px-4 py-3">
                   {p.orderCategory && p.orderCategory !== "Bulk" ? (
                     <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${p.orderCategory === "Sample" ? "bg-purple-100 text-purple-700" : p.orderCategory === "Free of Charge" ? "bg-amber-100 text-amber-700" : "bg-cyan-100 text-cyan-700"}`}>{p.orderCategory}</span>
@@ -453,7 +453,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div><span className="text-slate-500 text-xs block">Yarn Mill</span><div className="font-medium">{viewing.factoryName || "—"}</div></div>
-                <div><span className="text-slate-500 text-xs block">Customer</span><div className="font-medium">{viewing.customerName || "—"}</div></div>
+                <div><span className="text-slate-500 text-xs block">Client</span><div className="font-medium">{viewing.customerName || "—"}</div></div>
                 <div>
                   <span className="text-slate-500 text-xs block">Ship-To</span>
                   <div className="font-medium">{viewing.shipToName || "—"}</div>
@@ -467,7 +467,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                 {viewing.paymentMethod && <div>Payment: <span className="font-semibold text-emerald-700">{viewing.paymentMethod}{viewing.paymentDays ? ` ${viewing.paymentDays} Days` : ""}{viewing.paymentReference ? ` from ${viewing.paymentReference}` : ""}</span></div>}
                 <div>Unit: <span className="font-semibold text-slate-700">{viewing.quantityUnit || "KGS"}</span></div>
                 <div>PO Date: <span className="font-medium text-slate-700">{viewing.poDate}</span></div>
-                {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
+                {viewing.customerPoNo && <div>Client PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
                 {viewing.soNo && <div>SO Ref: <span className="font-medium text-slate-700">{viewing.soNo}</span></div>}
                 {viewing.quoteNo && <div>Quote Ref: <span className="font-medium text-slate-700">{viewing.quoteNo}</span></div>}
                 {viewing.deliveryDate && <div>Delivery: <span className="font-medium text-slate-700">{viewing.deliveryDate}</span></div>}
@@ -594,7 +594,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Customer</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Client</label>
                     <select value={fCustomer} onChange={(e) => setFCustomer(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
                       <option value={0}>None</option>
                       {customerList.map((c) => (
@@ -654,7 +654,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Customer PO No.</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Client PO No.</label>
                       <input type="text" value={fCustomerPoNo} onChange={(e) => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                     </div>
                     <div>

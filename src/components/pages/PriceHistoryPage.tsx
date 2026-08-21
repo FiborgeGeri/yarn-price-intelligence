@@ -188,7 +188,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
     setSaving(false);
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div>
@@ -205,11 +205,11 @@ export default function PriceHistoryPage({ permissions }: Props) {
         </div>
       </div>
 
-      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{toast.text}</div>}
+      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-[#3a6650] border border-[#cde3d3]"}`}>{toast.text}</div>}
 
       {someSelected && permissions.canDelete && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-          <span className="text-sm text-blue-800 font-medium">{selected.size} item(s) selected ({getSelectedIds().length} records)</span>
+        <div className="mb-4 p-3 bg-blue-50 border border-[#f5c5ae] rounded-lg flex items-center justify-between">
+          <span className="text-sm text-[#a75334] font-medium">{selected.size} item(s) selected ({getSelectedIds().length} records)</span>
           <div className="flex gap-2">
             <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800">Clear</button>
             <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
@@ -238,7 +238,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 text-left text-slate-600">
-              {permissions.canDelete && <th className="px-4 py-3 w-10"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></th>}
+              {permissions.canDelete && <th className="px-4 py-3 w-10"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 text-[#d9774d] focus:ring-blue-500 cursor-pointer" /></th>}
               <th className="px-4 py-3 font-medium">Yarn</th>
               <th className="px-4 py-3 font-medium">Yarn Mill</th>
               <th className="px-4 py-3 font-medium">Composition</th>
@@ -257,8 +257,8 @@ export default function PriceHistoryPage({ permissions }: Props) {
 
             ) : filtered.map((g) => (
               <tr key={g.key} className={`border-t border-slate-100 hover:bg-slate-50 ${selected.has(g.key) ? "bg-blue-50/50" : ""}`}>
-                {permissions.canDelete && <td className="px-4 py-3"><input type="checkbox" checked={selected.has(g.key)} onChange={() => toggleSelect(g.key)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></td>}
-                <td className="px-4 py-3"><button onClick={() => openYarnDetail(g.yarnId)} className="flex items-center gap-2 text-left group"><span className={`w-2 h-2 rounded-full shrink-0 ${g.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`} /><span className="font-medium text-blue-700 group-hover:underline">{g.yarnName}</span></button></td>
+                {permissions.canDelete && <td className="px-4 py-3"><input type="checkbox" checked={selected.has(g.key)} onChange={() => toggleSelect(g.key)} className="w-4 h-4 rounded border-slate-300 text-[#d9774d] focus:ring-blue-500 cursor-pointer" /></td>}
+                <td className="px-4 py-3"><button onClick={() => openYarnDetail(g.yarnId)} className="flex items-center gap-2 text-left group"><span className={`w-2 h-2 rounded-full shrink-0 ${g.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} /><span className="font-medium text-[#c4683f] group-hover:underline">{g.yarnName}</span></button></td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{g.factoryName}</td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{g.composition || "—"}</td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{g.yarnCount || "—"}</td>
@@ -276,7 +276,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
                         {r.incoterms && (
                           <>
                             <span className="text-slate-300">·</span>
-                            <span className="text-blue-600 font-semibold">{r.incoterms}</span>
+                            <span className="text-[#d9774d] font-semibold">{r.incoterms}</span>
                           </>
                         )}
                       </span>
@@ -295,10 +295,10 @@ export default function PriceHistoryPage({ permissions }: Props) {
                     <div className="flex gap-1 flex-wrap">
                       <button onClick={() => setViewing(g)} className="text-slate-600 hover:text-slate-900 text-xs px-1">View</button>
                       {g.records.length === 1 && permissions.canEdit && (
-                        <button onClick={() => openEdit(g.records[0])} className="text-blue-600 hover:text-blue-800 text-xs px-1">Edit</button>
+                        <button onClick={() => openEdit(g.records[0])} className="text-[#d9774d] hover:text-[#a75334] text-xs px-1">Edit</button>
                       )}
                       {g.records.length === 1 && permissions.canDelete && (
-                        <button onClick={async () => { await handleDeleteRecord(g.records[0].id); setPrices((prev) => prev.filter((p) => p.id !== g.records[0].id)); }} className="text-red-500 hover:text-red-700 text-xs px-1">Del</button>
+                        <button onClick={async () => { await handleDeleteRecord(g.records[0].id); setPrices((prev) => prev.filter((p) => p.id !== g.records[0].id)); }} className="text-red-500 hover:text-[#3a6650] text-xs px-1">Del</button>
                       )}
                     </div>
                   </td>
@@ -325,7 +325,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                 <div><span className="text-slate-500 text-xs block mb-0.5">Yarn</span><div className="font-semibold text-slate-900">{viewing.yarnName}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Yarn Mill</span><div className="font-medium text-slate-700">{viewing.factoryName}</div></div>
-                <div><span className="text-slate-500 text-xs block mb-0.5">Type</span><div className="font-medium"><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${viewing.relationship === "My Factory" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"}`}><span className={`w-1.5 h-1.5 rounded-full ${viewing.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`}/>{viewing.relationship === "My Factory" ? "Mine" : "Competitor"}</span></div></div>
+                <div><span className="text-slate-500 text-xs block mb-0.5">Type</span><div className="font-medium"><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${viewing.relationship === "My Factory" ? "bg-[#fce8df] text-[#c4683f]" : "bg-[#dceae0] text-[#3a6650]"}`}><span className={`w-1.5 h-1.5 rounded-full ${viewing.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`}/>{viewing.relationship === "My Factory" ? "Mine" : "Competitor"}</span></div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Count</span><div className="font-medium text-slate-700">{viewing.yarnCount || "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Micron</span><div className="font-medium text-slate-700">{viewing.micron ? parseFloat(viewing.micron).toFixed(1) + "μm" : "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Treatment</span><div className="font-medium text-slate-700">{viewing.treatmentName || "Untreated"}</div></div>
@@ -347,7 +347,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
                         <span className="text-sm text-slate-500">{r.unit || "per KG"}</span>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${r.weightBasis === "net" ? "bg-orange-50 text-orange-600 border border-orange-200" : "bg-green-50 text-green-600 border border-green-200"}`}>{r.weightBasis === "net" ? "Net" : "Cond."}</span>
                         {r.incoterms && (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">{r.incoterms}</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-[#c4683f] text-xs font-bold border border-[#f5c5ae]">{r.incoterms}</span>
                         )}
                       </div>
                       {r.remarks && (
@@ -358,7 +358,7 @@ export default function PriceHistoryPage({ permissions }: Props) {
                     {(permissions.canEdit || permissions.canDelete) && (
                       <div className="flex gap-2 shrink-0">
                         {permissions.canEdit && (
-                          <button onClick={() => { setViewing(null); openEdit(r); }} className="px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Edit</button>
+                          <button onClick={() => { setViewing(null); openEdit(r); }} className="px-2.5 py-1.5 text-xs font-medium text-[#d9774d] hover:bg-blue-50 rounded-lg transition-colors">Edit</button>
                         )}
                         {permissions.canDelete && (
                           <button onClick={async () => { await handleDeleteRecord(r.id); setViewing((prev) => prev ? { ...prev, records: prev.records.filter((rec) => rec.id !== r.id) } : null); }} className="px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">Delete</button>

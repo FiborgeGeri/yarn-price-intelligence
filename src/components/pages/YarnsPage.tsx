@@ -223,7 +223,7 @@ export default function YarnsPage({ permissions }: Props) {
     setBulkSaving(false); setTimeout(() => setToast(null), 3000);
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div>
@@ -238,11 +238,11 @@ export default function YarnsPage({ permissions }: Props) {
         </div>
       </div>
 
-      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{toast.text}</div>}
+      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-[#3a6650] border border-[#cde3d3]"}`}>{toast.text}</div>}
 
       {someSelected && permissions.canDelete && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-          <span className="text-sm text-blue-800 font-medium">{selected.size} yarn(s) selected</span>
+        <div className="mb-4 p-3 bg-blue-50 border border-[#f5c5ae] rounded-lg flex items-center justify-between">
+          <span className="text-sm text-[#a75334] font-medium">{selected.size} yarn(s) selected</span>
           <div className="flex gap-2">
             <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800">Clear</button>
             <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"><IconTrash className="w-4 h-4" /> {bulkDeleting ? "Deleting..." : "Delete Selected"}</button>
@@ -264,7 +264,7 @@ export default function YarnsPage({ permissions }: Props) {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 text-left text-slate-600">
-            {permissions.canDelete && <th className="px-4 py-3 w-10"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></th>}
+            {permissions.canDelete && <th className="px-4 py-3 w-10"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 text-[#d9774d] focus:ring-blue-500 cursor-pointer" /></th>}
             <th className="px-4 py-3 font-medium">Yarn Name</th>
             <th className="px-4 py-3 font-medium">Yarn Mill</th>
             <th className="px-4 py-3 font-medium">Composition</th>
@@ -281,11 +281,11 @@ export default function YarnsPage({ permissions }: Props) {
               <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400">No yarns found</td></tr>
             ) : filtered.map((y) => (
               <tr key={y.id} className={`border-t border-slate-100 hover:bg-slate-50 ${selected.has(y.id) ? "bg-blue-50/50" : ""}`}>
-                {permissions.canDelete && <td className="px-4 py-3"><input type="checkbox" checked={selected.has(y.id)} onChange={() => toggleSelect(y.id)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></td>}
+                {permissions.canDelete && <td className="px-4 py-3"><input type="checkbox" checked={selected.has(y.id)} onChange={() => toggleSelect(y.id)} className="w-4 h-4 rounded border-slate-300 text-[#d9774d] focus:ring-blue-500 cursor-pointer" /></td>}
                 <td className="px-4 py-3">
                   <button onClick={() => setViewing(y)} className="flex items-center gap-2 text-left group">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${y.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`} />
-                    <span className="font-medium text-blue-700 group-hover:underline">{y.yarnName}</span>
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${y.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} />
+                    <span className="font-medium text-[#c4683f] group-hover:underline">{y.yarnName}</span>
                   </button>
                 </td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{y.factoryName}</td>
@@ -298,9 +298,9 @@ export default function YarnsPage({ permissions }: Props) {
                 <td className="px-4 py-3 text-slate-600 text-xs">{y.treatmentName || "—"}</td>
                 {(permissions.canEdit || permissions.canDelete) && (
                   <td className="px-4 py-3"><div className="flex gap-1">
-                    {permissions.canEdit && <button onClick={() => openForm(y)} className="text-blue-600 hover:text-blue-800 text-xs px-1">Edit</button>}
+                    {permissions.canEdit && <button onClick={() => openForm(y)} className="text-[#d9774d] hover:text-[#a75334] text-xs px-1">Edit</button>}
                     {permissions.canEdit && <button onClick={() => duplicateYarn(y)} className="text-emerald-600 hover:text-emerald-800 text-xs px-1">Copy</button>}
-                    {permissions.canDelete && <button onClick={() => handleDelete(y.id)} className="text-red-500 hover:text-red-700 text-xs px-1">Del</button>}
+                    {permissions.canDelete && <button onClick={() => handleDelete(y.id)} className="text-red-500 hover:text-[#3a6650] text-xs px-1">Del</button>}
                   </div></td>
                 )}
               </tr>
@@ -312,10 +312,10 @@ export default function YarnsPage({ permissions }: Props) {
       {/* View Detail Card */}
       {viewing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewing(null)}>
-          <div className={`bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border-t-4 ${viewing.relationship === "My Factory" ? "border-blue-500" : "border-red-500"}`} onClick={(e) => e.stopPropagation()}>
+          <div className={`bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border-t-4 ${viewing.relationship === "My Factory" ? "border-[#e5885d]" : "border-[#4d7d61]"}`} onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-200 flex items-start justify-between">
               <div>
-                <div className="flex items-center gap-2"><span className={`w-3 h-3 rounded-full ${viewing.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`} /><h2 className="text-xl font-bold text-slate-900">{viewing.yarnName}</h2></div>
+                <div className="flex items-center gap-2"><span className={`w-3 h-3 rounded-full ${viewing.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} /><h2 className="text-xl font-bold text-slate-900">{viewing.yarnName}</h2></div>
                 <p className="text-sm text-slate-500 mt-1">{viewing.factoryName} · {viewing.relationship === "My Factory" ? "Mine" : "Competitor"}</p>
               </div>
               <button onClick={() => setViewing(null)} className="text-slate-400 hover:text-slate-600 text-xl leading-none p-1">✕</button>
@@ -335,7 +335,7 @@ export default function YarnsPage({ permissions }: Props) {
                 <div className="border-t border-slate-200 pt-4"><span className="text-slate-500 text-xs block mb-0.5">Latest Price</span><div className="text-lg font-bold font-mono">{viewing.latestCurrency || "USD"} {viewing.latestPrice.toFixed(2)} <span className="text-sm font-normal text-slate-500">{viewing.latestUnit || "per KG"}</span></div><div className="text-xs text-slate-400">{viewing.latestPriceDate}</div></div>
               )}
               {viewing.certIds?.length > 0 && (
-                <div className="border-t border-slate-200 pt-4"><span className="text-slate-500 text-xs block mb-1">Certificates</span><div className="flex flex-wrap gap-1.5">{certs.filter((c) => viewing.certIds.includes(c.id)).map((c) => <span key={c.id} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">{c.certCode}</span>)}</div></div>
+                <div className="border-t border-slate-200 pt-4"><span className="text-slate-500 text-xs block mb-1">Certificates</span><div className="flex flex-wrap gap-1.5">{certs.filter((c) => viewing.certIds.includes(c.id)).map((c) => <span key={c.id} className="px-2 py-0.5 bg-blue-50 text-[#c4683f] rounded text-xs font-medium">{c.certCode}</span>)}</div></div>
               )}
               {viewing.notes && <div className="border-t border-slate-200 pt-4"><span className="text-slate-500 text-xs block mb-0.5">Notes</span><p className="text-sm text-slate-700 whitespace-pre-line">{viewing.notes}</p></div>}
               <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} createdAt={viewing.createdAt} updatedAt={viewing.updatedAt} className="border-t border-slate-200 pt-3" />
@@ -383,7 +383,7 @@ export default function YarnsPage({ permissions }: Props) {
                   <select value={formTreatment} onChange={(e) => setFormTreatment(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>None</option>{treatmentsList.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
                 </div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Composition</label><input type="text" value={formComposition} onChange={(e) => setFormComposition(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. 50% Wool / 50% Nylon" />
-                  {(() => { const pcts = formComposition.match(/(\d+(?:\.\d+)?)\s*%/g); if (!pcts) return null; const total = pcts.reduce((s, p) => s + parseFloat(p), 0); const ok = Math.abs(total - 100) <= 0.5; return <div className={`mt-1 text-xs font-medium ${ok ? "text-green-600" : "text-red-600"}`}>{ok ? `✓ Total: ${total}%` : `⚠ Total: ${total}% — must be 100%`}</div>; })()}
+                  {(() => { const pcts = formComposition.match(/(\d+(?:\.\d+)?)\s*%/g); if (!pcts) return null; const total = pcts.reduce((s, p) => s + parseFloat(p), 0); const ok = Math.abs(total - 100) <= 0.5; return <div className={`mt-1 text-xs font-medium ${ok ? "text-green-600" : "text-[#4d7d61]"}`}>{ok ? `✓ Total: ${total}%` : `⚠ Total: ${total}% — must be 100%`}</div>; })()}
                 </div>
               </div>
 
@@ -417,7 +417,7 @@ export default function YarnsPage({ permissions }: Props) {
               {certs.length > 0 && (
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Certificates</label>
                   <div className="flex flex-wrap gap-2">{certs.map((c) => (
-                    <button key={c.id} type="button" onClick={() => setFormCerts((prev) => prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id])} className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${formCerts.includes(c.id) ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"}`}>{c.certCode}</button>
+                    <button key={c.id} type="button" onClick={() => setFormCerts((prev) => prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id])} className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${formCerts.includes(c.id) ? "bg-[#fce8df] text-[#a75334] border-[#edab8e]" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"}`}>{c.certCode}</button>
                   ))}</div>
                 </div>
               )}
@@ -440,7 +440,7 @@ export default function YarnsPage({ permissions }: Props) {
               <p className="text-sm text-slate-600">Paste tab-separated data from Excel. Columns:</p>
               <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono">Yarn Name | Yarn Mill | Yarn Count | Micron | Treatment | Composition | Notes</div>
               <div className="flex gap-2 items-center">
-                <a href="/api/export/template?type=yarns" className="text-xs text-blue-600 hover:underline">↓ Download Excel template</a>
+                <a href="/api/export/template?type=yarns" className="text-xs text-[#d9774d] hover:underline">↓ Download Excel template</a>
                 <span className="text-xs text-slate-400">Copy from Excel and paste below</span>
               </div>
               <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} className="w-full h-56 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={"SIMPHONIE\tIndorama\tNM 48/2\t19.5\tUntreated\t100% Wool\tSample yarn\nBRISBANE\tIndorama\tNM 60/2\t20.5\tAnti-Shrinkage\t100% Wool\t"} />

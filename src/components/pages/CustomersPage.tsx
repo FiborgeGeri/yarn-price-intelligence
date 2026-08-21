@@ -31,7 +31,7 @@ interface Contact {
 }
 interface Props { permissions: Permissions; }
 
-export default function CustomersPage({ permissions }: Props) {
+export default function ClientsPage({ permissions }: Props) {
   const [list, setList] = useState<Customer[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,7 +151,7 @@ export default function CustomersPage({ permissions }: Props) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this customer?")) return;
+    if (!confirm("Delete this client?")) return;
     await fetch(`/api/customers?id=${id}`, { method: "DELETE" });
     load();
   };
@@ -218,17 +218,17 @@ export default function CustomersPage({ permissions }: Props) {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <div><h1 className="text-2xl font-bold text-slate-900">Customers</h1><p className="text-sm text-slate-500">{filtered.length} customer record(s)</p></div>
+        <div><h1 className="text-2xl font-bold text-slate-900">Clients</h1><p className="text-sm text-slate-500">{filtered.length} client record(s)</p></div>
         <div className="flex gap-2">
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search company, address, contact..." />
-          {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ Add Customer</button>}
+          {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ Add Client</button>}
         </div>
       </div>
       {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.text}</div>}
 
       <div className="space-y-4">
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-xl p-10 text-center border border-slate-200 text-slate-400">No customers found</div>
+          <div className="bg-white rounded-xl p-10 text-center border border-slate-200 text-slate-400">No clients found</div>
         ) : filtered.map((c) => {
           const contacts = contactsByCustomer[c.id] || [];
           return (
@@ -306,12 +306,12 @@ export default function CustomersPage({ permissions }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{editing ? "Edit Customer" : "Add Customer"}</h2>
+              <h2 className="text-lg font-semibold">{editing ? "Edit Client" : "Add Client"}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name (Display) *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Client Name (Display) *</label>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
               </div>
               <div>

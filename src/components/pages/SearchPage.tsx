@@ -256,7 +256,7 @@ export default function SearchPage({ permissions }: Props) {
     setTimeout(() => setToast(null), 3000);
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div>
@@ -266,7 +266,7 @@ export default function SearchPage({ permissions }: Props) {
       </div>
 
       {toast && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{toast.text}</div>
+        <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-[#3a6650] border border-[#cde3d3]"}`}>{toast.text}</div>
       )}
 
       <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 mb-6">
@@ -281,7 +281,7 @@ export default function SearchPage({ permissions }: Props) {
           {hasAnyInput ? (
             <>
               <span className="text-sm text-slate-600">{filtered.length} result(s)</span>
-              <button onClick={clearAll} className="text-sm text-blue-600 hover:underline">Clear All</button>
+              <button onClick={clearAll} className="text-sm text-[#d9774d] hover:underline">Clear All</button>
             </>
           ) : (
             <span className="text-sm text-slate-400">Type in any box to start searching</span>
@@ -310,8 +310,8 @@ export default function SearchPage({ permissions }: Props) {
                   </div>
                 ) : (
                   filtered.map((y) => (
-                    <button key={y.id} onClick={() => loadYarnPriceHistory(y)} className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${selectedYarn?.id === y.id ? "bg-blue-50 border-l-4 border-blue-500" : ""}`}>
-                      <div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full shrink-0 ${y.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`} /><span className="font-medium text-sm text-blue-700">{y.yarnName}</span></div>
+                    <button key={y.id} onClick={() => loadYarnPriceHistory(y)} className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${selectedYarn?.id === y.id ? "bg-blue-50 border-l-4 border-[#e5885d]" : ""}`}>
+                      <div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full shrink-0 ${y.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} /><span className="font-medium text-sm text-[#c4683f]">{y.yarnName}</span></div>
                       <div className="text-xs text-slate-500 mt-1 ml-4">{y.factoryName} · {y.yarnCount || "—"} · {y.micron ? y.micron + "μm" : "—"} · {y.treatmentName || "Untreated"}</div>
                       {y.latestPrice != null && <div className="text-xs font-mono text-slate-600 mt-0.5 ml-4">{y.latestCurrency || "USD"} {y.latestPrice.toFixed(2)}/{(y.latestUnit || "per KG").replace("per ", "")}</div>}
                     </button>
@@ -330,10 +330,10 @@ export default function SearchPage({ permissions }: Props) {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className={`bg-white rounded-xl shadow-sm border-2 p-5 ${selectedYarn.relationship === "My Factory" ? "border-blue-200" : "border-red-200"}`}>
+                <div className={`bg-white rounded-xl shadow-sm border-2 p-5 ${selectedYarn.relationship === "My Factory" ? "border-[#f5c5ae]" : "border-[#cde3d3]"}`}>
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <div className="flex items-center gap-2 mb-1"><span className={`w-3 h-3 rounded-full ${selectedYarn.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`} /><button onClick={() => openYarnDetail(selectedYarn.id)} className="text-xl font-bold text-blue-700 hover:underline text-left">{selectedYarn.yarnName}</button></div>
+                      <div className="flex items-center gap-2 mb-1"><span className={`w-3 h-3 rounded-full ${selectedYarn.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} /><button onClick={() => openYarnDetail(selectedYarn.id)} className="text-xl font-bold text-[#c4683f] hover:underline text-left">{selectedYarn.yarnName}</button></div>
                       <p className="text-sm text-slate-500">{selectedYarn.factoryName} · {selectedYarn.relationship === "My Factory" ? "Mine" : "Competitor"}</p>
                     </div>
                     {selectedYarn.latestPrice != null && <div className="text-right"><div className="text-lg font-bold font-mono text-slate-900">{selectedYarn.latestCurrency || "USD"} {selectedYarn.latestPrice.toFixed(2)}</div><div className="text-xs text-slate-500">{selectedYarn.latestUnit || "per KG"} · {selectedYarn.latestPriceDate}</div></div>}
@@ -345,13 +345,13 @@ export default function SearchPage({ permissions }: Props) {
                     <div><span className="text-slate-500 text-xs">Composition</span><div className="font-medium">{selectedYarn.composition || "—"}</div></div>
                   </div>
                   {selectedYarn.notes && <div className="mt-4 pt-3 border-t border-slate-200"><span className="text-slate-500 text-xs">Notes</span><p className="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{selectedYarn.notes}</p></div>}
-                  {yarnCertNames.length > 0 && <div className="mt-3 pt-3 border-t border-slate-200"><span className="text-slate-500 text-xs">Certificates</span><div className="flex flex-wrap gap-1.5 mt-1">{yarnCertNames.map((c) => <span key={c.id} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium" title={c.certFullName}>{c.certCode}</span>)}</div></div>}
+                  {yarnCertNames.length > 0 && <div className="mt-3 pt-3 border-t border-slate-200"><span className="text-slate-500 text-xs">Certificates</span><div className="flex flex-wrap gap-1.5 mt-1">{yarnCertNames.map((c) => <span key={c.id} className="px-2 py-0.5 bg-blue-50 text-[#c4683f] rounded text-xs font-medium" title={c.certFullName}>{c.certCode}</span>)}</div></div>}
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200">
                   <div className="p-4 border-b border-slate-200"><h3 className="font-semibold text-slate-900">Price History</h3></div>
                   {priceLoading ? (
-                    <div className="p-8 flex justify-center"><div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+                    <div className="p-8 flex justify-center"><div className="w-6 h-6 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>
                   ) : priceHistory.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 text-sm">No price records for this yarn</div>
                   ) : (
@@ -370,7 +370,7 @@ export default function SearchPage({ permissions }: Props) {
                                 <td className="px-4 py-3 text-right"><span className="font-mono font-medium">{p.currency} {p.price.toFixed(2)}</span><span className="text-slate-400 text-xs font-normal">/{(p.unit || "per KG").replace("per ", "")}</span>{diff != null && <span className={`ml-2 text-xs font-medium ${diff > 0 ? "text-red-500" : diff < 0 ? "text-green-600" : "text-slate-400"}`}>{diff > 0 ? "+" : ""}{diff.toFixed(2)}</span>}</td>
                                 <td className="px-4 py-3 text-slate-600">{p.incoterms || "—"}</td>
                                 <td className="px-4 py-3 text-slate-500 text-xs max-w-[200px] truncate">{p.remarks || "—"}</td>
-                                <td className="px-4 py-3"><div className="flex gap-2"> <button onClick={() => setViewing(p)} className="text-slate-600 hover:text-slate-900 text-xs">View</button>{permissions.canDelete && <button onClick={() => handleDeletePrice(p)} disabled={deletingId === p.id} className="text-red-500 hover:text-red-700 disabled:opacity-50 text-xs">Del</button>}</div></td>
+                                <td className="px-4 py-3"><div className="flex gap-2"> <button onClick={() => setViewing(p)} className="text-slate-600 hover:text-slate-900 text-xs">View</button>{permissions.canDelete && <button onClick={() => handleDeletePrice(p)} disabled={deletingId === p.id} className="text-red-500 hover:text-[#3a6650] disabled:opacity-50 text-xs">Del</button>}</div></td>
                               </tr>
                             );
                           })}

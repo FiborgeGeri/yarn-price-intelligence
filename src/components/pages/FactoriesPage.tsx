@@ -218,7 +218,7 @@ export default function FactoriesPage({ permissions }: Props) {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
 
   const myMills = factories.filter((f) => f.relationship === "My Factory");
   const compMills = factories.filter((f) => f.relationship === "Competitor Factory");
@@ -240,7 +240,7 @@ export default function FactoriesPage({ permissions }: Props) {
           {f.certNames?.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {f.certNames.map((c, i) => (
-                <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">{c}</span>
+                <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-[#c4683f] rounded text-[10px] font-medium">{c}</span>
               ))}
             </div>
           )}
@@ -248,11 +248,11 @@ export default function FactoriesPage({ permissions }: Props) {
           <AuditInfo createdByName={f.createdByName} updatedByName={f.updatedByName} createdAt={f.createdAt} updatedAt={f.updatedAt} className="mt-2 pt-2 border-t border-slate-100" />
         </div>
         <div className="flex flex-col gap-1 shrink-0 ml-2 items-end">
-          <button onClick={() => loadContacts(f)} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 font-medium underline">
+          <button onClick={() => loadContacts(f)} className="text-[#d9774d] hover:text-[#a75334] text-xs px-2 py-1 font-medium underline">
             {f.contactCount} contact{f.contactCount !== 1 ? "s" : ""} →
           </button>
-          {permissions.canEdit && <button onClick={() => openForm(f)} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
-          {permissions.canDelete && <button onClick={() => handleDelete(f.id)} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Del</button>}
+          {permissions.canEdit && <button onClick={() => openForm(f)} className="text-[#d9774d] hover:text-[#a75334] text-xs px-2 py-1">Edit</button>}
+          {permissions.canDelete && <button onClick={() => handleDelete(f.id)} className="text-red-500 hover:text-[#3a6650] text-xs px-2 py-1">Del</button>}
         </div>
       </div>
     </div>
@@ -264,15 +264,15 @@ export default function FactoriesPage({ permissions }: Props) {
         <div><h1 className="text-2xl font-bold text-slate-900">Yarn Mills</h1><p className="text-sm text-slate-500">{factories.length} yarn mills</p></div>
         {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ Add Yarn Mill</button>}
       </div>
-      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.text}</div>}
+      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-[#3a6650]"}`}>{toast.text}</div>}
 
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-blue-500" /> Mine ({myMills.length})</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{myMills.map((f) => <MillCard key={f.id} f={f} borderColor="border-blue-200" />)}</div>
+        <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#e5885d]" /> Mine ({myMills.length})</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{myMills.map((f) => <MillCard key={f.id} f={f} borderColor="border-[#f5c5ae]" />)}</div>
       </div>
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500" /> Competitor ({compMills.length})</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{compMills.map((f) => <MillCard key={f.id} f={f} borderColor="border-red-200" />)}</div>
+        <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#4d7d61]" /> Competitor ({compMills.length})</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{compMills.map((f) => <MillCard key={f.id} f={f} borderColor="border-[#cde3d3]" />)}</div>
       </div>
 
       {/* Add/Edit Yarn Mill */}
@@ -353,7 +353,7 @@ export default function FactoriesPage({ permissions }: Props) {
                         key={c.id}
                         type="button"
                         onClick={() => setFormCerts((prev) => prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id])}
-                        className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${formCerts.includes(c.id) ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"}`}
+                        className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${formCerts.includes(c.id) ? "bg-[#fce8df] text-[#a75334] border-[#edab8e]" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"}`}
                       >
                         {c.certCode}
                       </button>
@@ -391,7 +391,7 @@ export default function FactoriesPage({ permissions }: Props) {
             </div>
             <div className="p-4">
               {contactLoading ? (
-                <div className="flex justify-center py-8"><div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+                <div className="flex justify-center py-8"><div className="w-6 h-6 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>
               ) : (
                 <>
                   {contacts.length === 0 && !showContactForm && (
@@ -409,8 +409,8 @@ export default function FactoriesPage({ permissions }: Props) {
                           </div>
                           {(permissions.canEdit || permissions.canDelete) && (
                             <div className="flex gap-2 shrink-0">
-                              {permissions.canEdit && <button onClick={() => openContactForm(c)} className="text-blue-600 hover:text-blue-800 text-xs">Edit</button>}
-                              {permissions.canDelete && <button onClick={() => handleDeleteContact(c.id)} className="text-red-500 hover:text-red-700 text-xs">Del</button>}
+                              {permissions.canEdit && <button onClick={() => openContactForm(c)} className="text-[#d9774d] hover:text-[#a75334] text-xs">Edit</button>}
+                              {permissions.canDelete && <button onClick={() => handleDeleteContact(c.id)} className="text-red-500 hover:text-[#3a6650] text-xs">Del</button>}
                             </div>
                           )}
                         </div>

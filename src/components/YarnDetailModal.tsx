@@ -82,14 +82,14 @@ export function YarnDetailModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
         className={`bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border-t-4 ${
-          yarn.relationship === "My Factory" ? "border-blue-500" : "border-red-500"
+          yarn.relationship === "My Factory" ? "border-[#e5885d]" : "border-[#4d7d61]"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 border-b border-slate-200 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full ${yarn.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`} />
+              <span className={`w-3 h-3 rounded-full ${yarn.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} />
               <h2 className="text-xl font-bold text-slate-900">{yarn.yarnName}</h2>
             </div>
             <p className="text-sm text-slate-500 mt-1">
@@ -151,7 +151,7 @@ export function YarnDetailModal({
                           {tp.weightBasis === "net" ? "Net" : "Cond."}
                         </span>
                         {tp.incoterms && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-[#c4683f] text-xs font-bold border border-[#f5c5ae]">
                             {tp.incoterms}
                           </span>
                         )}
@@ -171,7 +171,7 @@ export function YarnDetailModal({
                 {certs
                   .filter((c) => yarn.certIds.includes(c.id))
                   .map((c) => (
-                    <span key={c.id} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                    <span key={c.id} className="px-2 py-0.5 bg-blue-50 text-[#c4683f] rounded text-xs font-medium">
                       {c.certCode}
                     </span>
                   ))}

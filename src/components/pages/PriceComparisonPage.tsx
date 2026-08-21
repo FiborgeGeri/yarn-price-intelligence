@@ -113,7 +113,7 @@ export default function PriceComparisonPage() {
 
   // ── render ──
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+    return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
   }
 
   if (!data || (data.myYarns.length === 0 && data.compYarns.length === 0)) {
@@ -134,7 +134,7 @@ export default function PriceComparisonPage() {
 
   // ── sector table helper ──
   const SectorTable = ({ rows, color }: { rows: PricedYarn[]; color: "blue" | "red" }) => (
-    <div className={`bg-white rounded-xl shadow-sm border-2 ${color === "blue" ? "border-blue-200" : "border-red-200"}`}>
+    <div className={`bg-white rounded-xl shadow-sm border-2 ${color === "blue" ? "border-[#f5c5ae]" : "border-[#cde3d3]"}`}>
       {rows.length === 0 ? (
         <div className="p-6 text-center text-slate-400 text-sm">No priced yarns match the current filters</div>
       ) : (
@@ -204,7 +204,7 @@ export default function PriceComparisonPage() {
           {showSectors ? "Hide" : "Show"} Mill Lists
         </button>
         {(micronFilter || countFilter || search) && (
-          <button onClick={() => { setMicronFilter(""); setCountFilter(""); setSearch(""); }} className="text-sm text-blue-600 hover:underline">Clear</button>
+          <button onClick={() => { setMicronFilter(""); setCountFilter(""); setSearch(""); }} className="text-sm text-[#d9774d] hover:underline">Clear</button>
         )}
       </div>
 
@@ -213,7 +213,7 @@ export default function PriceComparisonPage() {
         <div className="space-y-6 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="w-3 h-3 rounded-full bg-blue-500" />
+              <span className="w-3 h-3 rounded-full bg-[#e5885d]" />
               <h2 className="text-lg font-semibold text-slate-900">My Yarn Mills</h2>
               <span className="text-sm text-slate-500">({filteredMy.length})</span>
             </div>
@@ -222,7 +222,7 @@ export default function PriceComparisonPage() {
 
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="w-3 h-3 rounded-full bg-red-500" />
+              <span className="w-3 h-3 rounded-full bg-[#4d7d61]" />
               <h2 className="text-lg font-semibold text-slate-900">Competitor Yarn Mills</h2>
               <span className="text-sm text-slate-500">({filteredComp.length})</span>
             </div>
@@ -246,13 +246,13 @@ export default function PriceComparisonPage() {
                   <th className="px-3 py-3 font-medium">Count</th>
                   <th className="px-3 py-3 font-medium">Treatment</th>
                   <th className="pl-3 pr-2 py-3 font-medium">
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500" />My Yarn</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#e5885d]" />My Yarn</span>
                   </th>
                   <th className="px-2 py-3 font-medium text-right">My Price</th>
                   <th className="px-2 py-3 font-medium text-center w-px text-slate-400">vs</th>
                   <th className="px-2 py-3 font-medium text-left">Comp Price</th>
                   <th className="pl-2 pr-3 py-3 font-medium">
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" />Competitor</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#4d7d61]" />Competitor</span>
                   </th>
                   <th className="px-3 py-3 font-medium text-right">Diff (per KG)</th>
                   <th className="px-3 py-3 font-medium">Status</th>
@@ -276,12 +276,12 @@ export default function PriceComparisonPage() {
                         <div className="font-medium">{m.myYarnName}</div>
                         <div className="text-xs text-slate-400 font-normal">{m.myFactory}</div>
                       </td>
-                      <td className="px-2 py-3 text-right font-mono font-medium text-blue-700">
+                      <td className="px-2 py-3 text-right font-mono font-medium text-[#c4683f]">
                         {m.myCurrency} {m.myPrice.toFixed(2)}
                         <span className="text-slate-400 font-normal text-xs">/{m.myUnit.replace("per ", "")}</span>
                       </td>
                       <td className="px-2 py-3 text-center text-slate-300 text-xs">vs</td>
-                      <td className="px-2 py-3 text-left font-mono font-medium text-red-600">
+                      <td className="px-2 py-3 text-left font-mono font-medium text-[#4d7d61]">
                         {m.compCurrency} {m.compPrice.toFixed(2)}
                         <span className="text-slate-400 font-normal text-xs">/{m.compUnit.replace("per ", "")}</span>
                       </td>
@@ -289,7 +289,7 @@ export default function PriceComparisonPage() {
                         <div className="font-medium">{m.compYarnName}</div>
                         <div className="text-xs text-slate-400">{m.compFactory}</div>
                       </td>
-                      <td className={`px-3 py-3 text-right font-mono text-xs font-medium ${diff < -0.005 ? "text-green-600" : diff > 0.005 ? "text-red-600" : "text-slate-500"}`}>
+                      <td className={`px-3 py-3 text-right font-mono text-xs font-medium ${diff < -0.005 ? "text-green-600" : diff > 0.005 ? "text-[#4d7d61]" : "text-slate-500"}`}>
                         <div>
                           {diff > 0 ? "+" : ""}{diff.toFixed(2)}/KG
                           <span className="text-slate-400 font-normal ml-1">({pct > 0 ? "+" : ""}{pct.toFixed(1)}%)</span>
@@ -302,7 +302,7 @@ export default function PriceComparisonPage() {
                       </td>
                       <td className="px-3 py-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          diff < -0.005 ? "bg-green-100 text-green-800" : diff > 0.005 ? "bg-red-100 text-red-800" : "bg-slate-100 text-slate-600"
+                          diff < -0.005 ? "bg-green-100 text-green-800" : diff > 0.005 ? "bg-[#dceae0] text-[#2d5240]" : "bg-slate-100 text-slate-600"
                         }`}>
                           {diff < -0.005 ? "Lower" : diff > 0.005 ? "Higher" : "Equal"}
                         </span>

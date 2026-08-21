@@ -378,8 +378,8 @@ export default function SalesOrdersPage({ permissions }: Props) {
             <tr className="bg-slate-50 text-left text-slate-600">
               <th className="px-4 py-3 font-medium">SO No.</th>
               <th className="px-4 py-3 font-medium">Category</th>
-              <th className="px-4 py-3 font-medium">Customer PO</th>
-              <th className="px-4 py-3 font-medium">Customer</th>
+              <th className="px-4 py-3 font-medium">Client PO</th>
+              <th className="px-4 py-3 font-medium">Client</th>
               <th className="px-4 py-3 font-medium">Ship-To</th>
               <th className="px-4 py-3 font-medium text-left">Items</th>
               <th className="px-4 py-3 font-medium">SO Date</th>
@@ -450,7 +450,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <span className="text-slate-500 text-xs block">Customer</span>
+                  <span className="text-slate-500 text-xs block">Client</span>
                   <div className="font-medium">{viewing.customerName}</div>
                   {viewing.contactName && <div className="text-xs text-blue-600 mt-0.5">Attn: {viewing.contactName}</div>}
                 </div>
@@ -475,7 +475,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 <div>Category: <span className={`font-semibold ${{Sample:"text-purple-600","Free of Charge":"text-amber-600","Lab Dip":"text-cyan-600","Strike Off":"text-cyan-600"}[(viewing as SalesOrder & {orderCategory?:string}).orderCategory||""] || "text-slate-700"}`}>{(viewing as SalesOrder & {orderCategory?:string}).orderCategory || "Bulk"}</span></div>
                 <div>Unit: <span className="font-semibold text-slate-700">{(viewing as SalesOrder & {quantityUnit?:string}).quantityUnit || "KGS"}</span></div>
                 {(() => { const v = viewing as SalesOrder & {paymentMethod?:string;paymentDays?:number;paymentReference?:string}; return v.paymentMethod ? <div>Payment: <span className="font-semibold text-emerald-700">{v.paymentMethod}{v.paymentDays ? ` ${v.paymentDays} Days` : ""}{v.paymentReference ? ` from ${v.paymentReference}` : ""}</span></div> : null; })()}
-                {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
+                {viewing.customerPoNo && <div>Client PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
                 {viewing.quoteNo && <div>Ref. Quotation: <span className="font-medium text-slate-700">{viewing.quoteNo}</span></div>}
               </div>
 
@@ -571,7 +571,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Customer *</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Client *</label>
                     <select value={fCustomer} onChange={(e) => { setFCustomer(Number(e.target.value)); setFContact(0); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
                       <option value={0}>Select...</option>
                       {customerList.map((c) => (
@@ -585,7 +585,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Contact Person</label>
                     <select value={fContact} onChange={(e) => setFContact(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" disabled={!fCustomer}>
-                      <option value={0}>{fCustomer ? "— No specific contact —" : "Select customer first"}</option>
+                      <option value={0}>{fCustomer ? "— No specific contact —" : "Select client first"}</option>
                       {fContacts.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.contactName}{c.position ? ` · ${c.position}` : ""}
@@ -687,8 +687,8 @@ export default function SalesOrdersPage({ permissions }: Props) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Customer PO No.</label>
-                    <input type="text" value={fCustomerPoNo} onChange={(e) => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Customer's purchase order number" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Client PO No.</label>
+                    <input type="text" value={fCustomerPoNo} onChange={(e) => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Client's purchase order number" />
                   </div>
 
                   <div>

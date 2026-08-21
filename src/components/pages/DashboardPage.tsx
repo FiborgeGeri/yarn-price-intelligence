@@ -44,7 +44,7 @@ function StatCard({ label, value, sub, accent, onClick, badge }: { label: string
           <div className={`text-2xl font-bold mt-1 ${accent}`}>{value}</div>
           {sub && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{sub}</div>}
         </div>
-        {badge && <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700">{badge}</span>}
+        {badge && <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#dceae0] text-[#3a6650]">{badge}</span>}
       </div>
     </button>
   );
@@ -55,7 +55,7 @@ function SectionCard({ title, action, onAction, children }: { title: string; act
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        {action && <button onClick={onAction} className="text-xs text-blue-600 hover:text-blue-800 font-medium">{action} →</button>}
+        {action && <button onClick={onAction} className="text-xs text-[#d9774d] hover:text-[#a75334] font-medium">{action} →</button>}
       </div>
       <div className="p-4">{children}</div>
     </div>
@@ -73,7 +73,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
       .catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
   if (!data?.kpi) return <div className="text-center py-20 text-slate-400">Unable to load dashboard</div>;
 
   const k = data.kpi;
@@ -90,14 +90,14 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
       {(k.overdueCount > 0 || k.expiringQuotes > 0 || k.stalePriceCount > 0) && (
         <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-slate-200 shadow-sm p-3">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-5 h-5 rounded-full bg-red-50 border border-red-200 flex items-center justify-center shrink-0"><svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg></div>
+            <div className="w-5 h-5 rounded-full bg-red-50 border border-[#cde3d3] flex items-center justify-center shrink-0"><svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg></div>
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Alerts</span>
           </div>
           <div className="space-y-1.5">
             {k.overdueCount > 0 && (
               <button onClick={() => onNavigate("sales-orders")} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-red-50/60 transition-colors text-left">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                <span className="text-xs text-slate-700"><strong className="text-red-600">{k.overdueCount}</strong> overdue delivery{k.overdueCount > 1 ? "ies" : ""} need attention</span>
+                <span className="text-xs text-slate-700"><strong className="text-[#4d7d61]">{k.overdueCount}</strong> overdue delivery{k.overdueCount > 1 ? "ies" : ""} need attention</span>
               </button>
             )}
             {k.expiringQuotes > 0 && (
@@ -122,7 +122,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Order Flow</div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <StatCard label="Quotations" value={k.quotations} sub={k.expiringQuotes ? `${k.expiringQuotes} expiring soon` : "All active"} accent="text-slate-900" onClick={() => onNavigate("quotations")} badge={k.expiringQuotes ? String(k.expiringQuotes) : undefined} />
-            <StatCard label="Sales Orders" value={k.salesOrders} sub={`${k.salesOrdersOpen} open · ${k.newOrderCount} new (14d)`} accent="text-blue-600" onClick={() => onNavigate("sales-orders")} />
+            <StatCard label="Sales Orders" value={k.salesOrders} sub={`${k.salesOrdersOpen} open · ${k.newOrderCount} new (14d)`} accent="text-[#d9774d]" onClick={() => onNavigate("sales-orders")} />
             <StatCard label="Purchase Orders" value={k.purchaseOrders} sub={`${k.purchaseOrdersOpen} open`} accent="text-indigo-600" onClick={() => onNavigate("purchase-orders")} />
             <StatCard label="Goods Receipts" value={k.goodsReceipts} sub={`${k.goodsReceiptsInTransit} in transit`} accent="text-cyan-600" onClick={() => onNavigate("goods-receipts")} />
             <StatCard label="Delivery Notes" value={k.deliveryNotes} sub={`${k.deliveryNotesPending} pending`} accent="text-emerald-600" onClick={() => onNavigate("delivery-notes")} />
@@ -150,7 +150,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
                 <div key={d.id} className="flex items-center justify-between gap-2 text-xs border-b border-slate-100 pb-2 last:border-0 last:pb-0">
                   <span className="font-medium text-slate-800">{d.soNo}</span>
                   <span className="text-slate-500">{d.deliveryDate}</span>
-                  <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold shrink-0">{d.daysOverdue}d late</span>
+                  <span className="px-2 py-0.5 rounded bg-[#dceae0] text-[#3a6650] font-bold shrink-0">{d.daysOverdue}d late</span>
                 </div>
               ))}
             </div>
@@ -165,7 +165,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
                   <div key={d.id} className="flex items-center justify-between gap-2 text-xs border-b border-slate-100 pb-2 last:border-0 last:pb-0">
                     <span className="font-medium text-slate-800">{d.soNo}</span>
                     <span className="text-slate-500">{d.deliveryDate}</span>
-                    <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium shrink-0">{d.status}</span>
+                    <span className="px-2 py-0.5 rounded bg-blue-50 text-[#c4683f] font-medium shrink-0">{d.status}</span>
                   </div>
                 ))}
               </div>
@@ -200,7 +200,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
                   </div>
                   <div className="text-right shrink-0">
                     <div className="font-mono font-semibold text-slate-800">{m.currency} {m.latestPrice.toFixed(2)}</div>
-                    <div className={`text-[10px] font-medium ${m.change > 0 ? "text-red-600" : "text-green-600"}`}>
+                    <div className={`text-[10px] font-medium ${m.change > 0 ? "text-[#4d7d61]" : "text-green-600"}`}>
                       {m.change > 0 ? "▲" : "▼"} {Math.abs(m.changePct).toFixed(1)}%
                     </div>
                   </div>
@@ -232,7 +232,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
               {data.newYarns.map((y) => (
                 <div key={y.id} className="flex items-center justify-between gap-2 text-xs border-b border-slate-100 pb-2 last:border-0 last:pb-0">
                   <div className="min-w-0 flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${y.relationship === "My Factory" ? "bg-blue-500" : "bg-red-500"}`} />
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${y.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} />
                     <span className="font-medium text-slate-800 truncate">{y.yarnName}</span>
                   </div>
                   <span className="text-slate-400 truncate shrink-0">{y.yarnCount} · {y.factoryName}</span>

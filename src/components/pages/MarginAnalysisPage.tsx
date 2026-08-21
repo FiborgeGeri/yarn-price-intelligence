@@ -38,14 +38,14 @@ export default function MarginAnalysisPage() {
     });
   }, [allActive, groupBy]);
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div><h1 className="text-2xl font-bold text-slate-900">Margin Analysis</h1><p className="text-sm text-slate-500">Analyze profitability across yarns and customers</p></div>
         <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as "yarn" | "customer")} className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
-          <option value="yarn">Group by Yarn</option><option value="customer">Group by Customer</option>
+          <option value="yarn">Group by Yarn</option><option value="customer">Group by Client</option>
         </select>
       </div>
 

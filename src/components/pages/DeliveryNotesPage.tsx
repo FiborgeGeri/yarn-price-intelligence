@@ -151,9 +151,9 @@ export default function DeliveryNotesPage({ permissions }: Props) {
           <thead><tr className="bg-slate-50 text-left text-slate-600">
             <th className="px-4 py-3 font-medium">DN No.</th>
             <th className="px-4 py-3 font-medium">Category</th>
-            <th className="px-4 py-3 font-medium">Customer PO</th>
+            <th className="px-4 py-3 font-medium">Client PO</th>
             <th className="px-4 py-3 font-medium">SO Ref</th>
-            <th className="px-4 py-3 font-medium">Customer</th>
+            <th className="px-4 py-3 font-medium">Client</th>
             <th className="px-4 py-3 font-medium">Ship-To</th>
             <th className="px-4 py-3 font-medium text-left">Items</th>
             <th className="px-4 py-3 font-medium">DN Date</th>
@@ -164,7 +164,7 @@ export default function DeliveryNotesPage({ permissions }: Props) {
           <tbody>
             {filtered.length === 0 ? <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400">No delivery notes</td></tr> : filtered.map(d => (
               <tr key={d.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3"><button onClick={() => setViewing(d)} className="font-medium text-blue-700 hover:underline">{d.dnNo}</button></td>
+                <td className="px-4 py-3 text-left"><button onClick={() => setViewing(d)} className="font-medium text-blue-700 hover:underline">{d.dnNo}</button></td>
                 <td className="px-4 py-3">{d.orderCategory !== "Bulk" ? <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${d.orderCategory === "Sample" ? "bg-purple-100 text-purple-700" : "bg-amber-100 text-amber-700"}`}>{d.orderCategory}</span> : <span className="text-xs text-slate-400">Bulk</span>}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{d.customerPoNo || "—"}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{d.soNo || "—"}</td>
@@ -187,13 +187,13 @@ export default function DeliveryNotesPage({ permissions }: Props) {
             <div className="p-4 border-b border-slate-200 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Delivery Note</h2><p className="text-xs text-slate-500 mt-0.5">{viewing.dnNo}</p></div><button onClick={() => setViewing(null)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button></div>
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                <div><span className="text-slate-500 text-xs block">Customer</span><div className="font-medium">{viewing.customerName}</div>{viewing.contactName && <div className="text-xs text-blue-600">Attn: {viewing.contactName}</div>}</div>
+                <div><span className="text-slate-500 text-xs block">Client</span><div className="font-medium">{viewing.customerName}</div>{viewing.contactName && <div className="text-xs text-blue-600">Attn: {viewing.contactName}</div>}</div>
                 <div><span className="text-slate-500 text-xs block">Ship-To</span><div className="font-medium">{viewing.shipToName || "—"}</div>{viewing.shipToContactName && <div className="text-xs text-blue-600">Attn: {viewing.shipToContactName}</div>}</div>
                 <div><span className="text-slate-500 text-xs block">DN Date</span><div>{viewing.dnDate}</div></div>
                 <div><span className="text-slate-500 text-xs block">Status</span><span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[viewing.status] || ""}`}>{viewing.status}</span></div>
               </div>
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
-                {viewing.customerPoNo && <div>Customer PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
+                {viewing.customerPoNo && <div>Client PO: <span className="font-medium text-slate-700">{viewing.customerPoNo}</span></div>}
                 <div>Unit: <span className="font-semibold text-slate-700">{viewing.quantityUnit || "KGS"}</span></div>
                 {viewing.soNo && <div>SO Ref: <span className="font-medium text-slate-700">{viewing.soNo}</span></div>}
                 {viewing.shippingMethod && <div>Shipping: <span className="font-medium text-slate-700">{viewing.shippingMethod}</span></div>}
@@ -226,8 +226,8 @@ export default function DeliveryNotesPage({ permissions }: Props) {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-3">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Customer *</label><select value={fCustomer} onChange={e => setFCustomer(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>Select...</option>{customerList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Customer PO No.</label><input type="text" value={fCustomerPoNo} onChange={e => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Client *</label><select value={fCustomer} onChange={e => setFCustomer(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>Select...</option>{customerList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Client PO No.</label><input type="text" value={fCustomerPoNo} onChange={e => setFCustomerPoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">SO Ref No.</label><input type="text" value={fSoNo} onChange={e => setFSoNo(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Order Category</label><select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="Bulk">Bulk</option><option value="Sample">Sample</option><option value="Free of Charge">Free of Charge</option><option value="Lab Dip">Lab Dip</option><option value="Strike Off">Strike Off</option></select></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label><select value={fStatus} onChange={e => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>Draft</option><option>Packed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></div>

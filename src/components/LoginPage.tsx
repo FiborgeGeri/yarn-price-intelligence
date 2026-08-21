@@ -39,14 +39,11 @@ export default function LoginPage({ onLogin }: Props) {
 
       <div className="relative z-10 w-full max-w-sm">
         <div className="text-center mb-7">
-          <div className="relative w-20 h-20 rounded-[1.75rem] flex items-center justify-center mx-auto mb-4 bg-gradient-to-br from-white/80 via-[#f8d5c5]/68 to-[#e8895e]/76 border border-white/90 shadow-[0_20px_55px_rgba(206,110,69,0.16)] backdrop-blur-xl">
-            <div className="absolute inset-2 rounded-[1.35rem] bg-white/18 border border-white/40" />
-            <img
-              src="/images/fib_infinity.png"
-              alt="Fiborge"
-              className="relative z-10 h-12 w-12 object-contain"
-            />
-          </div>
+          <img
+            src="/images/fib_infinity.png"
+            alt="Fiborge"
+            className="relative z-10 h-20 w-20 object-contain mx-auto mb-4"
+          />
           <h1 className="text-2xl font-semibold text-[#252222]">Welcome to Fiborge&apos;s Hub</h1>
         </div>
 
