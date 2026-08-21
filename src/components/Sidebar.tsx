@@ -1,6 +1,5 @@
 "use client";
-import { IconDashboard, IconPlus, IconClipboard, IconScale, IconTrendUp, IconMicroscope, IconYarn, IconFactory, IconCertificate, IconFlask, IconSettings, IconLogout, IconSearch, IconUsers, IconFileText, IconPercent, IconShoppingCart, IconMapPin, IconDollar, IconLayers, IconRefresh, IconDroplet, IconBeaker, IconClock, IconTruck, IconPackage, IconBarChart, IconMail, IconShoppingBag, IconReceipt, IconWallet, IconBuilding, IconCreditCard, IconArrowLeftRight, IconSliders } from "./Icons";
-import { type ReactNode } from "react";
+import { IconDashboard, IconPlus, IconClipboard, IconScale, IconTrendUp, IconMicroscope, IconYarn, IconFactory, IconCertificate, IconFlask, IconSettings, IconLogout, IconSearch, IconUsers, IconFileText, IconPercent, IconShoppingCart, IconMapPin, IconDollar, IconLayers, IconRefresh, IconDroplet, IconBeaker, IconClock, IconTruck, IconPackage, IconBarChart, IconMail, IconShoppingBag, IconReceipt, IconWallet, IconBuilding, IconCreditCard, IconArrowLeftRight, IconSliders } from "./Icons";import { type ReactNode } from "react";
 import { type Permissions } from "@/lib/permissions";
 
 interface NavItem {
@@ -82,8 +81,13 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onToggle, use
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white/65 backdrop-blur-2xl text-[#545150] border-r border-white/80 flex flex-col transform transition-transform duration-200 shadow-[8px_0_36px_rgba(70,58,52,0.035)] ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:w-0 lg:overflow-hidden"}`}>
         <div className="p-4 border-b border-[#e7e2df]/70">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#fff5ef]/90 via-[#f7cbb8]/80 to-[#e98d63]/90 border border-white/90 shadow-[0_8px_24px_rgba(217,119,77,0.14)]"><IconTrendUp className="w-5 h-5 text-[#9d5031]" /></div>
-            <div>
+<div className="w-10 h-10 rounded-2xl overflow-hidden border border-white/90 shadow-sm bg-white/50">
+  <img
+    src="/images/fib_infinity.png"
+    alt="Fiborge"
+    className="w-full h-full object-contain p-1"
+  />
+</div>            <div>
               <div className="font-semibold text-sm leading-tight text-[#242222]">Fiborge&apos;s Sales &amp; Sourcing Hub</div>
             </div>
           </div>
