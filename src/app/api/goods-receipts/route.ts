@@ -97,8 +97,22 @@ export async function POST(req: NextRequest) {
         notes: notes || null, updatedAt: new Date(), updatedBy: userId || null,
       }).where(eq(goodsReceipts.id, id));
 
-      // Sync linked DN — update header + items + status
-      const linkedDNs = await db.select({ id: deliveryNotes.id }).from(deliveryNotes).where(eq(deliveryNotes.grId, id));
+      // Sync linked DN — update header + items + status + packing details
+      // Primary: find by grId column; Fallback: find by notes field "Auto-created from GR-XXXX"
+      let linkedDNs = await db.select({ id: deliveryNotes.id }).from(deliveryNotes).where(eq(deliveryNotes.grId, id));
+      if (linkedDNs.length === 0) {
+        // Fallback: find DN by notes reference
+        const grRecord2 = await db.select({ grNo: goodsReceipts.grNo }).from(goodsReceipts).where(eq(goodsReceipts.id, id));
+        const grNoForSearch = grRecord2[0]?.grNo;
+        if (grNoForSearch) {
+          const fallbackDNs = await db.select().from(deliveryNotes);
+          linkedDNs = fallbackDNs.filter(dn => dn.notes?.includes(grNoForSearch)).map(dn => ({ id: dn.id }));
+          // Also set grId on these DNs for future use
+          for (const dn of linkedDNs) {
+            await db.update(deliveryNotes).set({ grId: id }).where(eq(deliveryNotes.id, dn.id));
+          }
+        }
+      }
       const dnStatusMap: Record<string, string> = {
         "Shipped from Mill": "Packed", "In Transit": "Shipped", "Arrived at Port": "Shipped",
         "Customs Clearance": "Shipped", "Delivered": "Delivered", "Completed": "Delivered",
@@ -112,19 +126,39 @@ export async function POST(req: NextRequest) {
           updatedAt: new Date(), updatedBy: userId || null,
         }).where(eq(deliveryNotes.id, dn.id));
 
-        // Update DN items from GR items
+        // Update DN items from GR items (including packing details)
         if (items?.length) {
           await db.delete(dnItems).where(eq(dnItems.dnId, dn.id));
           for (const item of items) {
             if (!item.yarnId) continue;
-            await db.insert(dnItems).values({
-              dnId: dn.id, yarnId: item.yarnId, colorName: item.colorName || null,
-              colorCode: item.colorCode || null, quantity: item.quantityReceived || item.quantityOrdered || null,
-              weightBasis: item.weightBasis || "condition",
-              packages: item.packages || null, packingDetails: item.packingDetails || null,
-              grossWeight: item.grossWeight || null, netWeight: item.netWeight || null,
-              lotNo: item.lotNo || null,
-            });
+            try {
+              await db.insert(dnItems).values({
+                dnId: dn.id, yarnId: item.yarnId,
+                colorName: item.colorName || null,
+                colorCode: item.colorCode || null,
+                quantity: item.quantityReceived || item.quantityOrdered || null,
+                weightBasis: item.weightBasis || "condition",
+                packages: item.packages || null,
+                packingDetails: item.packingDetails || null,
+                grossWeight: item.grossWeight || null,
+                netWeight: item.netWeight || null,
+                lotNo: item.lotNo || null,
+              });
+            } catch (itemErr) {
+              // Fallback: try without weightBasis in case column doesn't exist yet
+              console.error("DN item insert failed, trying fallback:", itemErr);
+              await db.insert(dnItems).values({
+                dnId: dn.id, yarnId: item.yarnId,
+                colorName: item.colorName || null,
+                colorCode: item.colorCode || null,
+                quantity: item.quantityReceived || item.quantityOrdered || null,
+                packages: item.packages || null,
+                packingDetails: item.packingDetails || null,
+                grossWeight: item.grossWeight || null,
+                netWeight: item.netWeight || null,
+                lotNo: item.lotNo || null,
+              });
+            }
           }
         }
       }
