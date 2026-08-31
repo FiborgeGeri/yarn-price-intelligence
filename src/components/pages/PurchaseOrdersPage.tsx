@@ -76,6 +76,7 @@ interface Yarn {
   latestUnit: string | null;
   latestPrices: Array<{ price: number; currency: string; unit: string; incoterms: string; recordDate: string }>;
 }
+interface Company { id: number; name: string; isDefault: boolean; }
 interface Props { permissions: Permissions; }
 interface FormItem {
   yarnId: number;
@@ -135,6 +136,8 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
   const [fShipTo, setFShipTo] = useState(0);
   const [fOrderCategory, setFOrderCategory] = useState("Bulk");
   const [fQtyUnit, setFQtyUnit] = useState("KGS");
+  const [companyList, setCompanyList] = useState<Company[]>([]);
+  const [fCompanyId, setFCompanyId] = useState(0);
   const [fPaymentMethod, setFPaymentMethod] = useState("");
   const [fPaymentDays, setFPaymentDays] = useState("");
   const [fPaymentRef, setFPaymentRef] = useState("");
@@ -158,6 +161,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       fetch("/api/customers").then((r) => r.json()),
       fetch("/api/ship-to-addresses").then((r) => r.json()),
       fetch("/api/yarns").then((r) => r.json()),
+      fetch("/api/companies").then((r) => r.json()),
     ]);
     setPOs(p);
     setFactoryList(f);
@@ -208,7 +212,9 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       setFShipTo(po.shipToId || 0);
       setFOrderCategory(po.orderCategory || "Bulk");
       setFQtyUnit(po.quantityUnit || "KGS");
+      setFCompanyId((po as unknown as { companyId?: number }).companyId || 0);
       setFQtyUnit(po.quantityUnit || "KGS");
+      setFCompanyId((po as unknown as { companyId?: number }).companyId || 0);
       setFPaymentMethod(po.paymentMethod || "");
       setFPaymentDays(po.paymentDays ? String(po.paymentDays) : "");
       setFPaymentRef(po.paymentReference || "");
@@ -244,6 +250,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       setFOrderCategory("Bulk");
       setFQtyUnit("KGS");
       setFQtyUnit("KGS");
+      setFCompanyId(0);
       setFPaymentMethod("");
       setFPaymentDays("");
       setFPaymentRef("");
@@ -297,6 +304,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
         body: JSON.stringify({
           id: editingPO?.id,
           poNo: editingPO?.poNo,
+          companyId: fCompanyId || null,
           factoryId: fFactory,
           customerId: fCustomer || null,
           shipToId: fShipTo || null,
@@ -573,6 +581,13 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Company *</label>
+                    <select value={fCompanyId} onChange={(e) => setFCompanyId(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value={0}>Select company...</option>
+                      {companyList.map((comp) => <option key={comp.id} value={comp.id}>{comp.name}{comp.isDefault ? " (Default)" : ""}</option>)}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Yarn Mill *</label>
                     <select value={fFactory} onChange={(e) => { const v = Number(e.target.value); setFFactory(v); setFContactPerson(0); loadFactoryContacts(v); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">

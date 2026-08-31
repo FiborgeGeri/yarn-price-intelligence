@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { purchaseOrders, poItems, factories, customers, shipToAddresses, shipToContacts, yarns, treatments, salesOrders } from "@/db/schema";
+import { purchaseOrders, poItems, factories, customers, shipToAddresses, shipToContacts, yarns, treatments, salesOrders, companies } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
@@ -44,6 +44,7 @@ export async function GET() {
         updatedBy: purchaseOrders.updatedBy,
       })
       .from(purchaseOrders)
+      .leftJoin(companies, eq(purchaseOrders.companyId, companies.id))
       .leftJoin(factories, eq(purchaseOrders.factoryId, factories.id))
       .leftJoin(customers, eq(purchaseOrders.customerId, customers.id))
       .leftJoin(shipToAddresses, eq(purchaseOrders.shipToId, shipToAddresses.id))
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       id,
+      companyId,
       poNo,
       factoryId,
       customerId,
@@ -136,6 +138,7 @@ export async function POST(req: NextRequest) {
     if (id) {
       await db.update(purchaseOrders).set({
         factoryId,
+        companyId: companyId || null,
         customerId: customerId || null,
         shipToId: shipToId || null,
         shipToContactId: shipToContactId || null,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { quotations, customers, customerContacts, yarns, factories, treatments, spinningTypeOptions } from "@/db/schema";
+import { quotations, customers, customerContacts, yarns, factories, treatments, spinningTypeOptions, companies } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
@@ -29,6 +29,8 @@ export async function GET(req: NextRequest) {
       .select({
         id: quotations.id,
         quoteNo: quotations.quoteNo,
+        companyId: quotations.companyId,
+        companyName: companies.name,
         customerId: quotations.customerId,
         contactId: quotations.contactId,
         customerName: customers.name,
@@ -58,6 +60,7 @@ export async function GET(req: NextRequest) {
         updatedBy: quotations.updatedBy,
       })
       .from(quotations)
+      .leftJoin(companies, eq(quotations.companyId, companies.id))
       .leftJoin(customers, eq(quotations.customerId, customers.id))
       .leftJoin(customerContacts, eq(quotations.contactId, customerContacts.id))
       .leftJoin(yarns, eq(quotations.yarnId, yarns.id))
@@ -89,6 +92,7 @@ export async function POST(req: NextRequest) {
     const {
       id,
       quoteNo,
+      companyId,
       customerId,
       contactId,
       yarnId,
@@ -136,6 +140,7 @@ export async function POST(req: NextRequest) {
     const finalQuoteNo = quoteNo || createQuoteNo();
     const [q] = await db.insert(quotations).values({
       quoteNo: finalQuoteNo,
+      companyId: companyId || null,
       customerId,
       contactId: contactId || null,
       yarnId,

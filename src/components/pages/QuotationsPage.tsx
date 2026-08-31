@@ -17,6 +17,7 @@ interface QuoteRow {
 interface Customer { id: number; name: string; company: string; }
 interface Contact { id: number; customerId: number; contactName: string; department: string; position: string; email: string; phone: string; }
 interface Yarn { id: number; yarnName: string; factoryName: string; yarnCount: string; micron: string; composition: string; treatmentName: string; latestPrice: number | null; latestCurrency: string | null; latestUnit: string | null; }
+interface Company { id: number; name: string; isDefault: boolean; }
 interface Props { permissions: Permissions; }
 interface LineItem { id?: number; yarnId: number; costPrice: string; quotedPrice: string; currency: string; unit: string; weightBasis: string; incoterms: string; notes: string; }
 interface QuoteGroup {
@@ -173,8 +174,10 @@ export default function QuotationsPage({ permissions }: Props) {
   const [mStatus, setMStatus] = useState("Draft");
   const [mLines, setMLines] = useState<LineItem[]>([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]);
   const [mSaving, setMSaving] = useState(false);
+  const [companyList, setCompanyList] = useState<Company[]>([]);
+  const [mCompany, setMCompany] = useState(0);
 
-  const load = async () => { setLoading(true); const [q, c, cc, y] = await Promise.all([fetch("/api/quotations").then((r) => r.json()), fetch("/api/customers").then((r) => r.json()), fetch("/api/customer-contacts").then((r) => r.json()), fetch("/api/yarns").then((r) => r.json())]); setRows(q); setCustomerList(c); setContactList(cc); setYarnList(y); setLoading(false); };
+  const load = async () => { setLoading(true); const [q, c, cc, y, comp] = await Promise.all([fetch("/api/quotations").then((r) => r.json()), fetch("/api/customers").then((r) => r.json()), fetch("/api/customer-contacts").then((r) => r.json()), fetch("/api/yarns").then((r) => r.json()), fetch("/api/companies").then((r) => r.json())]); setRows(q); setCustomerList(c); setContactList(cc); setYarnList(y); setCompanyList(comp); setLoading(false); };
   useEffect(() => { load(); }, []);
 
   const fContacts = useMemo(() => contactList.filter((c) => c.customerId === fCustomer), [contactList, fCustomer]);
@@ -257,7 +260,7 @@ export default function QuotationsPage({ permissions }: Props) {
     try {
       if (editingGroup) { const origIds = editingGroup.rows.map((r) => r.id); const curIds = validLines.map((l) => l.id).filter(Boolean) as number[]; for (const id of origIds.filter((id) => !curIds.includes(id))) await fetch(`/api/quotations?id=${id}`, { method: "DELETE" }); }
       let processed = 0; let firstError = "";
-      for (const line of validLines) { const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: line.id, quoteNo, customerId: mCustomer, contactId: mContact || null, yarnId: line.yarnId, costPrice: line.costPrice, quotedPrice: line.quotedPrice, currency: line.currency, unit: line.unit, weightBasis: line.weightBasis, quoteDate: mQuoteDate, validUntil: mValidUntil, incoterms: line.incoterms, status: mStatus, notes: line.notes, userId: getUserId() }) }); if (res.ok) processed++; else if (!firstError) { const d = await res.json().catch(() => ({ error: "Failed" })); firstError = d.error || "Failed"; } }
+      for (const line of validLines) { const res = await fetch("/api/quotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: line.id, quoteNo, companyId: mCompany || null, customerId: mCustomer, contactId: mContact || null, yarnId: line.yarnId, costPrice: line.costPrice, quotedPrice: line.quotedPrice, currency: line.currency, unit: line.unit, weightBasis: line.weightBasis, quoteDate: mQuoteDate, validUntil: mValidUntil, incoterms: line.incoterms, status: mStatus, notes: line.notes, userId: getUserId() }) }); if (res.ok) processed++; else if (!firstError) { const d = await res.json().catch(() => ({ error: "Failed" })); firstError = d.error || "Failed"; } }
       if (processed === 0) { setToast({ type: "error", text: firstError || "Failed" }); } else { setToast({ type: "success", text: `${editingGroup ? "Updated" : "Created"} ${quoteNo} (${processed} items)` }); setShowMulti(false); setEditingGroup(null); setMLines([{ yarnId: 0, costPrice: "", quotedPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]); load(); }
     } catch { setToast({ type: "error", text: "Failed to save" }); }
     setMSaving(false); setTimeout(() => setToast(null), 4000);
@@ -344,6 +347,7 @@ export default function QuotationsPage({ permissions }: Props) {
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-3">
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Company *</label><select value={mCompany} onChange={(e) => setMCompany(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>Select company...</option>{companyList.map((comp) => <option key={comp.id} value={comp.id}>{comp.name}{comp.isDefault ? " (Default)" : ""}</option>)}</select></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Client *</label><select value={mCustomer} onChange={(e) => { setMCustomer(Number(e.target.value)); setMContact(0); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>Select...</option>{customerList.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ""}</option>)}</select></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label><select value={mStatus} onChange={(e) => setMStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option><option>Expired</option></select></div>
               </div>

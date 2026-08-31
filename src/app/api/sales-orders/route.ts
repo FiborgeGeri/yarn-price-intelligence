@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { salesOrders, soItems, purchaseOrders, poItems, customers, customerContacts, shipToAddresses, shipToContacts, yarns, factories, prices } from "@/db/schema";
+import { salesOrders, soItems, purchaseOrders, poItems, customers, customerContacts, shipToAddresses, shipToContacts, yarns, factories, prices, companies } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
@@ -20,6 +20,8 @@ export async function GET() {
       .select({
         id: salesOrders.id,
         soNo: salesOrders.soNo,
+        companyId: salesOrders.companyId,
+        companyName: companies.name,
         customerId: salesOrders.customerId,
         contactId: salesOrders.contactId,
         shipToId: salesOrders.shipToId,
@@ -44,6 +46,7 @@ export async function GET() {
         updatedBy: salesOrders.updatedBy,
       })
       .from(salesOrders)
+      .leftJoin(companies, eq(salesOrders.companyId, companies.id))
       .leftJoin(customers, eq(salesOrders.customerId, customers.id))
       .leftJoin(customerContacts, eq(salesOrders.contactId, customerContacts.id))
       .leftJoin(shipToAddresses, eq(salesOrders.shipToId, shipToAddresses.id))
@@ -100,7 +103,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, customerId, contactId, shipToId, shipToContactId, orderCategory, quantityUnit, paymentMethod, paymentDays, paymentReference, customerPoNo, quoteNo, soDate, deliveryDate, status, notes, items, autoCreatePO, userId } = body;
+    const { id, companyId, customerId, contactId, shipToId, shipToContactId, orderCategory, quantityUnit, paymentMethod, paymentDays, paymentReference, customerPoNo, quoteNo, soDate, deliveryDate, status, notes, items, autoCreatePO, userId } = body;
 
     if (!customerId || !soDate) {
       return NextResponse.json({ error: "Customer and date are required" }, { status: 400 });
@@ -108,6 +111,7 @@ export async function POST(req: NextRequest) {
 
     if (id) {
       await db.update(salesOrders).set({
+        companyId: companyId || null,
         customerId,
         contactId: contactId || null,
         shipToId: shipToId || null,
@@ -204,6 +208,7 @@ export async function POST(req: NextRequest) {
       const soNo = createSoNo();
       const [so] = await db.insert(salesOrders).values({
         soNo,
+        companyId: companyId || null,
         customerId,
         contactId: contactId || null,
         shipToId: shipToId || null,

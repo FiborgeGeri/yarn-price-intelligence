@@ -18,6 +18,22 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const companies = pgTable("companies", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 300 }).notNull(),
+  officialName: varchar("official_name", { length: 500 }),
+  addressLocal: text("address_local"),
+  addressEnglish: text("address_english"),
+  telephone: varchar("telephone", { length: 100 }),
+  logoPath: varchar("logo_path", { length: 500 }),
+  isDefault: boolean("is_default").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: integer("updated_by"),
+});
+
 export const factories = pgTable("factories", {
   id: serial("id").primaryKey(),
   factoryName: varchar("factory_name", { length: 300 }).notNull(),
@@ -221,6 +237,7 @@ export const shipToContacts = pgTable("ship_to_contacts", {
 export const salesOrders = pgTable("sales_orders", {
   id: serial("id").primaryKey(),
   soNo: varchar("so_no", { length: 50 }),
+  companyId: integer("company_id"),
   customerId: integer("customer_id").references(() => customers.id),
   contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
   shipToId: integer("ship_to_id").references(() => shipToAddresses.id, { onDelete: "set null" }),
@@ -260,6 +277,7 @@ export const soItems = pgTable("so_items", {
 export const purchaseOrders = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
   poNo: varchar("po_no", { length: 50 }),
+  companyId: integer("company_id"),
   factoryId: integer("factory_id").references(() => factories.id),
   customerId: integer("customer_id").references(() => customers.id),
   shipToId: integer("ship_to_id").references(() => shipToAddresses.id, { onDelete: "set null" }),
@@ -304,6 +322,7 @@ export const poItems = pgTable("po_items", {
 export const quotations = pgTable("quotations", {
   id: serial("id").primaryKey(),
   quoteNo: varchar("quote_no", { length: 50 }),
+  companyId: integer("company_id"),
   customerId: integer("customer_id").references(() => customers.id, { onDelete: "cascade" }),
   contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
   yarnId: integer("yarn_id").references(() => yarns.id, { onDelete: "cascade" }),
@@ -327,6 +346,7 @@ export const quotations = pgTable("quotations", {
 export const deliveryNotes = pgTable("delivery_notes", {
   id: serial("id").primaryKey(),
   dnNo: varchar("dn_no", { length: 50 }),
+  companyId: integer("company_id"),
   grId: integer("gr_id"),
   soId: integer("so_id").references(() => salesOrders.id, { onDelete: "set null" }),
   soNo: varchar("so_no", { length: 50 }),
@@ -371,6 +391,7 @@ export const dnItems = pgTable("dn_items", {
 export const goodsReceipts = pgTable("goods_receipts", {
   id: serial("id").primaryKey(),
   grNo: varchar("gr_no", { length: 50 }),
+  companyId: integer("company_id"),
   poId: integer("po_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
   poNo: varchar("po_no", { length: 50 }),
   factoryId: integer("factory_id").references(() => factories.id),

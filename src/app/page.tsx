@@ -20,6 +20,7 @@ import SalesOrdersPage from "@/components/pages/SalesOrdersPage";
 import SettingsPage from "@/components/pages/SettingsPage";
 import SearchPage from "@/components/pages/SearchPage";
 import CustomersPage from "@/components/pages/CustomersPage";
+import CompaniesPage from "@/components/pages/CompaniesPage";
 import QuotationsPage from "@/components/pages/QuotationsPage";
 import MarginAnalysisPage from "@/components/pages/MarginAnalysisPage";
 import PurchaseOrdersPage from "@/components/pages/PurchaseOrdersPage";
@@ -67,6 +68,7 @@ export default function Home() {
       case "spinning-types": return <SpinningTypesPage permissions={permissions} />;
       case "dye-methods": return <DyeMethodsPage permissions={permissions} />;
       case "customers": return permissions.canViewQuotations ? <CustomersPage permissions={permissions} /> : <NoAccess />;
+      case "companies": return permissions.canViewQuotations ? <CompaniesPage permissions={permissions} /> : <NoAccess />;
       case "ship-to": return permissions.canViewQuotations ? <ShipToPage permissions={permissions} /> : <NoAccess />;
       case "quotations": return permissions.canViewQuotations ? <QuotationsPage permissions={permissions} /> : <NoAccess />;
       case "sales-orders": return permissions.canViewQuotations ? <SalesOrdersPage permissions={permissions} /> : <NoAccess />;

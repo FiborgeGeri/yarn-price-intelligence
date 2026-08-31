@@ -56,7 +56,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: "reports", label: "Reports", icon: <IconBarChart className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
 
   // Settings
-  { key: "settings", label: "User Settings", icon: <IconSettings className="w-[18px] h-[18px]" />, section: "Settings" },
+  { key: "companies", label: "Companies", icon: <IconBuilding className="w-[18px] h-[18px]" />, section: "Settings", requireAuth: true },
+  { key: "settings", label: "User Settings", icon: <IconSettings className="w-[18px] h-[18px]" /> },
   { key: "system-settings", label: "System Settings", icon: <IconSliders className="w-[18px] h-[18px]" />, comingSoon: true },
 ];
 

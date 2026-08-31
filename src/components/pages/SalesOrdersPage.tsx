@@ -71,6 +71,7 @@ interface QuoteItem {
   weightBasis: string;
   incoterms: string;
 }
+interface Company { id: number; name: string; isDefault: boolean; }
 interface Props { permissions: Permissions; }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -101,6 +102,8 @@ export default function SalesOrdersPage({ permissions }: Props) {
   const [shipToContactList, setShipToContactList] = useState<ShipToContact[]>([]);
   const [fOrderCategory, setFOrderCategory] = useState("Bulk");
   const [fQtyUnit, setFQtyUnit] = useState("KGS");
+  const [companyList, setCompanyList] = useState<Company[]>([]);
+  const [fCompanyId, setFCompanyId] = useState(0);
   const [fPaymentMethod, setFPaymentMethod] = useState("");
   const [fPaymentDays, setFPaymentDays] = useState("");
   const [fPaymentRef, setFPaymentRef] = useState("");
@@ -126,6 +129,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
       fetch("/api/customer-contacts").then((r) => r.json()),
       fetch("/api/ship-to-addresses").then((r) => r.json()),
       fetch("/api/yarns").then((r) => r.json()),
+      fetch("/api/companies").then((r) => r.json()),
     ]);
     setOrders(o);
     setCustomerList(c);
@@ -177,6 +181,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
       if (so.shipToId) loadShipToContacts(so.shipToId);
       setFOrderCategory((so as SalesOrder & { orderCategory?: string }).orderCategory || "Bulk");
       setFQtyUnit((so as SalesOrder & { quantityUnit?: string }).quantityUnit || "KGS");
+      setFCompanyId((so as SalesOrder & { companyId?: number }).companyId || 0);
       const soAny = so as SalesOrder & { paymentMethod?: string; paymentDays?: number; paymentReference?: string };
       setFPaymentMethod(soAny.paymentMethod || "");
       setFPaymentDays(soAny.paymentDays ? String(soAny.paymentDays) : "");
@@ -206,6 +211,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
     setShipToContactList([]);
     setFOrderCategory("Bulk");
     setFQtyUnit("KGS");
+    setFCompanyId(0);
     setFPaymentMethod("");
     setFPaymentDays("");
     setFPaymentRef("");
@@ -299,6 +305,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: editingSO?.id,
+          companyId: fCompanyId || null,
           customerId: fCustomer,
           contactId: fContact || null,
           shipToId: fShipTo || null,
@@ -570,6 +577,14 @@ export default function SalesOrdersPage({ permissions }: Props) {
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Company *</label>
+                    <select value={fCompanyId} onChange={(e) => setFCompanyId(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value={0}>Select company...</option>
+                      {companyList.map((comp) => <option key={comp.id} value={comp.id}>{comp.name}{comp.isDefault ? " (Default)" : ""}</option>)}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Client *</label>
                     <select value={fCustomer} onChange={(e) => { setFCustomer(Number(e.target.value)); setFContact(0); }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
