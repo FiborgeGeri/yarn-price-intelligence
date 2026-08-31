@@ -22,6 +22,25 @@ interface Company {
 
 interface Props { permissions: Permissions; }
 
+/**
+ * Convert a Google Drive share link to a direct image URL.
+ * Supports: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+ * Returns the original string if it's not a Drive link.
+ */
+function toImageUrl(link: string): string {
+  if (!link) return "";
+  const match = link.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  }
+  // Also handle open?id= format
+  const openMatch = link.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (openMatch) {
+    return `https://drive.google.com/uc?export=view&id=${openMatch[1]}`;
+  }
+  return link;
+}
+
 export default function CompaniesPage({ permissions }: Props) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +145,7 @@ export default function CompaniesPage({ permissions }: Props) {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
+                  {company.logoPath && <img src={toImageUrl(company.logoPath)} alt="" className="w-8 h-8 object-contain rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
                   <span className="font-semibold text-slate-900">{company.name}</span>
                   {company.isDefault && <span className="px-2 py-0.5 bg-[#fff0e8] text-[#b8613f] border border-[#f1c6b2] rounded text-[10px] font-semibold">Default</span>}
                 </div>
@@ -177,8 +197,9 @@ export default function CompaniesPage({ permissions }: Props) {
                   <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Logo Path (optional)</label>
-                  <input value={logoPath} onChange={(e) => setLogoPath(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="/images/logo.png" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL or Path</label>
+                  <input value={logoPath} onChange={(e) => setLogoPath(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="https://drive.google.com/file/d/... or /images/logo.png" />
+                  <p className="text-[10px] text-slate-400 mt-1">Paste a Google Drive share link or an app path like /images/logo.png</p>
                 </div>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">

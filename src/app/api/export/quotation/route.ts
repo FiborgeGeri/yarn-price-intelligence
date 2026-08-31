@@ -10,6 +10,7 @@ import {
   spinningTypeOptions,
   yarnDyeMethods,
   dyeMethodOptions,
+  companies,
 } from "@/db/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 import ExcelJS from "exceljs";
@@ -20,6 +21,14 @@ const MID = "FF475569";
 const LIGHT = "FFF1F5F9";
 const WHITE = "FFFFFFFF";
 const BORDER = "FF94A3B8";
+
+function toDirectImageUrl(link: string): string {
+  const match = link.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  const openMatch = link.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (openMatch) return `https://drive.google.com/uc?export=view&id=${openMatch[1]}`;
+  return link;
+}
 
 function dateDisplay(value: string | null | undefined) {
   if (!value) return "";
@@ -83,6 +92,13 @@ export async function GET(req: NextRequest) {
       .select({
         id: quotations.id,
         quoteNo: quotations.quoteNo,
+        companyId: quotations.companyId,
+        companyName: companies.name,
+        companyOfficialName: companies.officialName,
+        companyAddressEnglish: companies.addressEnglish,
+        companyAddressLocal: companies.addressLocal,
+        companyTelephone: companies.telephone,
+        companyLogoPath: companies.logoPath,
         customerName: customers.name,
         customerCompany: customers.officialName,
         contactName: customerContacts.contactName,
@@ -108,6 +124,7 @@ export async function GET(req: NextRequest) {
         createdAt: quotations.createdAt,
       })
       .from(quotations)
+      .leftJoin(companies, eq(quotations.companyId, companies.id))
       .leftJoin(customers, eq(quotations.customerId, customers.id))
       .leftJoin(customerContacts, eq(quotations.contactId, customerContacts.id))
       .leftJoin(yarns, eq(quotations.yarnId, yarns.id))
@@ -166,9 +183,29 @@ export async function GET(req: NextRequest) {
     }
     const articles = Array.from(articleMap.values());
 
+    // Fallback to default company if quotation has no company_id
+    let company = rows[0];
+    if (!company.companyId) {
+      const defaultCompany = await db.select().from(companies).where(eq(companies.isDefault, true)).limit(1);
+      if (defaultCompany[0]) {
+        company = {
+          ...company,
+          companyId: defaultCompany[0].id,
+          companyName: defaultCompany[0].name,
+          companyOfficialName: defaultCompany[0].officialName,
+          companyAddressEnglish: defaultCompany[0].addressEnglish,
+          companyAddressLocal: defaultCompany[0].addressLocal,
+          companyTelephone: defaultCompany[0].telephone,
+          companyLogoPath: defaultCompany[0].logoPath,
+        };
+      }
+    }
+    const companyNameDisplay = company.companyName || "Fiborge";
+    const companyOfficialName = company.companyOfficialName || "FIBORGE COMPANY LIMITED";
+
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Fiborge Company Limited";
-    workbook.company = "FIBORGE COMPANY LIMITED";
+    workbook.creator = companyOfficialName;
+    workbook.company = companyOfficialName.toUpperCase();
     workbook.subject = "Yarn quotation";
     workbook.created = new Date();
 
@@ -188,13 +225,43 @@ export async function GET(req: NextRequest) {
 
     // Header: company / quotation identity.
     ws.mergeCells("A1:B1");
-    ws.getCell("A1").value = "fiborge";
+    ws.getCell("A1").value = companyNameDisplay;
     ws.getCell("A1").font = { name: "Arial", size: 27, bold: true, color: { argb: BLACK } };
     ws.getCell("A1").alignment = { vertical: "middle", horizontal: "left" };
     ws.getRow(1).height = 34;
 
+    // Embed company logo if available
+    let logoImageId: number | null = null;
+    if (company.companyLogoPath) {
+      try {
+        const logoUrl = toDirectImageUrl(company.companyLogoPath);
+        const logoResponse = await fetch(logoUrl, { redirect: "follow" });
+        if (logoResponse.ok) {
+          const logoBuffer = await logoResponse.arrayBuffer();
+          const ext = logoUrl.includes(".png") ? "png" : "jpeg";
+          logoImageId = workbook.addImage({
+            buffer: logoBuffer as unknown as ExcelJS.Buffer,
+            extension: ext as "png" | "jpeg",
+          });
+        }
+      } catch (logoErr) {
+        console.warn("Could not load company logo:", logoErr);
+      }
+    }
+    if (logoImageId !== null) {
+      ws.addImage(logoImageId, {
+        tl: { col: 0, row: 0 },
+        ext: { width: 120, height: 40 },
+      });
+    }
+
     ws.mergeCells("A2:C6");
-    ws.getCell("A2").value = "ROOM 1110, 11/F, PENINSULA TOWER, 538\nCASTLE PEAK ROAD, LAI CHI KOK, KLN, HONG KONG\n香港荔枝角青山道538號半島大廈11樓10室\nTEL: 852-27864111   FAX: 852-27864222";
+    const addressParts = [
+      company.companyAddressEnglish || "",
+      company.companyAddressLocal || "",
+      company.companyTelephone ? `TEL: ${company.companyTelephone}` : "",
+    ].filter(Boolean);
+    ws.getCell("A2").value = addressParts.join("\n");
     ws.getCell("A2").font = { name: "Arial", size: 9, color: { argb: MID } };
     ws.getCell("A2").alignment = { vertical: "top", horizontal: "left", wrapText: true };
     for (let r = 2; r <= 6; r++) ws.getRow(r).height = 18;
@@ -309,7 +376,7 @@ export async function GET(req: NextRequest) {
 
     // Footer.
     ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
-    ws.getCell(rowNo, 1).value = "◉  FIBORGE COMPANY LIMITED";
+    ws.getCell(rowNo, 1).value = `◉  ${companyOfficialName.toUpperCase()}`;
     ws.getCell(rowNo, 1).font = { name: "Arial", size: 10, bold: true, color: { argb: BLACK } };
     ws.getCell(rowNo, 1).alignment = { horizontal: "center", vertical: "middle" };
     rowNo++;
