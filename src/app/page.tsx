@@ -27,6 +27,11 @@ import PurchaseOrdersPage from "@/components/pages/PurchaseOrdersPage";
 import DeliveryNotesPage from "@/components/pages/DeliveryNotesPage";
 import GoodsReceiptsPage from "@/components/pages/GoodsReceiptsPage";
 import ShipToPage from "@/components/pages/ShipToPage";
+import { InvoicesPage, SupplierInvoicesPage } from "@/components/pages/finance/InvoicesModule";
+import { PaymentsPage, PayablesPage } from "@/components/pages/finance/PaymentsModule";
+import ReconciliationPage from "@/components/pages/ReconciliationPage";
+import ReportsPage from "@/components/pages/ReportsPage";
+import SystemSettingsPage from "@/components/pages/SystemSettingsPage";
 import LoginPage from "@/components/LoginPage";
 import { getPermissions, Permissions } from "@/lib/permissions";
 
@@ -76,6 +81,13 @@ export default function Home() {
       case "purchase-orders": return permissions.canViewQuotations ? <PurchaseOrdersPage permissions={permissions} /> : <NoAccess />;
       case "goods-receipts": return permissions.canViewQuotations ? <GoodsReceiptsPage permissions={permissions} /> : <NoAccess />;
       case "margin": return permissions.canViewQuotations ? <MarginAnalysisPage /> : <NoAccess />;
+      case "invoices": return permissions.canViewQuotations ? <InvoicesPage permissions={permissions} /> : <NoAccess />;
+      case "payments": return permissions.canViewQuotations ? <PaymentsPage permissions={permissions} /> : <NoAccess />;
+      case "supplier-invoices": return permissions.canViewQuotations ? <SupplierInvoicesPage permissions={permissions} /> : <NoAccess />;
+      case "payables": return permissions.canViewQuotations ? <PayablesPage permissions={permissions} /> : <NoAccess />;
+      case "reconciliation": return permissions.canViewQuotations ? <ReconciliationPage /> : <NoAccess />;
+      case "reports": return permissions.canViewQuotations ? <ReportsPage /> : <NoAccess />;
+      case "system-settings": return permissions.canManageUsers ? <SystemSettingsPage permissions={permissions} /> : <NoAccess />;
       case "settings": return <SettingsPage user={user} permissions={permissions} />;
       default: return <DashboardPage onNavigate={setCurrentPage} permissions={permissions} />;
     }

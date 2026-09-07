@@ -429,3 +429,124 @@ export const grItems = pgTable("gr_items", {
   inspectionResult: varchar("inspection_result", { length: 50 }),
   notes: text("notes"),
 });
+
+// ===================== Finance module =====================
+
+// Sales invoices (issued by us to clients)
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  invoiceNo: varchar("invoice_no", { length: 50 }),
+  companyId: integer("company_id"),
+  customerId: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
+  soId: integer("so_id").references(() => salesOrders.id, { onDelete: "set null" }),
+  soNo: varchar("so_no", { length: 50 }),
+  customerPoNo: varchar("customer_po_no", { length: 100 }),
+  invoiceDate: varchar("invoice_date", { length: 20 }).notNull(),
+  dueDate: varchar("due_date", { length: 20 }),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  vatRate: real("vat_rate").default(0),
+  subtotal: real("subtotal").default(0),
+  vatAmount: real("vat_amount").default(0),
+  total: real("total").default(0),
+  status: varchar("status", { length: 50 }).default("Draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: integer("updated_by"),
+});
+
+export const invoiceItems = pgTable("invoice_items", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").references(() => invoices.id, { onDelete: "cascade" }),
+  yarnId: integer("yarn_id").references(() => yarns.id),
+  description: varchar("description", { length: 500 }),
+  colorName: varchar("color_name", { length: 200 }),
+  colorCode: varchar("color_code", { length: 100 }),
+  quantity: varchar("quantity", { length: 100 }),
+  unitPrice: real("unit_price").notNull(),
+  unit: varchar("unit", { length: 50 }).default("per KG"),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
+  incoterms: varchar("incoterms", { length: 100 }),
+  amount: real("amount").notNull().default(0),
+  notes: text("notes"),
+});
+
+// Incoming payments from clients (receivables settlement)
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").references(() => invoices.id, { onDelete: "cascade" }),
+  paymentDate: varchar("payment_date", { length: 20 }).notNull(),
+  amount: real("amount").notNull(),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  method: varchar("method", { length: 50 }),
+  reference: varchar("reference", { length: 200 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by"),
+});
+
+// Supplier invoices (billed to us by yarn mills)
+export const supplierInvoices = pgTable("supplier_invoices", {
+  id: serial("id").primaryKey(),
+  supplierInvoiceNo: varchar("supplier_invoice_no", { length: 100 }),
+  internalNo: varchar("internal_no", { length: 50 }),
+  companyId: integer("company_id"),
+  factoryId: integer("factory_id").references(() => factories.id, { onDelete: "set null" }),
+  poId: integer("po_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
+  poNo: varchar("po_no", { length: 50 }),
+  invoiceDate: varchar("invoice_date", { length: 20 }).notNull(),
+  dueDate: varchar("due_date", { length: 20 }),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  vatRate: real("vat_rate").default(0),
+  subtotal: real("subtotal").default(0),
+  vatAmount: real("vat_amount").default(0),
+  total: real("total").default(0),
+  status: varchar("status", { length: 50 }).default("Received"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: integer("updated_by"),
+});
+
+export const supplierInvoiceItems = pgTable("supplier_invoice_items", {
+  id: serial("id").primaryKey(),
+  supplierInvoiceId: integer("supplier_invoice_id").references(() => supplierInvoices.id, { onDelete: "cascade" }),
+  yarnId: integer("yarn_id").references(() => yarns.id),
+  description: varchar("description", { length: 500 }),
+  colorName: varchar("color_name", { length: 200 }),
+  colorCode: varchar("color_code", { length: 100 }),
+  quantity: varchar("quantity", { length: 100 }),
+  unitPrice: real("unit_price").notNull(),
+  unit: varchar("unit", { length: 50 }).default("per KG"),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
+  incoterms: varchar("incoterms", { length: 100 }),
+  amount: real("amount").notNull().default(0),
+  notes: text("notes"),
+});
+
+// Outgoing payments to yarn mills (payables settlement)
+export const supplierPayments = pgTable("supplier_payments", {
+  id: serial("id").primaryKey(),
+  supplierInvoiceId: integer("supplier_invoice_id").references(() => supplierInvoices.id, { onDelete: "cascade" }),
+  paymentDate: varchar("payment_date", { length: 20 }).notNull(),
+  amount: real("amount").notNull(),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  method: varchar("method", { length: 50 }),
+  reference: varchar("reference", { length: 200 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by"),
+});
+
+// System-wide key/value settings (editable from System Settings page)
+export const systemSettings = pgTable("system_settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value"),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: integer("updated_by"),
+});

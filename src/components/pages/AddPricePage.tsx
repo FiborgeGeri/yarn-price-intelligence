@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import { calculateMoistureRegain } from "@/lib/moistureRegain";
+import IncotermsInput from "@/components/IncotermsInput";
+import { CURRENCY_OPTIONS, UNIT_OPTIONS } from "@/lib/commerce";
 
 interface Yarn {
   id: number;
@@ -125,49 +127,10 @@ function FilterInput({
   );
 }
 
-const INCOTERMS_LIST = [
-  "EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP",
-];
-const currencyOptions = ["USD", "EUR", "GBP", "CNY", "JPY", "THB", "INR", "KRW", "TWD", "AUD", "NZD", "CHF"];
-const unitOptions = ["per KG", "per LB", "per Cone"];
-
-function IncotermsInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [focused, setFocused] = useState(false);
-  const term = value.split(" ")[0]?.toUpperCase() || "";
-  const place = value.includes(" ") ? value.slice(value.indexOf(" ") + 1) : "";
-  const filtered = INCOTERMS_LIST.filter((t) => !term || t.includes(term.toUpperCase()));
-  const show = focused && filtered.length > 0;
-
-  return (
-    <div className="flex gap-2">
-      <div className="relative w-28 shrink-0">
-        <input
-          type="text"
-          value={term}
-          onChange={(e) => onChange(e.target.value.toUpperCase() + (place ? " " + place : ""))}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="e.g. CIF"
-        />
-        {show && (
-          <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-            {filtered.map((t) => (
-              <button key={t} type="button" onMouseDown={(e) => { e.preventDefault(); onChange(t + (place ? " " + place : "")); setFocused(false); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0 font-mono">{t}</button>
-            ))}
-          </div>
-        )}
-      </div>
-      <input
-        type="text"
-        value={place}
-        onChange={(e) => onChange((term || "") + " " + e.target.value)}
-        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder="Place e.g. Shanghai, Hong Kong"
-      />
-    </div>
-  );
-}
+// Aliases to the shared commercial constants (@/lib/commerce) so the rest of
+// this file is unchanged. IncotermsInput is now the shared component above.
+const currencyOptions = CURRENCY_OPTIONS;
+const unitOptions = UNIT_OPTIONS;
 
 function AddPriceYarnPicker({
   yarns,

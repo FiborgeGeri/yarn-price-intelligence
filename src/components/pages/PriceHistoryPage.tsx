@@ -5,6 +5,8 @@ import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import { IconTrash, IconDownload } from "@/components/Icons";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
+import IncotermsInput from "@/components/IncotermsInput";
+import { CURRENCY_OPTIONS } from "@/lib/commerce";
 
 interface PriceRecord {
   id: number; yarnId: number; price: number; currency: string; unit: string; weightBasis: string;
@@ -394,11 +396,11 @@ export default function PriceHistoryPage({ permissions }: Props) {
             <form onSubmit={handleEditSave} className="p-4 space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="number" step="0.01" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Currency</label><select value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>USD</option><option>EUR</option><option>GBP</option><option>CNY</option><option>JPY</option></select></div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Currency</label><select value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">{CURRENCY_OPTIONS.map((c) => <option key={c}>{c}</option>)}</select></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Unit</label><select value={editUnit} onChange={(e) => setEditUnit(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>per KG</option><option>per LB</option><option>per Cone</option></select></div>
               </div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Date</label><input type="date" value={editRecordDate} onChange={(e) => setEditRecordDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Incoterms</label><input type="text" value={editIncoterms} onChange={(e) => setEditIncoterms(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 mb-1">Incoterms</label><IncotermsInput value={editIncoterms} onChange={setEditIncoterms} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label><textarea value={editRemarks} onChange={(e) => setEditRemarks(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={4} /></div>
               <div className="flex gap-3 pt-1">
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : "Save Changes"}</button>

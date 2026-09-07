@@ -4,6 +4,8 @@ import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
+import IncotermsInput from "@/components/IncotermsInput";
+import { CURRENCY_OPTIONS } from "@/lib/commerce";
 
 interface SOItem {
   id: number;
@@ -821,11 +823,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                             onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, currency: e.target.value } : l))}
                             className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                           >
-                            <option>USD</option>
-                            <option>EUR</option>
-                            <option>GBP</option>
-                            <option>CNY</option>
-                            <option>JPY</option>
+                            {CURRENCY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
                           </select>
                         </div>
                         <div>
@@ -849,14 +847,8 @@ export default function SalesOrdersPage({ permissions }: Props) {
                             <option value="net">Net</option>
                           </select>
                         </div>
-                        <div>
-                          <input
-                            type="text"
-                            value={item.incoterms}
-                            onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, incoterms: e.target.value } : l))}
-                            className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
-                            placeholder="Incoterms"
-                          />
+                        <div className="col-span-full">
+                          <IncotermsInput compact value={item.incoterms} onChange={(v) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, incoterms: v } : l))} />
                         </div>
                       </div>
 

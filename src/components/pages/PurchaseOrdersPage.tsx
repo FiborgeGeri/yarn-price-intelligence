@@ -5,6 +5,8 @@ import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import { IconDownload } from "@/components/Icons";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
+import IncotermsInput from "@/components/IncotermsInput";
+import { CURRENCY_OPTIONS } from "@/lib/commerce";
 
 interface POItem {
   id?: number;
@@ -667,6 +669,10 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                       <input type="date" value={fDeliveryDate} onChange={(e) => setFDeliveryDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Incoterms (order level)</label>
+                    <IncotermsInput value={fIncoterms} onChange={setFIncoterms} />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Client PO No.</label>
@@ -757,11 +763,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                         </div>
                         <div>
                           <select value={item.currency} onChange={(e) => updateItem(idx, "currency", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white">
-                            <option>USD</option>
-                            <option>EUR</option>
-                            <option>GBP</option>
-                            <option>CNY</option>
-                            <option>JPY</option>
+                            {CURRENCY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
                           </select>
                         </div>
                         <div>
@@ -777,8 +779,8 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                             <option value="net">Net</option>
                           </select>
                         </div>
-                        <div>
-                          <input type="text" value={item.incoterms} onChange={(e) => updateItem(idx, "incoterms", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Incoterms" />
+                        <div className="col-span-full">
+                          <IncotermsInput compact value={item.incoterms} onChange={(v) => updateItem(idx, "incoterms", v)} />
                         </div>
                       </div>
 

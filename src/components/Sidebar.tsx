@@ -41,24 +41,24 @@ const NAV_ITEMS: NavItem[] = [
   { key: "quotations", label: "Quotations", icon: <IconMail className="w-[18px] h-[18px]" />, section: "Sales", requireAuth: true },
   { key: "sales-orders", label: "Sales Orders", icon: <IconShoppingBag className="w-[18px] h-[18px]" />, requireAuth: true },
   { key: "delivery-notes", label: "Delivery Notes", icon: <IconTruck className="w-[18px] h-[18px]" />, requireAuth: true },
-  { key: "invoices", label: "Invoices", icon: <IconReceipt className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
-  { key: "payments", label: "Payments / Receivables", icon: <IconWallet className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "invoices", label: "Invoices", icon: <IconReceipt className="w-[18px] h-[18px]" />, requireAuth: true },
+  { key: "payments", label: "Payments / Receivables", icon: <IconWallet className="w-[18px] h-[18px]" />, requireAuth: true },
   { key: "margin", label: "Margin Analysis", icon: <IconPercent className="w-[18px] h-[18px]" />, requireAuth: true },
 
   // Purchasing
   { key: "purchase-orders", label: "Purchase Orders", icon: <IconShoppingCart className="w-[18px] h-[18px]" />, section: "Purchasing", requireAuth: true },
   { key: "goods-receipts", label: "Goods Receipts", icon: <IconPackage className="w-[18px] h-[18px]" />, requireAuth: true },
-  { key: "supplier-invoices", label: "Supplier Invoices", icon: <IconBuilding className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
-  { key: "payables", label: "Payables", icon: <IconCreditCard className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "supplier-invoices", label: "Supplier Invoices", icon: <IconBuilding className="w-[18px] h-[18px]" />, requireAuth: true },
+  { key: "payables", label: "Payables", icon: <IconCreditCard className="w-[18px] h-[18px]" />, requireAuth: true },
 
   // Finance
-  { key: "reconciliation", label: "Reconciliation", icon: <IconArrowLeftRight className="w-[18px] h-[18px]" />, section: "Finance", requireAuth: true, comingSoon: true },
-  { key: "reports", label: "Reports", icon: <IconBarChart className="w-[18px] h-[18px]" />, requireAuth: true, comingSoon: true },
+  { key: "reconciliation", label: "Reconciliation", icon: <IconArrowLeftRight className="w-[18px] h-[18px]" />, section: "Finance", requireAuth: true },
+  { key: "reports", label: "Reports", icon: <IconBarChart className="w-[18px] h-[18px]" />, requireAuth: true },
 
   // Settings
   { key: "companies", label: "Companies", icon: <IconBuilding className="w-[18px] h-[18px]" />, section: "Settings", requireAuth: true },
   { key: "settings", label: "User Settings", icon: <IconSettings className="w-[18px] h-[18px]" /> },
-  { key: "system-settings", label: "System Settings", icon: <IconSliders className="w-[18px] h-[18px]" />, comingSoon: true },
+  { key: "system-settings", label: "System Settings", icon: <IconSliders className="w-[18px] h-[18px]" /> },
 ];
 
 interface Props {
