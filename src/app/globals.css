@@ -1,0 +1,254 @@
+@import "tailwindcss";
+
+:root {
+  --app-canvas: #f7f7f8;
+  --app-surface: rgba(255, 255, 255, 0.9);
+  --app-surface-solid: #ffffff;
+  --app-surface-soft: rgba(240, 240, 242, 0.78);
+  --app-border: rgba(202, 199, 199, 0.52);
+  --app-border-strong: rgba(181, 177, 177, 0.7);
+  --app-ink: #1d1d1c;
+  --app-muted: #777474;
+  --app-primary: #e5885d;
+  --app-primary-deep: #d9774d;
+  --app-primary-soft: #fff0e8;
+  --app-peach: #f5c5ae;
+  --app-blush: #f9ded2;
+  --app-success-bg: #edf5f0;
+  --app-success: #557b66;
+  --app-warning-bg: #fff3dd;
+  --app-warning: #916c2d;
+  --app-danger-bg: #faeded;
+  --app-danger: #a75f63;
+}
+
+* {
+  scrollbar-color: #c9c6c5 transparent;
+  scrollbar-width: thin;
+}
+
+html,
+body {
+  min-height: 100%;
+  color: var(--app-ink);
+  background:
+    radial-gradient(circle at 96% 8%, rgba(229, 136, 93, 0.15), transparent 28rem),
+    radial-gradient(circle at 4% 92%, rgba(245, 197, 174, 0.2), transparent 30rem),
+    linear-gradient(145deg, #f9f9fa 0%, #f2f2f3 52%, #f7f5f4 100%);
+  background-attachment: fixed;
+}
+
+body {
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  color: var(--app-ink);
+  background: #f4b99d;
+}
+
+/* Airy white and translucent surfaces based on the supplied reference. */
+.bg-slate-50 { background-color: transparent !important; }
+.bg-white {
+  background-color: var(--app-surface) !important;
+  backdrop-filter: blur(16px);
+}
+.bg-slate-100 { background-color: var(--app-surface-soft) !important; }
+.bg-slate-200 { background-color: rgba(229, 227, 227, 0.84) !important; }
+.border-slate-100 { border-color: rgba(222, 219, 219, 0.44) !important; }
+.border-slate-200 { border-color: var(--app-border) !important; }
+.border-slate-300 { border-color: var(--app-border-strong) !important; }
+.text-slate-900 { color: var(--app-ink) !important; }
+.text-slate-800 { color: #30302f !important; }
+.text-slate-700 { color: #4f4d4d !important; }
+.text-slate-600 { color: #656262 !important; }
+.text-slate-500 { color: var(--app-muted) !important; }
+.text-slate-400 { color: #9d9998 !important; }
+
+/* Existing blue utilities become the warm coral gradient accent. */
+.bg-blue-600 {
+  color: #ffffff !important;
+  background-color: var(--app-primary) !important;
+  background-image: linear-gradient(135deg, #ee9a72 0%, #e5885d 52%, #dc7b50 100%) !important;
+  box-shadow: 0 6px 18px rgba(217, 119, 77, 0.18);
+}
+.bg-blue-700 {
+  color: #ffffff !important;
+  background-color: var(--app-primary-deep) !important;
+  background-image: linear-gradient(135deg, #e68b62 0%, #d9774d 100%) !important;
+}
+.hover\:bg-blue-700:hover {
+  color: #ffffff !important;
+  background-color: var(--app-primary-deep) !important;
+  background-image: linear-gradient(135deg, #e68b62 0%, #d9774d 100%) !important;
+}
+.bg-blue-50 { background-color: rgba(255, 240, 232, 0.78) !important; }
+.bg-blue-100 { background-color: rgba(249, 222, 210, 0.88) !important; }
+.border-blue-200 { border-color: rgba(236, 178, 151, 0.6) !important; }
+.border-blue-300 { border-color: rgba(224, 146, 111, 0.68) !important; }
+.text-blue-500 { color: #e18a61 !important; }
+.text-blue-600 { color: #d97950 !important; }
+.text-blue-700 { color: #bd623c !important; }
+.text-blue-800 { color: #9e4f30 !important; }
+.ring-blue-500,
+.focus\:ring-blue-500:focus { --tw-ring-color: rgba(229, 136, 93, 0.28) !important; }
+
+/* Soft semantic feedback colors. */
+.bg-green-50 { background-color: rgba(237, 245, 240, 0.82) !important; }
+.bg-green-100 { background-color: #dfece4 !important; }
+.border-green-200 { border-color: #d0e2d6 !important; }
+.text-green-600,
+.text-green-700,
+.text-green-800 { color: var(--app-success) !important; }
+.bg-green-600 { background-color: #648e75 !important; background-image: none !important; }
+
+.bg-red-50 { background-color: rgba(250, 237, 237, 0.84) !important; }
+.bg-red-100 { background-color: #f3dddd !important; }
+.border-red-200 { border-color: #ecd1d2 !important; }
+.text-red-500,
+.text-red-600,
+.text-red-700 { color: var(--app-danger) !important; }
+.bg-red-600 { background-color: #b76e72 !important; background-image: none !important; }
+
+.bg-amber-50 { background-color: rgba(255, 243, 221, 0.86) !important; }
+.bg-amber-100 { background-color: #f8e7c0 !important; }
+.border-amber-200 { border-color: #edd9aa !important; }
+.text-amber-600,
+.text-amber-700,
+.text-amber-800 { color: var(--app-warning) !important; }
+
+.bg-purple-50 { background-color: rgba(252, 238, 232, 0.8) !important; }
+.bg-purple-100 { background-color: #f5d8ca !important; }
+.text-purple-600,
+.text-purple-700,
+.text-purple-800 { color: #b56545 !important; }
+.border-purple-200 { border-color: #ebc7b6 !important; }
+
+/* Light glass cards with diffuse depth. */
+.shadow-sm {
+  box-shadow: 0 1px 2px rgba(36, 34, 34, 0.025), 0 12px 34px rgba(70, 58, 52, 0.045) !important;
+}
+.shadow-md {
+  box-shadow: 0 12px 38px rgba(70, 58, 52, 0.08) !important;
+}
+.shadow-xl,
+.shadow-lg {
+  box-shadow: 0 24px 72px rgba(70, 58, 52, 0.14) !important;
+}
+
+input,
+select,
+textarea {
+  color: var(--app-ink);
+  background-color: rgba(255, 255, 255, 0.9);
+}
+input::placeholder,
+textarea::placeholder { color: #aaa5a2; }
+
+button,
+a,
+input,
+select,
+textarea { transition-duration: 150ms; }
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(229, 136, 93, 0.45);
+  outline-offset: 2px;
+}
+
+/* Common ERP table headers and modal veils stay light and translucent. */
+thead .bg-slate-50,
+thead tr.bg-slate-50 {
+  background-color: rgba(245, 242, 241, 0.9) !important;
+}
+.bg-black\/50 { background-color: rgba(65, 55, 50, 0.26) !important; backdrop-filter: blur(3px); }
+
+/* ————————————————————————————————————————————————
+   Design-system layer (uplift)
+   ———————————————————————————————————————————————— */
+
+/* Entrance choreography */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(4%, -3%, 0) scale(1.06); }
+}
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes spinSlow {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-up { animation: fadeUp 0.55s cubic-bezier(0.22, 0.9, 0.28, 1) both; }
+.animate-fade-in { animation: fadeIn 0.5s ease both; }
+.delay-1 { animation-delay: 0.06s; }
+.delay-2 { animation-delay: 0.12s; }
+.delay-3 { animation-delay: 0.18s; }
+.delay-4 { animation-delay: 0.24s; }
+.delay-5 { animation-delay: 0.3s; }
+
+.aurora-drift { animation: drift 18s ease-in-out infinite; }
+.aurora-drift-slower { animation: drift 26s ease-in-out infinite reverse; }
+
+/* Ticker row for the login hero */
+.ticker { animation: tickerScroll 32s linear infinite; }
+.ticker:hover { animation-play-state: paused; }
+
+/* Glass utility for cards that need extra finesse */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(22px) saturate(1.15);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 24px 70px rgba(64, 52, 46, 0.1);
+}
+
+/* Sidebar niceties */
+.nav-link { position: relative; }
+.nav-link::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ee9a72, #d9774d);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.nav-link-active::before { opacity: 1; transform: scaleY(1); }
+
+/* Numeric polish */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Subtle card hover lift used on stat tiles */
+.lift { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.lift:hover { transform: translateY(-2px); }
+
+/* Fine dotted texture for hero panel */
+.dot-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
