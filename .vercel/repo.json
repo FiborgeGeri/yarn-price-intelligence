@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_jbDGvsntLBQl5P7ZgNLaFMEJZdFC",
+      "name": "yarn-price-intelligence",
+      "directory": ".",
+      "orgId": "team_ezBPso3CdeZopXwIcdls7VJc"
+    }
+  ]
+}
