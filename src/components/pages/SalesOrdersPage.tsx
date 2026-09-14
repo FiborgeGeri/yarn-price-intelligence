@@ -43,7 +43,6 @@ interface SalesOrder {
   deliveryDate: string;
   status: string;
   notes: string;
-  colorReference: string | null; // 🆕 新增：訂單層級的顏色依據
   items: SOItem[];
 }
 
@@ -56,6 +55,7 @@ interface FormItem {
   yarnId: number;
   colorName: string;
   colorCode: string;
+  colorReference: string;
   quantity: string;
   unitPrice: string;
   currency: string;
@@ -84,6 +84,12 @@ const STATUS_COLORS: Record<string, string> = {
   Shipped: "bg-green-100 text-green-800",
   Delivered: "bg-emerald-100 text-emerald-800",
   Cancelled: "bg-red-100 text-red-800",
+};
+
+const BLANK_ITEM: FormItem = {
+  yarnId: 0, colorName: "", colorCode: "", colorReference: "",
+  quantity: "", unitPrice: "", currency: "USD", unit: "per KG",
+  weightBasis: "condition", incoterms: "", notes: "",
 };
 
 export default function SalesOrdersPage({ permissions }: Props) {
@@ -117,12 +123,9 @@ export default function SalesOrdersPage({ permissions }: Props) {
   const [fSoDate, setFSoDate] = useState(new Date().toISOString().split("T")[0]);
   const [fDeliveryDate, setFDeliveryDate] = useState("");
   const [fStatus, setFStatus] = useState("Confirmed");
-  const [fColorRef, setFColorRef] = useState("");
   const [fNotes, setFNotes] = useState("");
   const [fAutoCreatePO, setFAutoCreatePO] = useState(true);
-  const [fItems, setFItems] = useState<FormItem[]>([
-    { yarnId: 0, colorName: "", colorCode: "", quantity: "", unitPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" },
-  ]);
+  const [fItems, setFItems] = useState<FormItem[]>([{ ...BLANK_ITEM }]);
 
   const { viewingYarn, setViewingYarn, openYarnDetail, allCerts } = useYarnDetail();
 
@@ -159,11 +162,11 @@ export default function SalesOrdersPage({ permissions }: Props) {
       o.soNo?.toLowerCase().includes(s) ||
       o.customerName?.toLowerCase().includes(s) ||
       o.customerPoNo?.toLowerCase().includes(s) ||
-      (o.colorReference || "").toLowerCase().includes(s) || // 🆕 讓搜尋支援色號
       o.items.some((i) =>
         i.yarnName?.toLowerCase().includes(s) ||
         (i.colorName || "").toLowerCase().includes(s) ||
-        (i.colorCode || "").toLowerCase().includes(s)
+        (i.colorCode || "").toLowerCase().includes(s) ||
+        (i.colorReference || "").toLowerCase().includes(s)
       )
     );
   }, [orders, search]);
@@ -200,10 +203,10 @@ export default function SalesOrdersPage({ permissions }: Props) {
       setFDeliveryDate(so.deliveryDate || "");
       setFStatus(so.status || "Confirmed");
       setFNotes(so.notes || "");
-      setFColorRef(so.colorReference || ""); // 🆕 編輯時載入舊值
       setFAutoCreatePO(false);
       setFItems(so.items.map((i) => ({
         yarnId: i.yarnId, colorName: i.colorName || "", colorCode: i.colorCode || "",
+        colorReference: i.colorReference || "",
         quantity: i.quantity || "", unitPrice: String(i.unitPrice),
         currency: i.currency || "USD", unit: i.unit || "per KG",
         weightBasis: i.weightBasis || "condition", incoterms: i.incoterms || "", notes: i.notes || "",
@@ -230,9 +233,8 @@ export default function SalesOrdersPage({ permissions }: Props) {
     setFDeliveryDate("");
     setFStatus("Confirmed");
     setFNotes("");
-    setFColorRef(""); // 🆕 新增訂單時清空
     setFAutoCreatePO(true);
-    setFItems([{ yarnId: 0, colorName: "", colorCode: "", quantity: "", unitPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" }]);
+    setFItems([{ ...BLANK_ITEM }]);
     setShowForm(true);
   };
 
@@ -273,6 +275,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
       yarnId: q.yarnId,
       colorName: "",
       colorCode: "",
+      colorReference: "",
       quantity: "",
       unitPrice: String(q.quotedPrice),
       currency: q.currency,
@@ -289,7 +292,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
   const copyItem = (idx: number) => {
     setFItems((prev) => {
       const item = prev[idx];
-      const copy = { ...item, colorName: "", colorCode: "", notes: "" };
+      const copy = { ...item, colorName: "", colorCode: "", colorReference: "", notes: "" };
       const newItems = [...prev];
       newItems.splice(idx + 1, 0, copy);
       return newItems;
@@ -330,7 +333,6 @@ export default function SalesOrdersPage({ permissions }: Props) {
           deliveryDate: fDeliveryDate,
           status: fStatus,
           notes: fNotes,
-          colorReference: fColorRef.trim() || null,
           items: validItems,
           autoCreatePO: fAutoCreatePO,
           userId: getUserId(),
@@ -373,7 +375,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Search SO, client, color ref..."
+            placeholder="Search..."
           />
           {permissions.canEdit && (
             <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
@@ -399,7 +401,6 @@ export default function SalesOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">Client</th>
               <th className="px-4 py-3 font-medium">Ship-To</th>
               <th className="px-4 py-3 font-medium text-left">Items</th>
-              <th className="px-4 py-3 font-medium">Color Ref.</th>{/* 🆕 顯示欄位 */}
               <th className="px-4 py-3 font-medium">SO Date</th>
               <th className="px-4 py-3 font-medium">Delivery Date</th>
               <th className="px-4 py-3 font-medium">Status</th>
@@ -408,7 +409,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
             ) : filtered.map((o) => (
               <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3"><button onClick={() => setViewing(o)} className="font-medium text-blue-700 hover:underline">{o.soNo}</button></td>
@@ -426,14 +427,6 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{o.shipToName || "—"}</td>
                 <td className="px-4 py-3 text-center text-xs">{o.items.length}</td>
-                {/* 🆕 顯示色號的欄位 */}
-                <td className="px-4 py-3 text-xs">
-                  {o.colorReference ? (
-                    <span className="inline-flex items-center gap-1 rounded bg-purple-50 px-1.5 py-0.5 text-[11px] font-semibold text-purple-700 border border-purple-200">
-                      🎨 {o.colorReference}
-                    </span>
-                  ) : <span className="text-slate-300">—</span>}
-                </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{o.soDate}</td>
                 <td className="px-4 py-3 text-xs">{(() => {
                   if (!o.deliveryDate) return <span className="text-slate-400">—</span>;
@@ -497,18 +490,6 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 </div>
               </div>
 
-              {/* 🆕 Color Reference 顯眼卡片 */}
-              {viewing.colorReference && (
-                <div className="rounded-lg bg-purple-50 border border-purple-200 px-4 py-3 flex items-center gap-3">
-                  <span className="text-2xl">🎨</span>
-                  <div>
-                    <div className="text-xs text-purple-600 font-medium">Color Reference</div>
-                    <div className="text-sm font-semibold text-purple-900 mt-0.5">{viewing.colorReference}</div>
-                    <div className="text-[11px] text-purple-500 mt-0.5">Based on Lab-Dip approval / Dye Lot / Pantone</div>
-                  </div>
-                </div>
-              )}
-
               <div className="flex gap-6 text-xs text-slate-500 flex-wrap">
                 <div>Category: <span className={`font-semibold ${{Sample:"text-purple-600","Free of Charge":"text-amber-600","Lab Dip":"text-cyan-600","Strike Off":"text-cyan-600"}[(viewing as SalesOrder & {orderCategory?:string}).orderCategory||""] || "text-slate-700"}`}>{(viewing as SalesOrder & {orderCategory?:string}).orderCategory || "Bulk"}</span></div>
                 <div>Unit: <span className="font-semibold text-slate-700">{(viewing as SalesOrder & {quantityUnit?:string}).quantityUnit || "KGS"}</span></div>
@@ -524,6 +505,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                       <th className="px-4 py-3 font-medium">Yarn</th>
                       <th className="px-4 py-3 font-medium">Yarn Mill</th>
                       <th className="px-4 py-3 font-medium">Color</th>
+                      <th className="px-4 py-3 font-medium">Color Reference</th>
                       <th className="px-4 py-3 font-medium">Qty</th>
                       <th className="px-4 py-3 font-medium text-right">Unit Price</th>
                       <th className="px-4 py-3 font-medium">Weight</th>
@@ -548,6 +530,13 @@ export default function SalesOrdersPage({ permissions }: Props) {
                               {item.colorCode && <div className="text-slate-400">{item.colorCode}</div>}
                             </>
                           ) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {item.colorReference ? (
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-medium">
+                              {item.colorReference}
+                            </span>
+                          ) : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-3 text-xs">{item.quantity || "—"}</td>
                         <td className="px-4 py-3 text-right font-mono text-xs">
@@ -582,7 +571,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                     <button onClick={async () => {
                       const res = await fetch("/api/sales-orders", {
                         method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ id: viewing.id, status: "In Production", customerId: viewing.customerId, soDate: viewing.soDate, contactId: viewing.contactId, shipToId: viewing.shipToId, shipToContactId: (viewing as SalesOrder & { shipToContactId?: number }).shipToContactId, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes })), userId: getUserId() }),
+                        body: JSON.stringify({ id: viewing.id, status: "In Production", customerId: viewing.customerId, soDate: viewing.soDate, contactId: viewing.contactId, shipToId: viewing.shipToId, shipToContactId: (viewing as SalesOrder & { shipToContactId?: number }).shipToContactId, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, colorReference: i.colorReference, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes })), userId: getUserId() }),
                       });
                       if (res.ok) { setToast({ type: "success", text: "Status changed to In Production (SO + PO synced)" }); setViewing(null); load(); }
                       else setToast({ type: "error", text: "Failed to update status" });
@@ -755,21 +744,6 @@ export default function SalesOrdersPage({ permissions }: Props) {
                       </div>
                     )}
                   </div>
-
-                  {/* 🆕 顏色依據 Color Reference 表單欄位 */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      🎨 Color Reference <span className="text-slate-400 font-normal text-xs">(Lab-dip / Dye Lot / Pantone)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={fColorRef}
-                      onChange={(e) => setFColorRef(e.target.value)}
-                      className="w-full px-3 py-2 border border-purple-200 bg-purple-50/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
-                      placeholder="e.g. LD-2024-0312, Lot #A2456, Pantone 19-4052"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">此欄用於記錄本訂單顏色的參考標準（如 Lab-dip 確認色、缸號、Pantone 色號），日後可依此追溯。</p>
-                  </div>
                 </div>
               </div>
 
@@ -778,12 +752,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                   <h3 className="text-sm font-semibold text-slate-900">Order Items ({fItems.length})</h3>
                   <button
                     type="button"
-                    onClick={() =>
-                      setFItems((p) => [
-                        ...p,
-                        { yarnId: 0, colorName: "", colorCode: "", quantity: "", unitPrice: "", currency: "USD", unit: "per KG", weightBasis: "condition", incoterms: "", notes: "" },
-                      ])
-                    }
+                    onClick={() => setFItems((p) => [...p, { ...BLANK_ITEM }])}
                     className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300"
                   >
                     + Add Item
@@ -842,6 +811,16 @@ export default function SalesOrdersPage({ permissions }: Props) {
                             placeholder="Color Code"
                           />
                         </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={item.colorReference}
+                          onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, colorReference: e.target.value } : l))}
+                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+                          placeholder="Color Reference (e.g. LD-2024-0312 / Dye Lot / Pantone)"
+                        />
                       </div>
 
                       <div className="grid grid-cols-6 gap-2 mt-2">
