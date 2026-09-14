@@ -54,17 +54,38 @@ export default function ClientsPage({ permissions }: Props) {
   const [telephone, setTelephone] = useState("");
   const [notes, setNotes] = useState("");
 
+  // 修正後的防禦性資料載入函數
   const load = async () => {
     setLoading(true);
     try {
-      const [clientData, contactData, bankData] = await Promise.all([
-        fetch("/api/customers").then((r) => r.json()),
-        fetch("/api/customer-contacts").then((r) => r.json()),
-        fetch("/api/bank-accounts?entityType=customer").then((r) => r.json()),
+      const [clientRes, contactRes, bankRes] = await Promise.all([
+        fetch("/api/customers").catch(() => null),
+        fetch("/api/customer-contacts").catch(() => null),
+        fetch("/api/bank-accounts?entityType=customer").catch(() => null),
       ]);
-      setClients(Array.isArray(clientData) ? clientData : []);
-      setAllContacts(Array.isArray(contactData) ? contactData : []);
-      setAllBankAccounts(Array.isArray(bankData) ? bankData : []);
+
+      if (clientRes && clientRes.ok) {
+        const clientData = await clientRes.json();
+        setClients(Array.isArray(clientData) ? clientData : []);
+      } else {
+        setClients([]);
+      }
+
+      if (contactRes && contactRes.ok) {
+        const contactData = await contactRes.json();
+        setAllContacts(Array.isArray(contactData) ? contactData : []);
+      } else {
+        setAllContacts([]);
+      }
+
+      if (bankRes && bankRes.ok) {
+        const bankData = await bankRes.json();
+        setAllBankAccounts(Array.isArray(bankData) ? bankData : []);
+      } else {
+        setAllBankAccounts([]);
+      }
+    } catch (err) {
+      console.error("Error loading clients page data:", err);
     } finally {
       setLoading(false);
     }
