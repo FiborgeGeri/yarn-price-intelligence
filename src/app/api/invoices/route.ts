@@ -4,13 +4,32 @@ import { invoices, invoiceItems, payments, customers, customerContacts, companie
 import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
-function createInvoiceNo() {
+const INVOICE_TYPES = [
+  "Proforma Invoice",
+  "Deposit Invoice",
+  "Commercial Invoice",
+  "Balance Invoice",
+  "Debit Note",
+  "Credit Note",
+] as const;
+
+const TYPE_PREFIX: Record<string, string> = {
+  "Proforma Invoice": "PI",
+  "Deposit Invoice": "DEP",
+  "Commercial Invoice": "INV",
+  "Balance Invoice": "BAL",
+  "Debit Note": "DN",
+  "Credit Note": "CN",
+};
+
+function createInvoiceNo(type?: string) {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `FINV-${y}${m}${day}-${rand}`;
+  const prefix = TYPE_PREFIX[type || "Commercial Invoice"] || "INV";
+  return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -22,6 +41,7 @@ export async function GET(req: NextRequest) {
       .select({
         id: invoices.id,
         invoiceNo: invoices.invoiceNo,
+        invoiceType: invoices.invoiceType,
         companyId: invoices.companyId,
         companyName: companies.name,
         customerId: invoices.customerId,
@@ -117,11 +137,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, companyId, customerId, contactId, soId, soNo, customerPoNo,
+      id, invoiceType, companyId, customerId, contactId, soId, soNo, customerPoNo,
       invoiceDate, dueDate, currency, vatRate, status, notes, userId,
       items = [],
     } = body as {
-      id?: number; companyId?: number | null; customerId?: number | null; contactId?: number | null;
+      id?: number; invoiceType?: string;
+      companyId?: number | null; customerId?: number | null; contactId?: number | null;
       soId?: number | null; soNo?: string | null; customerPoNo?: string | null;
       invoiceDate: string; dueDate?: string | null; currency?: string; vatRate?: number | string;
       status?: string; notes?: string | null; userId?: number | null; items?: ItemInput[];
@@ -131,6 +152,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Client and invoice date are required" }, { status: 400 });
     }
 
+    const finalType = invoiceType || "Commercial Invoice";
     const cleanItems = (items as ItemInput[]).filter((it) => Number(it.unitPrice) > 0);
     const subtotal = cleanItems.reduce((s, it) => s + (parseQty(String(it.quantity || "")) * Number(it.unitPrice) || 0), 0);
     const rate = Number(vatRate) || 0;
@@ -139,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     if (id) {
       await db.update(invoices).set({
+        invoiceType: finalType,
         companyId: companyId || null,
         customerId,
         contactId: contactId || null,
@@ -163,7 +186,8 @@ export async function POST(req: NextRequest) {
     }
 
     const [created] = await db.insert(invoices).values({
-      invoiceNo: createInvoiceNo(),
+      invoiceNo: createInvoiceNo(finalType),
+      invoiceType: finalType,
       companyId: companyId || null,
       customerId,
       contactId: contactId || null,
