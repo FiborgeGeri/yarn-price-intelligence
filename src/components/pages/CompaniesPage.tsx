@@ -61,7 +61,8 @@ export default function CompaniesPage({ permissions }: Props) {
   const [isDefault, setIsDefault] = useState(false);
   const [notes, setNotes] = useState("");
 
-  c  const load = async () => {
+  // 完美修正後的安全加載函數 (已除去 c 殘留)
+  const load = async () => {
     setLoading(true);
     try {
       const [companyRes, bankRes] = await Promise.all([
@@ -80,7 +81,9 @@ export default function CompaniesPage({ permissions }: Props) {
       if (bankRes && bankRes.ok) {
         const bankData = await bankRes.json();
         if (Array.isArray(bankData)) {
-          for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+          for (const account of bankData) {
+            counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+          }
         }
       }
       setBankAccountCounts(counts);

@@ -57,7 +57,8 @@ export default function FactoriesPage({ permissions }: Props) {
   const [status, setStatus] = useState("Active");
   const [formCertificates, setFormCertificates] = useState<number[]>([]);
 
-      const load = async () => {
+  // 完美修正後的安全加載函數
+  const load = async () => {
     setLoading(true);
     try {
       const [factoryRes, certificateRes, bankRes] = await Promise.all([
@@ -84,9 +85,18 @@ export default function FactoriesPage({ permissions }: Props) {
       if (bankRes && bankRes.ok) {
         const bankData = await bankRes.json();
         if (Array.isArray(bankData)) {
-          for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+          for (const account of bankData) {
+            counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+          }
         }
       }
+      setBankAccountCounts(counts);
+    } catch (err) {
+      console.error("Error loading factories page data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => { load(); }, []);
 
