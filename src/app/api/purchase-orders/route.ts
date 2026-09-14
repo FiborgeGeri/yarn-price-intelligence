@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { purchaseOrders, poItems, factories, customers, shipToAddresses, shipToContacts, yarns, treatments, salesOrders, companies } from "@/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
 function createPoNo() {
@@ -63,6 +63,7 @@ export async function GET() {
         treatmentName: treatments.name,
         colorName: poItems.colorName,
         colorCode: poItems.colorCode,
+        colorReference: poItems.colorReference, // 🆕 新增：品項級別 colorReference
         quantity: poItems.quantity,
         unitPrice: poItems.unitPrice,
         currency: poItems.currency,
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
         updatedBy: userId || null,
       }).where(eq(purchaseOrders.id, id));
 
-      // Sync SO status from PO status
+      // 同步 SO 狀態
       if (status && linkedSoNo) {
         const soMap: Record<string, string> = {
           "Confirmed": "Confirmed",
@@ -190,6 +191,7 @@ export async function POST(req: NextRequest) {
             yarnId: item.yarnId,
             colorName: item.colorName || null,
             colorCode: item.colorCode || null,
+            colorReference: item.colorReference || null, // 🆕 新增：儲存 colorReference
             quantity: item.quantity || null,
             unitPrice: parseFloat(item.unitPrice),
             currency: item.currency || "USD",
@@ -239,6 +241,7 @@ export async function POST(req: NextRequest) {
           yarnId: item.yarnId,
           colorName: item.colorName || null,
           colorCode: item.colorCode || null,
+          colorReference: item.colorReference || null, // 🆕 新增：儲存 colorReference
           quantity: item.quantity || null,
           unitPrice: parseFloat(item.unitPrice),
           currency: item.currency || "USD",

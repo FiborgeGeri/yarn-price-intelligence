@@ -18,6 +18,7 @@ interface POItem {
   treatmentName?: string;
   colorName: string;
   colorCode: string;
+  colorReference: string | null;
   quantity: string;
   unitPrice: number;
   currency: string;
@@ -84,6 +85,7 @@ interface FormItem {
   yarnId: number;
   colorName: string;
   colorCode: string;
+  colorReference: string;
   quantity: string;
   unitPrice: string;
   currency: string;
@@ -106,6 +108,7 @@ const EMPTY_ITEM: FormItem = {
   yarnId: 0,
   colorName: "",
   colorCode: "",
+  colorReference: "",
   quantity: "",
   unitPrice: "",
   currency: "USD",
@@ -198,7 +201,8 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
         p.items.some((i) =>
           (i.yarnName || "").toLowerCase().includes(s) ||
           (i.colorName || "").toLowerCase().includes(s) ||
-          (i.colorCode || "").toLowerCase().includes(s)
+          (i.colorCode || "").toLowerCase().includes(s) ||
+          (i.colorReference || "").toLowerCase().includes(s)
         )
       );
     }
@@ -214,8 +218,6 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       setFCustomer(po.customerId || 0);
       setFShipTo(po.shipToId || 0);
       setFOrderCategory(po.orderCategory || "Bulk");
-      setFQtyUnit(po.quantityUnit || "KGS");
-      setFCompanyId((po as unknown as { companyId?: number }).companyId || 0);
       setFQtyUnit(po.quantityUnit || "KGS");
       setFCompanyId((po as unknown as { companyId?: number }).companyId || 0);
       setFPaymentMethod(po.paymentMethod || "");
@@ -236,6 +238,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           yarnId: i.yarnId,
           colorName: i.colorName || "",
           colorCode: i.colorCode || "",
+          colorReference: i.colorReference || "",
           quantity: i.quantity || "",
           unitPrice: String(i.unitPrice),
           currency: i.currency || "USD",
@@ -252,7 +255,6 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       setFShipTo(0);
       setFOrderCategory("Bulk");
       setFQtyUnit("KGS");
-      // Preselect the default letterhead company so the field is never blank.
       setFCompanyId(companyList.find((comp) => comp.isDefault)?.id || companyList[0]?.id || 0);
       setFPaymentMethod("");
       setFPaymentDays("");
@@ -279,7 +281,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
 
   const copyItem = (idx: number) => {
     setFItems((prev) => {
-      const copy = { ...prev[idx], colorName: "", colorCode: "", notes: "" };
+      const copy = { ...prev[idx], colorName: "", colorCode: "", colorReference: "", notes: "" };
       const n = [...prev];
       n.splice(idx + 1, 0, copy);
       return n;
@@ -436,7 +438,6 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2 flex-wrap">
-                    
                     <a href={`/api/export/po?id=${p.id}`} className="text-slate-600 hover:text-slate-900 text-xs inline-flex items-center gap-1">
                       <IconDownload className="w-3 h-3" />Export
                     </a>
@@ -491,6 +492,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                       <th className="px-4 py-3 font-medium">Yarn</th>
                       <th className="px-4 py-3 font-medium">Composition</th>
                       <th className="px-4 py-3 font-medium">Color</th>
+                      <th className="px-4 py-3 font-medium">Color Reference</th>
                       <th className="px-4 py-3 font-medium">Qty</th>
                       <th className="px-4 py-3 font-medium text-right">Unit Price</th>
                       <th className="px-4 py-3 font-medium">Weight</th>
@@ -515,6 +517,13 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                               {item.colorCode && <div className="text-slate-400">{item.colorCode}</div>}
                             </>
                           ) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {item.colorReference ? (
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-medium">
+                              {item.colorReference}
+                            </span>
+                          ) : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-3 text-xs">{item.quantity || "—"}</td>
                         <td className="px-4 py-3 text-right font-mono text-xs">
@@ -549,7 +558,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                   <button onClick={async () => {
                     const res = await fetch("/api/purchase-orders", {
                       method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ id: viewing.id, status: "In Production", factoryId: viewing.factoryId, poDate: viewing.poDate, poNo: viewing.poNo, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes })), userId: getUserId() }),
+                      body: JSON.stringify({ id: viewing.id, status: "In Production", factoryId: viewing.factoryId, poDate: viewing.poDate, poNo: viewing.poNo, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, colorReference: i.colorReference, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes })), userId: getUserId() }),
                     });
                     if (res.ok) { setToast({ type: "success", text: "PO set to In Production (SO synced)" }); setViewing(null); load(); }
                     else setToast({ type: "error", text: "Failed" });
@@ -756,6 +765,16 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                         <div>
                           <input type="text" value={item.colorCode} onChange={(e) => updateItem(idx, "colorCode", e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Color Code" />
                         </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={item.colorReference}
+                          onChange={(e) => updateItem(idx, "colorReference", e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+                          placeholder="Color Reference (e.g. LD-2024-0312 / Dye Lot / Pantone)"
+                        />
                       </div>
 
                       <div className="grid grid-cols-6 gap-2 mt-2">
