@@ -61,19 +61,31 @@ export default function CompaniesPage({ permissions }: Props) {
   const [isDefault, setIsDefault] = useState(false);
   const [notes, setNotes] = useState("");
 
-  const load = async () => {
+  c  const load = async () => {
     setLoading(true);
     try {
-      const [data, bankData] = await Promise.all([
-        fetch("/api/companies").then((r) => r.json()),
-        fetch("/api/bank-accounts?entityType=company").then((r) => r.json()),
+      const [companyRes, bankRes] = await Promise.all([
+        fetch("/api/companies").catch(() => null),
+        fetch("/api/bank-accounts?entityType=company").catch(() => null),
       ]);
-      setCompanies(Array.isArray(data) ? data : []);
+
+      if (companyRes && companyRes.ok) {
+        const data = await companyRes.json();
+        setCompanies(Array.isArray(data) ? data : []);
+      } else {
+        setCompanies([]);
+      }
+
       const counts: Record<number, number> = {};
-      if (Array.isArray(bankData)) {
-        for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+      if (bankRes && bankRes.ok) {
+        const bankData = await bankRes.json();
+        if (Array.isArray(bankData)) {
+          for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+        }
       }
       setBankAccountCounts(counts);
+    } catch (err) {
+      console.error("Error loading companies page data:", err);
     } finally {
       setLoading(false);
     }

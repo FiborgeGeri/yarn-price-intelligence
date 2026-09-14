@@ -57,25 +57,36 @@ export default function FactoriesPage({ permissions }: Props) {
   const [status, setStatus] = useState("Active");
   const [formCertificates, setFormCertificates] = useState<number[]>([]);
 
-  const load = async () => {
+      const load = async () => {
     setLoading(true);
     try {
-      const [factoryData, certificateData, bankData] = await Promise.all([
-        fetch("/api/factories").then((r) => r.json()),
-        fetch("/api/certificates").then((r) => r.json()),
-        fetch("/api/bank-accounts?entityType=factory").then((r) => r.json()),
+      const [factoryRes, certificateRes, bankRes] = await Promise.all([
+        fetch("/api/factories").catch(() => null),
+        fetch("/api/certificates").catch(() => null),
+        fetch("/api/bank-accounts?entityType=factory").catch(() => null),
       ]);
-      setFactories(Array.isArray(factoryData) ? factoryData : []);
-      setCertificates(Array.isArray(certificateData) ? certificateData : []);
-      const counts: Record<number, number> = {};
-      if (Array.isArray(bankData)) {
-        for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+
+      if (factoryRes && factoryRes.ok) {
+        const factoryData = await factoryRes.json();
+        setFactories(Array.isArray(factoryData) ? factoryData : []);
+      } else {
+        setFactories([]);
       }
-      setBankAccountCounts(counts);
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      if (certificateRes && certificateRes.ok) {
+        const certificateData = await certificateRes.json();
+        setCertificates(Array.isArray(certificateData) ? certificateData : []);
+      } else {
+        setCertificates([]);
+      }
+
+      const counts: Record<number, number> = {};
+      if (bankRes && bankRes.ok) {
+        const bankData = await bankRes.json();
+        if (Array.isArray(bankData)) {
+          for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+        }
+      }
 
   useEffect(() => { load(); }, []);
 
