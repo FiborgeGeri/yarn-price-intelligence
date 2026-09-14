@@ -60,6 +60,7 @@ export async function GET() {
         yarnId: soItems.yarnId,
         colorName: soItems.colorName,
         colorCode: soItems.colorCode,
+        colorReference: soItems.colorReference, // 🆕 新增：撈取品項層級的 colorReference
         yarnName: yarns.yarnName,
         yarnCount: yarns.yarnCount,
         composition: yarns.composition,
@@ -131,18 +132,16 @@ export async function POST(req: NextRequest) {
         updatedBy: userId || null,
       }).where(eq(salesOrders.id, id));
 
-      // Sync linked POs — update header fields + status + items
+      // 同步關聯的 POs
       const soRecord = await db.select({ soNo: salesOrders.soNo }).from(salesOrders).where(eq(salesOrders.id, id));
       const soNo = soRecord[0]?.soNo;
       if (soNo) {
-        // Status mapping
         const statusMap: Record<string, string> = {
           "Confirmed": "Confirmed", "In Production": "In Production",
           "Shipped": "Shipped", "Delivered": "Delivered", "Cancelled": "Cancelled",
         };
         const poStatus = statusMap[status] || undefined;
 
-        // Update PO header fields
         const linkedPOs = await db.select({ id: purchaseOrders.id, factoryId: purchaseOrders.factoryId }).from(purchaseOrders).where(eq(purchaseOrders.soNo, soNo));
         for (const po of linkedPOs) {
           await db.update(purchaseOrders).set({
@@ -158,9 +157,7 @@ export async function POST(req: NextRequest) {
             updatedBy: userId || null,
           }).where(eq(purchaseOrders.id, po.id));
 
-          // Update PO items — only items that match this PO's factory
           if (items?.length) {
-            // Get yarn->factory mapping
             const yarnData = await db.select({ id: yarns.id, factoryId: yarns.factoryId }).from(yarns);
             const yarnFactoryMap: Record<number, number> = {};
             for (const y of yarnData) { if (y.factoryId) yarnFactoryMap[y.id] = y.factoryId; }
@@ -168,11 +165,12 @@ export async function POST(req: NextRequest) {
             const poItemsForFactory = items.filter((item: { yarnId: number }) => yarnFactoryMap[item.yarnId] === po.factoryId);
             if (poItemsForFactory.length > 0) {
               await db.delete(poItems).where(eq(poItems.poId, po.id));
-              await db.insert(poItems).values(poItemsForFactory.map((item: { yarnId: number; colorName?: string; colorCode?: string; quantity?: string; unitPrice: string; currency?: string; unit?: string; weightBasis?: string; incoterms?: string; notes?: string }) => ({
+              await db.insert(poItems).values(poItemsForFactory.map((item: { yarnId: number; colorName?: string; colorCode?: string; colorReference?: string; quantity?: string; unitPrice: string; currency?: string; unit?: string; weightBasis?: string; incoterms?: string; notes?: string }) => ({
                 poId: po.id,
                 yarnId: item.yarnId,
                 colorName: item.colorName || null,
                 colorCode: item.colorCode || null,
+                colorReference: item.colorReference || null, // 🆕 同步關聯品項的 colorReference 到 PO items
                 quantity: item.quantity || null,
                 unitPrice: parseFloat(item.unitPrice),
                 currency: item.currency || "USD",
@@ -193,6 +191,7 @@ export async function POST(req: NextRequest) {
           yarnId: item.yarnId,
           colorName: item.colorName || null,
           colorCode: item.colorCode || null,
+          colorReference: item.colorReference || null, // 🆕 更新儲存品項的 colorReference
           quantity: item.quantity || null,
           unitPrice: parseFloat(item.unitPrice),
           currency: item.currency || "USD",
@@ -234,6 +233,7 @@ export async function POST(req: NextRequest) {
           yarnId: item.yarnId,
           colorName: item.colorName || null,
           colorCode: item.colorCode || null,
+          colorReference: item.colorReference || null, // 🆕 新增儲存品項的 colorReference
           quantity: item.quantity || null,
           unitPrice: parseFloat(item.unitPrice),
           currency: item.currency || "USD",
@@ -309,6 +309,7 @@ export async function POST(req: NextRequest) {
                   yarnId: item.yarnId,
                   colorName: item.colorName || null,
                   colorCode: item.colorCode || null,
+                  colorReference: item.colorReference || null, // 🆕 自動生成採購單時，複製品項的 colorReference
                   quantity: item.quantity || null,
                   unitPrice: costPrices[key] ?? parseFloat(item.unitPrice),
                   currency: item.currency || "USD",
