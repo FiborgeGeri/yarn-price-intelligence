@@ -125,7 +125,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
 
   const load = async () => {
     setLoading(true);
-    const [o, c, cc, st, y] = await Promise.all([
+    const [o, c, cc, st, y, comps] = await Promise.all([
       fetch("/api/sales-orders").then((r) => r.json()),
       fetch("/api/customers").then((r) => r.json()),
       fetch("/api/customer-contacts").then((r) => r.json()),
@@ -138,6 +138,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
     setContactList(cc);
     setShipToList(st);
     setYarnList(y);
+    setCompanyList(Array.isArray(comps) ? comps : []);
     setLoading(false);
   };
 
@@ -213,7 +214,8 @@ export default function SalesOrdersPage({ permissions }: Props) {
     setShipToContactList([]);
     setFOrderCategory("Bulk");
     setFQtyUnit("KGS");
-    setFCompanyId(0);
+    // Preselect the default letterhead company so the field is never blank.
+    setFCompanyId(companyList.find((comp) => comp.isDefault)?.id || companyList[0]?.id || 0);
     setFPaymentMethod("");
     setFPaymentDays("");
     setFPaymentRef("");
@@ -585,6 +587,9 @@ export default function SalesOrdersPage({ permissions }: Props) {
                       <option value={0}>Select company...</option>
                       {companyList.map((comp) => <option key={comp.id} value={comp.id}>{comp.name}{comp.isDefault ? " (Default)" : ""}</option>)}
                     </select>
+                    {companyList.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">No companies found — add one on the Companies page first.</p>
+                    )}
                   </div>
 
                   <div>

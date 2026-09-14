@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { customers } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { customers, bankAccounts } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
 export async function GET() {
@@ -64,6 +64,7 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
     await db.delete(customers).where(eq(customers.id, parseInt(id)));
+    await db.delete(bankAccounts).where(and(eq(bankAccounts.entityType, "customer"), eq(bankAccounts.entityId, parseInt(id))));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Customers DELETE error:", err);

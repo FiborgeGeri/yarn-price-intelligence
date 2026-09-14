@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirectory";
+import BankAccountsModal from "@/components/BankAccountsModal";
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
 
@@ -37,6 +38,8 @@ export default function FactoriesPage({ permissions }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Factory | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Factory | null>(null);
+  const [viewingBankAccounts, setViewingBankAccounts] = useState<Factory | null>(null);
+  const [bankAccountCounts, setBankAccountCounts] = useState<Record<number, number>>({});
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [relationshipFilter, setRelationshipFilter] = useState("");
@@ -57,12 +60,18 @@ export default function FactoriesPage({ permissions }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const [factoryData, certificateData] = await Promise.all([
+      const [factoryData, certificateData, bankData] = await Promise.all([
         fetch("/api/factories").then((r) => r.json()),
         fetch("/api/certificates").then((r) => r.json()),
+        fetch("/api/bank-accounts?entityType=factory").then((r) => r.json()),
       ]);
       setFactories(Array.isArray(factoryData) ? factoryData : []);
       setCertificates(Array.isArray(certificateData) ? certificateData : []);
+      const counts: Record<number, number> = {};
+      if (Array.isArray(bankData)) {
+        for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+      }
+      setBankAccountCounts(counts);
     } finally {
       setLoading(false);
     }
@@ -195,12 +204,14 @@ export default function FactoriesPage({ permissions }: Props) {
             chips={factory.certNames || []}
             notes={factory.notes}
             contactCount={factory.contactCount || 0}
+            bankAccountCount={bankAccountCounts[factory.id] || 0}
             createdByName={factory.createdByName}
             updatedByName={factory.updatedByName}
             createdAt={factory.createdAt}
             updatedAt={factory.updatedAt}
             permissions={permissions}
             onContacts={() => setViewingContacts(factory)}
+            onBankAccounts={() => setViewingBankAccounts(factory)}
             onEdit={() => openForm(factory)}
             onDelete={() => remove(factory.id)}
           />
@@ -264,6 +275,15 @@ export default function FactoriesPage({ permissions }: Props) {
         permissions={permissions}
         emptyText="No contacts yet for this yarn mill."
         onClose={() => setViewingContacts(null)}
+        onChanged={load}
+      />
+
+      <BankAccountsModal
+        entityType="factory"
+        entity={viewingBankAccounts ? { id: viewingBankAccounts.id, name: viewingBankAccounts.factoryName, officialName: viewingBankAccounts.officialName } : null}
+        entityLabel="Yarn Mill"
+        permissions={permissions}
+        onClose={() => setViewingBankAccounts(null)}
         onChanged={load}
       />
     </div>

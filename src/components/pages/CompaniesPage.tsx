@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
+import BankAccountsModal from "@/components/BankAccountsModal";
 
 interface Company {
   id: number;
@@ -46,6 +47,8 @@ export default function CompaniesPage({ permissions }: Props) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
+  const [viewingBankAccounts, setViewingBankAccounts] = useState<Company | null>(null);
+  const [bankAccountCounts, setBankAccountCounts] = useState<Record<number, number>>({});
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -61,8 +64,16 @@ export default function CompaniesPage({ permissions }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await fetch("/api/companies").then((r) => r.json());
+      const [data, bankData] = await Promise.all([
+        fetch("/api/companies").then((r) => r.json()),
+        fetch("/api/bank-accounts?entityType=company").then((r) => r.json()),
+      ]);
       setCompanies(Array.isArray(data) ? data : []);
+      const counts: Record<number, number> = {};
+      if (Array.isArray(bankData)) {
+        for (const account of bankData) counts[account.entityId] = (counts[account.entityId] || 0) + 1;
+      }
+      setBankAccountCounts(counts);
     } finally {
       setLoading(false);
     }
@@ -157,6 +168,9 @@ export default function CompaniesPage({ permissions }: Props) {
                 <AuditInfo createdByName={company.createdByName} updatedByName={company.updatedByName} className="mt-3 pt-2 border-t border-slate-100" />
               </div>
               <div className="flex flex-col gap-1 shrink-0 items-end">
+                <button onClick={() => setViewingBankAccounts(company)} className="text-emerald-700 hover:text-emerald-900 text-xs px-2 py-1 font-medium underline whitespace-nowrap">
+                  {bankAccountCounts[company.id] || 0} bank a/c{(bankAccountCounts[company.id] || 0) !== 1 ? "s" : ""} →
+                </button>
                 {permissions.canEdit && <button onClick={() => openForm(company)} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
                 {permissions.canDelete && <button onClick={() => handleDelete(company.id)} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Delete</button>}
               </div>
@@ -218,6 +232,15 @@ export default function CompaniesPage({ permissions }: Props) {
           </div>
         </div>
       )}
+
+      <BankAccountsModal
+        entityType="company"
+        entity={viewingBankAccounts ? { id: viewingBankAccounts.id, name: viewingBankAccounts.name, officialName: viewingBankAccounts.officialName } : null}
+        entityLabel="Company"
+        permissions={permissions}
+        onClose={() => setViewingBankAccounts(null)}
+        onChanged={load}
+      />
     </div>
   );
 }

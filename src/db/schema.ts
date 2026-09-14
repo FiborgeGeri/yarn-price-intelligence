@@ -541,6 +541,29 @@ export const supplierPayments = pgTable("supplier_payments", {
   createdBy: integer("created_by"),
 });
 
+// Bank accounts for Clients (customers), Yarn Mills (factories) and our own
+// Companies. One entity can hold accounts at several banks, and several
+// currency accounts at the same bank.
+export const bankAccounts = pgTable("bank_accounts", {
+  id: serial("id").primaryKey(),
+  entityType: varchar("entity_type", { length: 20 }).notNull(), // customer | factory | company
+  entityId: integer("entity_id").notNull(),
+  bankName: varchar("bank_name", { length: 300 }).notNull(),
+  branch: varchar("branch", { length: 300 }),
+  accountName: varchar("account_name", { length: 300 }), // beneficiary / account holder
+  accountNumber: varchar("account_number", { length: 120 }),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  swiftCode: varchar("swift_code", { length: 20 }),
+  iban: varchar("iban", { length: 60 }),
+  bankAddress: text("bank_address"),
+  isDefault: boolean("is_default").default(false), // primary account of this entity
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: integer("updated_by"),
+});
+
 // System-wide key/value settings (editable from System Settings page)
 export const systemSettings = pgTable("system_settings", {
   id: serial("id").primaryKey(),

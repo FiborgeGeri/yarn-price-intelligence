@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirectory";
+import BankAccountsModal from "@/components/BankAccountsModal";
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
 
@@ -34,10 +35,12 @@ interface Props { permissions: Permissions; }
 export default function ClientsPage({ permissions }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [allContacts, setAllContacts] = useState<ClientContact[]>([]);
+  const [allBankAccounts, setAllBankAccounts] = useState<{ entityId: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Client | null>(null);
+  const [viewingBankAccounts, setViewingBankAccounts] = useState<Client | null>(null);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
@@ -54,12 +57,14 @@ export default function ClientsPage({ permissions }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const [clientData, contactData] = await Promise.all([
+      const [clientData, contactData, bankData] = await Promise.all([
         fetch("/api/customers").then((r) => r.json()),
         fetch("/api/customer-contacts").then((r) => r.json()),
+        fetch("/api/bank-accounts?entityType=customer").then((r) => r.json()),
       ]);
       setClients(Array.isArray(clientData) ? clientData : []);
       setAllContacts(Array.isArray(contactData) ? contactData : []);
+      setAllBankAccounts(Array.isArray(bankData) ? bankData : []);
     } finally {
       setLoading(false);
     }
@@ -77,6 +82,12 @@ export default function ClientsPage({ permissions }: Props) {
     for (const contact of allContacts) map[contact.customerId] = (map[contact.customerId] || 0) + 1;
     return map;
   }, [allContacts]);
+
+  const bankAccountCountMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const account of allBankAccounts) map[account.entityId] = (map[account.entityId] || 0) + 1;
+    return map;
+  }, [allBankAccounts]);
 
   const contactSearchMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -197,12 +208,14 @@ export default function ClientsPage({ permissions }: Props) {
             telephone={client.telephone}
             notes={client.notes}
             contactCount={contactCountMap[client.id] || 0}
+            bankAccountCount={bankAccountCountMap[client.id] || 0}
             createdByName={client.createdByName}
             updatedByName={client.updatedByName}
             createdAt={client.createdAt}
             updatedAt={client.updatedAt}
             permissions={permissions}
             onContacts={() => setViewingContacts(client)}
+            onBankAccounts={() => setViewingBankAccounts(client)}
             onEdit={() => openForm(client)}
             onDelete={() => remove(client.id)}
           />
@@ -244,6 +257,15 @@ export default function ClientsPage({ permissions }: Props) {
         permissions={permissions}
         emptyText="No contacts yet for this client."
         onClose={() => setViewingContacts(null)}
+        onChanged={load}
+      />
+
+      <BankAccountsModal
+        entityType="customer"
+        entity={viewingBankAccounts ? { id: viewingBankAccounts.id, name: viewingBankAccounts.name, officialName: viewingBankAccounts.officialName } : null}
+        entityLabel="Client"
+        permissions={permissions}
+        onClose={() => setViewingBankAccounts(null)}
         onChanged={load}
       />
     </div>

@@ -28,12 +28,14 @@ interface DirectoryCardProps {
   chips?: string[];
   notes?: string | null;
   contactCount: number;
+  bankAccountCount?: number;
   createdByName?: string | null;
   updatedByName?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   permissions: Permissions;
   onContacts: () => void;
+  onBankAccounts?: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -56,12 +58,14 @@ export function DirectoryCard({
   chips = [],
   notes,
   contactCount,
+  bankAccountCount,
   createdByName,
   updatedByName,
   createdAt,
   updatedAt,
   permissions,
   onContacts,
+  onBankAccounts,
   onEdit,
   onDelete,
 }: DirectoryCardProps) {
@@ -114,6 +118,11 @@ export function DirectoryCard({
           <button onClick={onContacts} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 font-medium underline whitespace-nowrap">
             {contactCount} contact{contactCount !== 1 ? "s" : ""} →
           </button>
+          {onBankAccounts && (
+            <button onClick={onBankAccounts} className="text-emerald-700 hover:text-emerald-900 text-xs px-2 py-1 font-medium underline whitespace-nowrap">
+              {bankAccountCount || 0} bank a/c{(bankAccountCount || 0) !== 1 ? "s" : ""} →
+            </button>
+          )}
           {permissions.canEdit && <button onClick={onEdit} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
           {permissions.canDelete && <button onClick={onDelete} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Delete</button>}
         </div>
