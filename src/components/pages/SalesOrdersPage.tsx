@@ -400,8 +400,10 @@ export default function SalesOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">Client PO</th>
               <th className="px-4 py-3 font-medium">Client</th>
               <th className="px-4 py-3 font-medium">Ship-To</th>
-              <th className="px-4 py-3 font-medium text-left">Items</th>
-              <th className="px-4 py-3 font-medium">SO Date</th>
+              <th className="px-4 py-3 font-medium text-center">Items</th>
+<th className="px-4 py-3 font-medium text-right">Total Qty</th>
+<th className="px-4 py-3 font-medium text-right">Total Amount</th>
+<th className="px-4 py-3 font-medium">SO Date</th>
               <th className="px-4 py-3 font-medium">Delivery Date</th>
               <th className="px-4 py-3 font-medium">Status</th>
               {(permissions.canEdit || permissions.canDelete) && <th className="px-4 py-3 font-medium w-24">Actions</th>}
@@ -409,7 +411,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
+              <tr><td colSpan={12} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
             ) : filtered.map((o) => (
               <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3"><button onClick={() => setViewing(o)} className="font-medium text-blue-700 hover:underline">{o.soNo}</button></td>
@@ -427,7 +429,20 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{o.shipToName || "—"}</td>
                 <td className="px-4 py-3 text-center text-xs">{o.items.length}</td>
-                <td className="px-4 py-3 text-xs text-slate-600">{o.soDate}</td>
+<td className="px-4 py-3 text-right text-xs font-medium">
+  {(() => {
+    const totalQty = o.items.reduce((sum, i) => sum + (parseFloat(i.quantity) || 0), 0);
+    return totalQty > 0 ? `${totalQty.toLocaleString()} ${(o as any).quantityUnit || "KGS"}` : "—";
+  })()}
+</td>
+<td className="px-4 py-3 text-right text-xs font-mono font-medium">
+  {(() => {
+    const totalAmt = o.items.reduce((sum, i) => sum + ((parseFloat(i.quantity) || 0) * (i.unitPrice || 0)), 0);
+    const cur = o.items[0]?.currency || "USD";
+    return totalAmt > 0 ? `${cur} ${totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+  })()}
+</td>
+<td className="px-4 py-3 text-xs text-slate-600">{o.soDate}</td>
                 <td className="px-4 py-3 text-xs">{(() => {
                   if (!o.deliveryDate) return <span className="text-slate-400">—</span>;
                   const today = new Date().toISOString().split("T")[0];

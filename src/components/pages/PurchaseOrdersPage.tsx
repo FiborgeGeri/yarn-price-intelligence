@@ -407,15 +407,17 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">Yarn Mill</th>
               <th className="px-4 py-3 font-medium">Client PO</th>
               <th className="px-4 py-3 font-medium">SO Ref</th>
-              <th className="px-4 py-3 font-medium text-left">Items</th>
-              <th className="px-4 py-3 font-medium">PO Date</th>
+              <th className="px-4 py-3 font-medium text-center">Items</th>
+<th className="px-4 py-3 font-medium text-right">Total Qty</th>
+<th className="px-4 py-3 font-medium text-right">Total Amount</th>
+<th className="px-4 py-3 font-medium">PO Date</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium w-32">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No purchase orders</td></tr>
+              <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400">No purchase orders</td></tr>
             ) : filtered.map((p) => (
               <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3 text-left"><button onClick={() => setViewing(p)} className="font-medium text-blue-700 hover:underline">{p.poNo}</button></td>
@@ -430,7 +432,20 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                 <td className="px-4 py-3 text-xs text-slate-600">{p.customerPoNo || "—"}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{p.soNo || "—"}</td>
                 <td className="px-4 py-3 text-center text-xs">{p.itemCount}</td>
-                <td className="px-4 py-3 text-xs text-slate-600">{p.poDate}</td>
+<td className="px-4 py-3 text-right text-xs font-medium">
+  {(() => {
+    const totalQty = p.items.reduce((sum, i) => sum + (parseFloat(i.quantity) || 0), 0);
+    return totalQty > 0 ? `${totalQty.toLocaleString()} ${p.quantityUnit || "KGS"}` : "—";
+  })()}
+</td>
+<td className="px-4 py-3 text-right text-xs font-mono font-medium">
+  {(() => {
+    const totalAmt = p.items.reduce((sum, i) => sum + ((parseFloat(i.quantity) || 0) * (i.unitPrice || 0)), 0);
+    const cur = p.items[0]?.currency || p.currency || "USD";
+    return totalAmt > 0 ? `${cur} ${totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+  })()}
+</td>
+<td className="px-4 py-3 text-xs text-slate-600">{p.poDate}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[p.status] || "bg-slate-100 text-slate-700"}`}>
                     {p.status}
