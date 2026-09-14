@@ -60,7 +60,7 @@ export async function GET() {
         yarnId: soItems.yarnId,
         colorName: soItems.colorName,
         colorCode: soItems.colorCode,
-        colorReference: soItems.colorReference, // 🆕 新增：撈取品項層級的 colorReference
+        colorReference: soItems.colorReference,
         yarnName: yarns.yarnName,
         yarnCount: yarns.yarnCount,
         composition: yarns.composition,
@@ -164,15 +164,26 @@ export async function POST(req: NextRequest) {
 
             const poItemsForFactory = items.filter((item: { yarnId: number }) => yarnFactoryMap[item.yarnId] === po.factoryId);
             if (poItemsForFactory.length > 0) {
+              // 抓取紗線最新成本，絕不用 SO 的售價
+              const yarnIds = poItemsForFactory.map((it: { yarnId: number }) => it.yarnId).filter(Boolean);
+              const costMap: Record<number, number> = {};
+              for (const yid of yarnIds) {
+                const latestCost = await db.select({ price: prices.price }).from(prices)
+                  .where(eq(prices.yarnId, yid))
+                  .orderBy(desc(prices.recordDate), desc(prices.createdAt))
+                  .limit(1);
+                costMap[yid] = latestCost[0]?.price ?? 0;
+              }
+
               await db.delete(poItems).where(eq(poItems.poId, po.id));
               await db.insert(poItems).values(poItemsForFactory.map((item: { yarnId: number; colorName?: string; colorCode?: string; colorReference?: string; quantity?: string; unitPrice: string; currency?: string; unit?: string; weightBasis?: string; incoterms?: string; notes?: string }) => ({
                 poId: po.id,
                 yarnId: item.yarnId,
                 colorName: item.colorName || null,
                 colorCode: item.colorCode || null,
-                colorReference: item.colorReference || null, // 🆕 同步關聯品項的 colorReference 到 PO items
+                colorReference: item.colorReference || null,
                 quantity: item.quantity || null,
-                unitPrice: parseFloat(item.unitPrice),
+                unitPrice: costMap[item.yarnId] ?? 0, // 帶入成本價紀錄，若無則為 0
                 currency: item.currency || "USD",
                 unit: item.unit || "per KG",
                 weightBasis: item.weightBasis || "condition",
@@ -191,7 +202,7 @@ export async function POST(req: NextRequest) {
           yarnId: item.yarnId,
           colorName: item.colorName || null,
           colorCode: item.colorCode || null,
-          colorReference: item.colorReference || null, // 🆕 更新儲存品項的 colorReference
+          colorReference: item.colorReference || null,
           quantity: item.quantity || null,
           unitPrice: parseFloat(item.unitPrice),
           currency: item.currency || "USD",
@@ -233,7 +244,7 @@ export async function POST(req: NextRequest) {
           yarnId: item.yarnId,
           colorName: item.colorName || null,
           colorCode: item.colorCode || null,
-          colorReference: item.colorReference || null, // 🆕 新增儲存品項的 colorReference
+          colorReference: item.colorReference || null,
           quantity: item.quantity || null,
           unitPrice: parseFloat(item.unitPrice),
           currency: item.currency || "USD",
@@ -288,37 +299,32 @@ export async function POST(req: NextRequest) {
           }).returning();
 
           if (po) {
-            const costPrices: Record<string, number> = {};
+            const costPrices: Record<number, number> = {};
             for (const item of fItems) {
-              if (!item.yarnId) continue;
-              const key = `${item.yarnId}|${item.currency || "USD"}|${item.unit || "per KG"}|${item.incoterms || ""}`;
-              if (costPrices[key] === undefined) {
-                const yarnPrices = await db.select({ price: prices.price }).from(prices)
-                  .where(eq(prices.yarnId, item.yarnId))
-                  .orderBy(desc(prices.recordDate), desc(prices.createdAt))
-                  .limit(1);
-                costPrices[key] = yarnPrices[0]?.price ?? parseFloat(item.unitPrice);
-              }
+              if (!item.yarnId || costPrices[item.yarnId] !== undefined) continue;
+              const yarnPrices = await db.select({ price: prices.price }).from(prices)
+                .where(eq(prices.yarnId, item.yarnId))
+                .orderBy(desc(prices.recordDate), desc(prices.createdAt))
+                .limit(1);
+              // 沒有成本價紀錄時預設為 0
+              costPrices[item.yarnId] = yarnPrices[0]?.price ?? 0;
             }
 
             await db.insert(poItems).values(
-              fItems.map((item: any) => {
-                const key = `${item.yarnId}|${item.currency || "USD"}|${item.unit || "per KG"}|${item.incoterms || ""}`;
-                return {
-                  poId: po.id,
-                  yarnId: item.yarnId,
-                  colorName: item.colorName || null,
-                  colorCode: item.colorCode || null,
-                  colorReference: item.colorReference || null, // 🆕 自動生成採購單時，複製品項的 colorReference
-                  quantity: item.quantity || null,
-                  unitPrice: costPrices[key] ?? parseFloat(item.unitPrice),
-                  currency: item.currency || "USD",
-                  unit: item.unit || "per KG",
-                  weightBasis: item.weightBasis || "condition",
-                  incoterms: item.incoterms || null,
-                  notes: item.notes || null,
-                };
-              })
+              fItems.map((item: any) => ({
+                poId: po.id,
+                yarnId: item.yarnId,
+                colorName: item.colorName || null,
+                colorCode: item.colorCode || null,
+                colorReference: item.colorReference || null,
+                quantity: item.quantity || null,
+                unitPrice: costPrices[item.yarnId] ?? 0, // 帶入成本，不帶售價
+                currency: item.currency || "USD",
+                unit: item.unit || "per KG",
+                weightBasis: item.weightBasis || "condition",
+                incoterms: item.incoterms || null,
+                notes: item.notes || null,
+              }))
             );
           }
         }

@@ -401,9 +401,9 @@ export default function SalesOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium">Client</th>
               <th className="px-4 py-3 font-medium">Ship-To</th>
               <th className="px-4 py-3 font-medium text-center">Items</th>
-<th className="px-4 py-3 font-medium text-right">Total Qty</th>
-<th className="px-4 py-3 font-medium text-right">Total Amount</th>
-<th className="px-4 py-3 font-medium">SO Date</th>
+              <th className="px-4 py-3 font-medium text-right">Total Qty</th>
+              <th className="px-4 py-3 font-medium text-right">Total Amount</th>
+              <th className="px-4 py-3 font-medium">SO Date</th>
               <th className="px-4 py-3 font-medium">Delivery Date</th>
               <th className="px-4 py-3 font-medium">Status</th>
               {(permissions.canEdit || permissions.canDelete) && <th className="px-4 py-3 font-medium w-24">Actions</th>}
@@ -429,20 +429,20 @@ export default function SalesOrdersPage({ permissions }: Props) {
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{o.shipToName || "—"}</td>
                 <td className="px-4 py-3 text-center text-xs">{o.items.length}</td>
-<td className="px-4 py-3 text-right text-xs font-medium">
-  {(() => {
-    const totalQty = o.items.reduce((sum, i) => sum + (parseFloat(i.quantity) || 0), 0);
-    return totalQty > 0 ? `${totalQty.toLocaleString()} ${(o as any).quantityUnit || "KGS"}` : "—";
-  })()}
-</td>
-<td className="px-4 py-3 text-right text-xs font-mono font-medium">
-  {(() => {
-    const totalAmt = o.items.reduce((sum, i) => sum + ((parseFloat(i.quantity) || 0) * (i.unitPrice || 0)), 0);
-    const cur = o.items[0]?.currency || "USD";
-    return totalAmt > 0 ? `${cur} ${totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
-  })()}
-</td>
-<td className="px-4 py-3 text-xs text-slate-600">{o.soDate}</td>
+                <td className="px-4 py-3 text-right text-xs font-medium">
+                  {(() => {
+                    const totalQty = o.items.reduce((sum, i) => sum + (parseFloat(i.quantity) || 0), 0);
+                    return totalQty > 0 ? `${totalQty.toLocaleString()} ${(o as any).quantityUnit || "KGS"}` : "—";
+                  })()}
+                </td>
+                <td className="px-4 py-3 text-right text-xs font-mono font-medium">
+                  {(() => {
+                    const totalAmt = o.items.reduce((sum, i) => sum + ((parseFloat(i.quantity) || 0) * (i.unitPrice || 0)), 0);
+                    const cur = o.items[0]?.currency || "USD";
+                    return totalAmt > 0 ? `${cur} ${totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+                  })()}
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-600">{o.soDate}</td>
                 <td className="px-4 py-3 text-xs">{(() => {
                   if (!o.deliveryDate) return <span className="text-slate-400">—</span>;
                   const today = new Date().toISOString().split("T")[0];
@@ -920,7 +920,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                     onChange={(e) => setFAutoCreatePO(e.target.checked)}
                     className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Auto-create Purchase Order(s) to yarn mill(s)</span>
+                  <span>Auto-create Purchase Order(s) to yarn mill(s) — <span className="text-xs text-slate-500">costs default to your latest recorded price, not this SO&apos;s selling price</span></span>
                 </label>
                 <div className="flex gap-3">
                   <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
