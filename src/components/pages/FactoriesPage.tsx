@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirectory";
-import BankAccountsModal from "@/components/BankAccountsModal";
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
+import FapiaoInfoSection from "@/components/FapiaoInfoSection";
 
 interface Factory {
   id: number;
@@ -26,6 +26,14 @@ interface Factory {
   updatedByName: string;
   createdAt: string;
   updatedAt: string;
+  fapiaoCompanyName?: string | null;
+  fapiaoTaxId?: string | null;
+  fapiaoAddress?: string | null;
+  fapiaoPhone?: string | null;
+  fapiaoFax?: string | null;
+  fapiaoBankName?: string | null;
+  fapiaoBankAccount?: string | null;
+  fapiaoContact?: string | null;
 }
 
 interface Certificate { id: number; certCode: string; certFullName: string; }
@@ -38,8 +46,6 @@ export default function FactoriesPage({ permissions }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Factory | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Factory | null>(null);
-  const [viewingBankAccounts, setViewingBankAccounts] = useState<Factory | null>(null);
-  const [bankAccountCounts, setBankAccountCounts] = useState<Record<number, number>>({});
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [relationshipFilter, setRelationshipFilter] = useState("");
@@ -56,43 +62,21 @@ export default function FactoriesPage({ permissions }: Props) {
   const [parentId, setParentId] = useState<number | null>(null);
   const [status, setStatus] = useState("Active");
   const [formCertificates, setFormCertificates] = useState<number[]>([]);
+  const [fapiao, setFapiao] = useState({
+    fapiaoCompanyName: "", fapiaoTaxId: "", fapiaoAddress: "",
+    fapiaoPhone: "", fapiaoFax: "", fapiaoBankName: "",
+    fapiaoBankAccount: "", fapiaoContact: "",
+  });
 
-  // 完美修正後的安全加載函數
   const load = async () => {
     setLoading(true);
     try {
-      const [factoryRes, certificateRes, bankRes] = await Promise.all([
-        fetch("/api/factories").catch(() => null),
-        fetch("/api/certificates").catch(() => null),
-        fetch("/api/bank-accounts?entityType=factory").catch(() => null),
+      const [factoryData, certificateData] = await Promise.all([
+        fetch("/api/factories").then((r) => r.json()),
+        fetch("/api/certificates").then((r) => r.json()),
       ]);
-
-      if (factoryRes && factoryRes.ok) {
-        const factoryData = await factoryRes.json();
-        setFactories(Array.isArray(factoryData) ? factoryData : []);
-      } else {
-        setFactories([]);
-      }
-
-      if (certificateRes && certificateRes.ok) {
-        const certificateData = await certificateRes.json();
-        setCertificates(Array.isArray(certificateData) ? certificateData : []);
-      } else {
-        setCertificates([]);
-      }
-
-      const counts: Record<number, number> = {};
-      if (bankRes && bankRes.ok) {
-        const bankData = await bankRes.json();
-        if (Array.isArray(bankData)) {
-          for (const account of bankData) {
-            counts[account.entityId] = (counts[account.entityId] || 0) + 1;
-          }
-        }
-      }
-      setBankAccountCounts(counts);
-    } catch (err) {
-      console.error("Error loading factories page data:", err);
+      setFactories(Array.isArray(factoryData) ? factoryData : []);
+      setCertificates(Array.isArray(certificateData) ? certificateData : []);
     } finally {
       setLoading(false);
     }
@@ -131,6 +115,16 @@ export default function FactoriesPage({ permissions }: Props) {
     setParentId(factory?.parentFactoryId || null);
     setStatus(factory?.status || "Active");
     setFormCertificates(factory?.certIds || []);
+    setFapiao({
+      fapiaoCompanyName: factory?.fapiaoCompanyName || "",
+      fapiaoTaxId: factory?.fapiaoTaxId || "",
+      fapiaoAddress: factory?.fapiaoAddress || "",
+      fapiaoPhone: factory?.fapiaoPhone || "",
+      fapiaoFax: factory?.fapiaoFax || "",
+      fapiaoBankName: factory?.fapiaoBankName || "",
+      fapiaoBankAccount: factory?.fapiaoBankAccount || "",
+      fapiaoContact: factory?.fapiaoContact || "",
+    });
     setShowForm(true);
   };
 
@@ -155,6 +149,7 @@ export default function FactoriesPage({ permissions }: Props) {
           parentFactoryId: parentId,
           status,
           certIds: formCertificates,
+          ...fapiao,
           userId: getUserId(),
         }),
       });
@@ -225,14 +220,12 @@ export default function FactoriesPage({ permissions }: Props) {
             chips={factory.certNames || []}
             notes={factory.notes}
             contactCount={factory.contactCount || 0}
-            bankAccountCount={bankAccountCounts[factory.id] || 0}
             createdByName={factory.createdByName}
             updatedByName={factory.updatedByName}
             createdAt={factory.createdAt}
             updatedAt={factory.updatedAt}
             permissions={permissions}
             onContacts={() => setViewingContacts(factory)}
-            onBankAccounts={() => setViewingBankAccounts(factory)}
             onEdit={() => openForm(factory)}
             onDelete={() => remove(factory.id)}
           />
@@ -279,6 +272,12 @@ export default function FactoriesPage({ permissions }: Props) {
                 </div>
               )}
 
+               <FapiaoInfoSection
+                country={country}
+                values={fapiao}
+                onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
+              />
+
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editing ? "Update" : "Create"}</button>
@@ -296,15 +295,6 @@ export default function FactoriesPage({ permissions }: Props) {
         permissions={permissions}
         emptyText="No contacts yet for this yarn mill."
         onClose={() => setViewingContacts(null)}
-        onChanged={load}
-      />
-
-      <BankAccountsModal
-        entityType="factory"
-        entity={viewingBankAccounts ? { id: viewingBankAccounts.id, name: viewingBankAccounts.factoryName, officialName: viewingBankAccounts.officialName } : null}
-        entityLabel="Yarn Mill"
-        permissions={permissions}
-        onClose={() => setViewingBankAccounts(null)}
         onChanged={load}
       />
     </div>

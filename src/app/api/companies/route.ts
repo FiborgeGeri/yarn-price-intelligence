@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { companies, bankAccounts } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { companies } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
 export async function GET() {
@@ -23,19 +23,34 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, officialName, addressLocal, addressEnglish, telephone, logoPath, isDefault, notes, userId } = body;
+    const {
+      id, name, officialName, addressLocal, addressEnglish, country, telephone, logoPath, isDefault, notes,
+      fapiaoCompanyName, fapiaoTaxId, fapiaoAddress, fapiaoPhone,
+      fapiaoFax, fapiaoBankName, fapiaoBankAccount, fapiaoContact,
+      userId,
+    } = body;
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
-    if (isDefault) {
-      await db.update(companies).set({ isDefault: false });
-    }
+    const fapiaoFields = {
+      fapiaoCompanyName: fapiaoCompanyName || null,
+      fapiaoTaxId: fapiaoTaxId || null,
+      fapiaoAddress: fapiaoAddress || null,
+      fapiaoPhone: fapiaoPhone || null,
+      fapiaoFax: fapiaoFax || null,
+      fapiaoBankName: fapiaoBankName || null,
+      fapiaoBankAccount: fapiaoBankAccount || null,
+      fapiaoContact: fapiaoContact || null,
+    };
+
+    if (isDefault) { await db.update(companies).set({ isDefault: false }); }
 
     if (id) {
       await db.update(companies).set({
         name, officialName: officialName || null,
         addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
-        telephone: telephone || null, logoPath: logoPath || null,
+        country: country || null, telephone: telephone || null, logoPath: logoPath || null,
         isDefault: isDefault || false, notes: notes || null,
+        ...fapiaoFields,
         updatedAt: new Date(), updatedBy: userId || null,
       }).where(eq(companies.id, id));
       return NextResponse.json({ success: true, id });
@@ -44,8 +59,9 @@ export async function POST(req: NextRequest) {
     const [c] = await db.insert(companies).values({
       name, officialName: officialName || null,
       addressLocal: addressLocal || null, addressEnglish: addressEnglish || null,
-      telephone: telephone || null, logoPath: logoPath || null,
+      country: country || null, telephone: telephone || null, logoPath: logoPath || null,
       isDefault: isDefault || false, notes: notes || null,
+      ...fapiaoFields,
       createdBy: userId || null, updatedBy: userId || null,
     }).returning();
     return NextResponse.json({ success: true, id: c.id });
@@ -60,7 +76,6 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
     await db.delete(companies).where(eq(companies.id, parseInt(id)));
-    await db.delete(bankAccounts).where(and(eq(bankAccounts.entityType, "company"), eq(bankAccounts.entityId, parseInt(id))));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Companies DELETE error:", err);

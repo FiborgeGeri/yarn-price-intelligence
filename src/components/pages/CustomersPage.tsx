@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirectory";
-import BankAccountsModal from "@/components/BankAccountsModal";
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
+import FapiaoInfoSection from "@/components/FapiaoInfoSection";
 
 interface Client {
   id: number;
@@ -19,6 +19,14 @@ interface Client {
   updatedByName: string;
   createdAt: string;
   updatedAt: string;
+  fapiaoCompanyName?: string | null;
+  fapiaoTaxId?: string | null;
+  fapiaoAddress?: string | null;
+  fapiaoPhone?: string | null;
+  fapiaoFax?: string | null;
+  fapiaoBankName?: string | null;
+  fapiaoBankAccount?: string | null;
+  fapiaoContact?: string | null;
 }
 
 interface ClientContact {
@@ -35,12 +43,10 @@ interface Props { permissions: Permissions; }
 export default function ClientsPage({ permissions }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [allContacts, setAllContacts] = useState<ClientContact[]>([]);
-  const [allBankAccounts, setAllBankAccounts] = useState<{ entityId: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Client | null>(null);
-  const [viewingBankAccounts, setViewingBankAccounts] = useState<Client | null>(null);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
@@ -53,39 +59,21 @@ export default function ClientsPage({ permissions }: Props) {
   const [addressEnglish, setAddressEnglish] = useState("");
   const [telephone, setTelephone] = useState("");
   const [notes, setNotes] = useState("");
+  const [fapiao, setFapiao] = useState({
+    fapiaoCompanyName: "", fapiaoTaxId: "", fapiaoAddress: "",
+    fapiaoPhone: "", fapiaoFax: "", fapiaoBankName: "",
+    fapiaoBankAccount: "", fapiaoContact: "",
+  });
 
-  // 修正後的防禦性資料載入函數
   const load = async () => {
     setLoading(true);
     try {
-      const [clientRes, contactRes, bankRes] = await Promise.all([
-        fetch("/api/customers").catch(() => null),
-        fetch("/api/customer-contacts").catch(() => null),
-        fetch("/api/bank-accounts?entityType=customer").catch(() => null),
+      const [clientData, contactData] = await Promise.all([
+        fetch("/api/customers").then((r) => r.json()),
+        fetch("/api/customer-contacts").then((r) => r.json()),
       ]);
-
-      if (clientRes && clientRes.ok) {
-        const clientData = await clientRes.json();
-        setClients(Array.isArray(clientData) ? clientData : []);
-      } else {
-        setClients([]);
-      }
-
-      if (contactRes && contactRes.ok) {
-        const contactData = await contactRes.json();
-        setAllContacts(Array.isArray(contactData) ? contactData : []);
-      } else {
-        setAllContacts([]);
-      }
-
-      if (bankRes && bankRes.ok) {
-        const bankData = await bankRes.json();
-        setAllBankAccounts(Array.isArray(bankData) ? bankData : []);
-      } else {
-        setAllBankAccounts([]);
-      }
-    } catch (err) {
-      console.error("Error loading clients page data:", err);
+      setClients(Array.isArray(clientData) ? clientData : []);
+      setAllContacts(Array.isArray(contactData) ? contactData : []);
     } finally {
       setLoading(false);
     }
@@ -103,12 +91,6 @@ export default function ClientsPage({ permissions }: Props) {
     for (const contact of allContacts) map[contact.customerId] = (map[contact.customerId] || 0) + 1;
     return map;
   }, [allContacts]);
-
-  const bankAccountCountMap = useMemo(() => {
-    const map: Record<number, number> = {};
-    for (const account of allBankAccounts) map[account.entityId] = (map[account.entityId] || 0) + 1;
-    return map;
-  }, [allBankAccounts]);
 
   const contactSearchMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -145,6 +127,16 @@ export default function ClientsPage({ permissions }: Props) {
     setAddressEnglish(client?.addressEnglish || "");
     setTelephone(client?.telephone || "");
     setNotes(client?.notes || "");
+    setFapiao({
+      fapiaoCompanyName: client?.fapiaoCompanyName || "",
+      fapiaoTaxId: client?.fapiaoTaxId || "",
+      fapiaoAddress: client?.fapiaoAddress || "",
+      fapiaoPhone: client?.fapiaoPhone || "",
+      fapiaoFax: client?.fapiaoFax || "",
+      fapiaoBankName: client?.fapiaoBankName || "",
+      fapiaoBankAccount: client?.fapiaoBankAccount || "",
+      fapiaoContact: client?.fapiaoContact || "",
+    });
     setShowForm(true);
   };
 
@@ -165,6 +157,7 @@ export default function ClientsPage({ permissions }: Props) {
           addressEnglish,
           telephone,
           notes,
+          ...fapiao,
           userId: getUserId(),
         }),
       });
@@ -229,14 +222,12 @@ export default function ClientsPage({ permissions }: Props) {
             telephone={client.telephone}
             notes={client.notes}
             contactCount={contactCountMap[client.id] || 0}
-            bankAccountCount={bankAccountCountMap[client.id] || 0}
             createdByName={client.createdByName}
             updatedByName={client.updatedByName}
             createdAt={client.createdAt}
             updatedAt={client.updatedAt}
             permissions={permissions}
             onContacts={() => setViewingContacts(client)}
-            onBankAccounts={() => setViewingBankAccounts(client)}
             onEdit={() => openForm(client)}
             onDelete={() => remove(client.id)}
           />
@@ -261,6 +252,13 @@ export default function ClientsPage({ permissions }: Props) {
               </div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (Local Language)</label><textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} placeholder="Full address in local language" /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (English)</label><textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} placeholder="Full address in English" /></div>
+              
+              <FapiaoInfoSection
+                country={country}
+                values={fapiao}
+                onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
+              />
+
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editing ? "Update" : "Create"}</button>
@@ -278,15 +276,6 @@ export default function ClientsPage({ permissions }: Props) {
         permissions={permissions}
         emptyText="No contacts yet for this client."
         onClose={() => setViewingContacts(null)}
-        onChanged={load}
-      />
-
-      <BankAccountsModal
-        entityType="customer"
-        entity={viewingBankAccounts ? { id: viewingBankAccounts.id, name: viewingBankAccounts.name, officialName: viewingBankAccounts.officialName } : null}
-        entityLabel="Client"
-        permissions={permissions}
-        onClose={() => setViewingBankAccounts(null)}
         onChanged={load}
       />
     </div>

@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
-import BankAccountsModal from "@/components/BankAccountsModal";
+import FapiaoInfoSection from "@/components/FapiaoInfoSection";
 
 interface Company {
   id: number;
@@ -11,6 +11,7 @@ interface Company {
   officialName: string;
   addressLocal: string;
   addressEnglish: string;
+  country: string;
   telephone: string;
   logoPath: string;
   isDefault: boolean;
@@ -19,6 +20,14 @@ interface Company {
   updatedByName: string;
   createdAt: string;
   updatedAt: string;
+  fapiaoCompanyName?: string | null;
+  fapiaoTaxId?: string | null;
+  fapiaoAddress?: string | null;
+  fapiaoPhone?: string | null;
+  fapiaoFax?: string | null;
+  fapiaoBankName?: string | null;
+  fapiaoBankAccount?: string | null;
+  fapiaoContact?: string | null;
 }
 
 interface Props { permissions: Permissions; }
@@ -47,8 +56,6 @@ export default function CompaniesPage({ permissions }: Props) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
-  const [viewingBankAccounts, setViewingBankAccounts] = useState<Company | null>(null);
-  const [bankAccountCounts, setBankAccountCounts] = useState<Record<number, number>>({});
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -56,39 +63,22 @@ export default function CompaniesPage({ permissions }: Props) {
   const [officialName, setOfficialName] = useState("");
   const [addressLocal, setAddressLocal] = useState("");
   const [addressEnglish, setAddressEnglish] = useState("");
+  const [country, setCountry] = useState("");
   const [telephone, setTelephone] = useState("");
   const [logoPath, setLogoPath] = useState("");
   const [isDefault, setIsDefault] = useState(false);
   const [notes, setNotes] = useState("");
+  const [fapiao, setFapiao] = useState({
+    fapiaoCompanyName: "", fapiaoTaxId: "", fapiaoAddress: "",
+    fapiaoPhone: "", fapiaoFax: "", fapiaoBankName: "",
+    fapiaoBankAccount: "", fapiaoContact: "",
+  });
 
-  // 完美修正後的安全加載函數 (已除去 c 殘留)
   const load = async () => {
     setLoading(true);
     try {
-      const [companyRes, bankRes] = await Promise.all([
-        fetch("/api/companies").catch(() => null),
-        fetch("/api/bank-accounts?entityType=company").catch(() => null),
-      ]);
-
-      if (companyRes && companyRes.ok) {
-        const data = await companyRes.json();
-        setCompanies(Array.isArray(data) ? data : []);
-      } else {
-        setCompanies([]);
-      }
-
-      const counts: Record<number, number> = {};
-      if (bankRes && bankRes.ok) {
-        const bankData = await bankRes.json();
-        if (Array.isArray(bankData)) {
-          for (const account of bankData) {
-            counts[account.entityId] = (counts[account.entityId] || 0) + 1;
-          }
-        }
-      }
-      setBankAccountCounts(counts);
-    } catch (err) {
-      console.error("Error loading companies page data:", err);
+      const data = await fetch("/api/companies").then((r) => r.json());
+      setCompanies(Array.isArray(data) ? data : []);
     } finally {
       setLoading(false);
     }
@@ -102,10 +92,21 @@ export default function CompaniesPage({ permissions }: Props) {
     setOfficialName(company?.officialName || "");
     setAddressLocal(company?.addressLocal || "");
     setAddressEnglish(company?.addressEnglish || "");
+    setCountry(company?.country || "");
     setTelephone(company?.telephone || "");
     setLogoPath(company?.logoPath || "");
     setIsDefault(company?.isDefault || false);
     setNotes(company?.notes || "");
+    setFapiao({
+      fapiaoCompanyName: company?.fapiaoCompanyName || "",
+      fapiaoTaxId: company?.fapiaoTaxId || "",
+      fapiaoAddress: company?.fapiaoAddress || "",
+      fapiaoPhone: company?.fapiaoPhone || "",
+      fapiaoFax: company?.fapiaoFax || "",
+      fapiaoBankName: company?.fapiaoBankName || "",
+      fapiaoBankAccount: company?.fapiaoBankAccount || "",
+      fapiaoContact: company?.fapiaoContact || "",
+    });
     setShowForm(true);
   };
 
@@ -123,10 +124,12 @@ export default function CompaniesPage({ permissions }: Props) {
           officialName,
           addressLocal,
           addressEnglish,
+          country,
           telephone,
           logoPath,
           isDefault,
           notes,
+          ...fapiao,
           userId: getUserId(),
         }),
       });
@@ -178,14 +181,12 @@ export default function CompaniesPage({ permissions }: Props) {
                 {company.officialName && <div className="text-xs text-slate-400 mt-0.5">{company.officialName}</div>}
                 {company.addressEnglish && <div className="text-xs text-slate-500 mt-2 whitespace-pre-line">{company.addressEnglish}</div>}
                 {company.addressLocal && company.addressLocal !== company.addressEnglish && <div className="text-xs text-slate-400 mt-1 whitespace-pre-line">{company.addressLocal}</div>}
+                {company.country && <div className="text-xs text-slate-400 mt-1">Country: {company.country}</div>}
                 {company.telephone && <div className="text-xs text-slate-400 mt-1">Tel: {company.telephone}</div>}
                 {company.notes && <div className="text-xs text-slate-400 mt-2">{company.notes}</div>}
                 <AuditInfo createdByName={company.createdByName} updatedByName={company.updatedByName} className="mt-3 pt-2 border-t border-slate-100" />
               </div>
               <div className="flex flex-col gap-1 shrink-0 items-end">
-                <button onClick={() => setViewingBankAccounts(company)} className="text-emerald-700 hover:text-emerald-900 text-xs px-2 py-1 font-medium underline whitespace-nowrap">
-                  {bankAccountCounts[company.id] || 0} bank a/c{(bankAccountCounts[company.id] || 0) !== 1 ? "s" : ""} →
-                </button>
                 {permissions.canEdit && <button onClick={() => openForm(company)} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
                 {permissions.canDelete && <button onClick={() => handleDelete(company.id)} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Delete</button>}
               </div>
@@ -222,19 +223,30 @@ export default function CompaniesPage({ permissions }: Props) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Country</label>
+                  <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. China, Hong Kong" />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Telephone</label>
                   <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL or Path</label>
-                  <input value={logoPath} onChange={(e) => setLogoPath(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="https://drive.google.com/file/d/... or /images/logo.png" />
-                  <p className="text-[10px] text-slate-400 mt-1">Paste a Google Drive share link or an app path like /images/logo.png</p>
-                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL or Path</label>
+                <input value={logoPath} onChange={(e) => setLogoPath(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="https://drive.google.com/file/d/... or /images/logo.png" />
+                <p className="text-[10px] text-slate-400 mt-1">Paste a Google Drive share link or an app path like /images/logo.png</p>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                 <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="w-4 h-4 rounded border-slate-300" />
                 <span>Set as default company for new orders</span>
               </label>
+
+              <FapiaoInfoSection
+                country={country}
+                values={fapiao}
+                onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
+              />
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} />
@@ -247,15 +259,6 @@ export default function CompaniesPage({ permissions }: Props) {
           </div>
         </div>
       )}
-
-      <BankAccountsModal
-        entityType="company"
-        entity={viewingBankAccounts ? { id: viewingBankAccounts.id, name: viewingBankAccounts.name, officialName: viewingBankAccounts.officialName } : null}
-        entityLabel="Company"
-        permissions={permissions}
-        onClose={() => setViewingBankAccounts(null)}
-        onChanged={load}
-      />
     </div>
   );
 }

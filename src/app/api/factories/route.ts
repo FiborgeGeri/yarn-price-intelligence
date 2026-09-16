@@ -1,59 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { factories, yarns, factoryCertificates, factoryContacts, certificates, bankAccounts } from "@/db/schema";
-import { and, eq, sql, inArray } from "drizzle-orm";
+import { factories, yarns, factoryCertificates, factoryContacts, certificates } from "@/db/schema";
+import { eq, sql, inArray } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
 export async function GET() {
   try {
     const allFactories = await db.select().from(factories).orderBy(factories.factoryName);
-
     const yarnCounts = await db
       .select({ factoryId: yarns.factoryId, count: sql<number>`count(*)::int` })
-      .from(yarns)
-      .groupBy(yarns.factoryId);
-
+      .from(yarns).groupBy(yarns.factoryId);
     const countMap: Record<number, number> = {};
-    for (const yc of yarnCounts) {
-      if (yc.factoryId) countMap[yc.factoryId] = yc.count;
-    }
-
+    for (const yc of yarnCounts) { if (yc.factoryId) countMap[yc.factoryId] = yc.count; }
     const factoryIds = allFactories.map((f) => f.id);
-
     const certMap: Record<number, number[]> = {};
     if (factoryIds.length > 0) {
-      const fCerts = await db
-        .select()
-        .from(factoryCertificates)
-        .where(inArray(factoryCertificates.factoryId, factoryIds));
-
-      for (const fc of fCerts) {
-        if (fc.factoryId) {
-          if (!certMap[fc.factoryId]) certMap[fc.factoryId] = [];
-          certMap[fc.factoryId].push(fc.certificateId!);
-        }
-      }
+      const fCerts = await db.select().from(factoryCertificates).where(inArray(factoryCertificates.factoryId, factoryIds));
+      for (const fc of fCerts) { if (fc.factoryId) { if (!certMap[fc.factoryId]) certMap[fc.factoryId] = []; certMap[fc.factoryId].push(fc.certificateId!); } }
     }
-
     const allCerts = await db.select().from(certificates);
     const certNameMap: Record<number, string> = {};
     for (const c of allCerts) certNameMap[c.id] = c.certCode;
-
     const contactMap: Record<number, number> = {};
     if (factoryIds.length > 0) {
-      const contactCounts = await db
-        .select({
-          factoryId: factoryContacts.factoryId,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(factoryContacts)
-        .groupBy(factoryContacts.factoryId);
-
-      for (const cc of contactCounts) {
-        if (cc.factoryId) contactMap[cc.factoryId] = cc.count;
-      }
+      const contactCounts = await db.select({ factoryId: factoryContacts.factoryId, count: sql<number>`count(*)::int` }).from(factoryContacts).groupBy(factoryContacts.factoryId);
+      for (const cc of contactCounts) { if (cc.factoryId) contactMap[cc.factoryId] = cc.count; }
     }
-
     const userMap = await getUserMap();
     const result = allFactories.map((f) => ({
       ...f,
@@ -64,7 +36,6 @@ export async function GET() {
       createdByName: f.createdBy ? userMap[f.createdBy] || null : null,
       updatedByName: f.updatedBy ? userMap[f.updatedBy] || null : null,
     }));
-
     return NextResponse.json(result);
   } catch (err) {
     console.error("Factories GET error:", err);
@@ -76,20 +47,23 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id,
-      factoryName,
-      officialName,
-      addressLocal,
-      addressEnglish,
-      country,
-      telephone,
-      notes,
-      relationship,
-      parentFactoryId,
-      status,
-      certIds,
+      id, factoryName, officialName, addressLocal, addressEnglish, country, telephone, notes,
+      relationship, parentFactoryId, status, certIds,
+      fapiaoCompanyName, fapiaoTaxId, fapiaoAddress, fapiaoPhone,
+      fapiaoFax, fapiaoBankName, fapiaoBankAccount, fapiaoContact,
       userId,
     } = body;
+
+    const fapiaoFields = {
+      fapiaoCompanyName: fapiaoCompanyName || null,
+      fapiaoTaxId: fapiaoTaxId || null,
+      fapiaoAddress: fapiaoAddress || null,
+      fapiaoPhone: fapiaoPhone || null,
+      fapiaoFax: fapiaoFax || null,
+      fapiaoBankName: fapiaoBankName || null,
+      fapiaoBankAccount: fapiaoBankAccount || null,
+      fapiaoContact: fapiaoContact || null,
+    };
 
     if (id) {
       await db.update(factories).set({
@@ -103,19 +77,12 @@ export async function POST(req: NextRequest) {
         relationship: relationship || "My Factory",
         parentFactoryId: parentFactoryId || null,
         status: status || "Active",
+        ...fapiaoFields,
         updatedAt: new Date(),
         updatedBy: userId || null,
       }).where(eq(factories.id, id));
-
       await db.delete(factoryCertificates).where(eq(factoryCertificates.factoryId, id));
-      if (certIds?.length) {
-        await db.insert(factoryCertificates).values(
-          certIds.map((cid: number) => ({
-            factoryId: id,
-            certificateId: cid,
-          }))
-        );
-      }
+      if (certIds?.length) { await db.insert(factoryCertificates).values(certIds.map((cid: number) => ({ factoryId: id, certificateId: cid }))); }
       return NextResponse.json({ success: true, id });
     } else {
       const [f] = await db.insert(factories).values({
@@ -129,18 +96,11 @@ export async function POST(req: NextRequest) {
         relationship: relationship || "My Factory",
         parentFactoryId: parentFactoryId || null,
         status: status || "Active",
+        ...fapiaoFields,
         createdBy: userId || null,
         updatedBy: userId || null,
       }).returning();
-
-      if (certIds?.length && f) {
-        await db.insert(factoryCertificates).values(
-          certIds.map((cid: number) => ({
-            factoryId: f.id,
-            certificateId: cid,
-          }))
-        );
-      }
+      if (certIds?.length && f) { await db.insert(factoryCertificates).values(certIds.map((cid: number) => ({ factoryId: f.id, certificateId: cid }))); }
       return NextResponse.json({ success: true, id: f.id });
     }
   } catch (err) {
@@ -154,7 +114,6 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
     await db.delete(factories).where(eq(factories.id, parseInt(id)));
-    await db.delete(bankAccounts).where(and(eq(bankAccounts.entityType, "factory"), eq(bankAccounts.entityId, parseInt(id))));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Factories DELETE error:", err);
