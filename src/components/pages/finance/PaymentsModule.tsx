@@ -52,7 +52,11 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
   const [toast, setToast] = useState<Toast | null>(null);
   const [tab, setTab] = useState<"outstanding" | "history">("outstanding");
 
+  // Modal states
   const [payingDoc, setPayingDoc] = useState<DocRow | null>(null);
+  const [viewingPay, setViewingPay] = useState<PayRow | null>(null);
+  const [editingPay, setEditingPay] = useState<PayRow | null>(null);
+
   const [pDate, setPDate] = useState(new Date().toISOString().slice(0, 10));
   const [pAmount, setPAmount] = useState("");
   const [pMethod, setPMethod] = useState(METHODS[0]);
@@ -100,21 +104,75 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
 
   const openPay = (d: DocRow) => {
     setPayingDoc(d);
+    setEditingPay(null);
     setPAmount(d.outstanding.toFixed(2));
     setPDate(new Date().toISOString().slice(0, 10));
     setPMethod(METHODS[0]); setPRef(""); setPNotes("");
   };
 
+  const openEdit = (p: PayRow) => {
+    setEditingPay(p);
+    setPayingDoc(null);
+    setViewingPay(null);
+    setPDate(p.paymentDate);
+    setPAmount(String(p.amount));
+    setPMethod(p.method || METHODS[0]);
+    setPRef(p.reference || "");
+    setPNotes(p.notes || "");
+  };
+
   const submitPay = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!payingDoc || !(parseFloat(pAmount) > 0)) return;
+    if (!(parseFloat(pAmount) > 0)) return;
     setSaving(true);
-    const res = await fetch(paysApi, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [idField]: payingDoc.id, paymentDate: pDate, amount: pAmount, currency: payingDoc.currency, method: pMethod, reference: pRef, notes: pNotes, userId: getUserId() }),
-    });
-    if (res.ok) { showToast({ type: "success", text: "Payment recorded" }); setPayingDoc(null); load(); }
-    else { const d = await res.json().catch(() => ({ error: "Failed" })); showToast({ type: "error", text: d.error || "Failed" }); }
+
+    let res;
+    if (editingPay) {
+      const linkedId = isSales ? editingPay.invoiceId : editingPay.supplierInvoiceId;
+      res = await fetch(paysApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingPay.id,
+          [idField]: linkedId,
+          paymentDate: pDate,
+          amount: pAmount,
+          currency: editingPay.currency,
+          method: pMethod,
+          reference: pRef,
+          notes: pNotes,
+          userId: getUserId(),
+        }),
+      });
+    } else if (payingDoc) {
+      res = await fetch(paysApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          [idField]: payingDoc.id,
+          paymentDate: pDate,
+          amount: pAmount,
+          currency: payingDoc.currency,
+          method: pMethod,
+          reference: pRef,
+          notes: pNotes,
+          userId: getUserId(),
+        }),
+      });
+    } else {
+      setSaving(false);
+      return;
+    }
+
+    if (res.ok) {
+      showToast({ type: "success", text: editingPay ? "Payment updated" : "Payment recorded" });
+      setPayingDoc(null);
+      setEditingPay(null);
+      load();
+    } else {
+      const d = await res.json().catch(() => ({ error: "Failed" }));
+      showToast({ type: "error", text: d.error || "Failed" });
+    }
     setSaving(false);
   };
 
@@ -125,6 +183,14 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
     if (res.ok) { showToast({ type: "success", text: "Deleted" }); load(); }
     else showToast({ type: "error", text: "Delete failed" });
   };
+
+  const modalIsOpen = payingDoc || editingPay;
+  const modalTitle = editingPay ? "Edit Payment" : "Record Payment";
+  const modalContext = editingPay
+    ? { docNo: (isSales ? editingPay.invoiceNo : (editingPay.supplierInvoiceNo || editingPay.internalNo)) || `#${editingPay.id}`, party: (isSales ? editingPay.customerName : editingPay.factoryName) || "—", currency: editingPay.currency || "USD" }
+    : payingDoc
+    ? { docNo: docNo(payingDoc), party: partyOf(payingDoc), currency: payingDoc.currency }
+    : null;
 
   return (
     <div className="space-y-4">
@@ -201,7 +267,7 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                   <th className="px-4 py-3 font-medium">Method</th>
                   <th className="px-4 py-3 font-medium">Reference</th>
                   <th className="px-4 py-3 font-medium">By</th>
-                  {permissions.canDelete && <th className="px-4 py-3 font-medium text-right">Action</th>}
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,7 +282,11 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                     <td className="px-4 py-3 text-xs">{p.method || "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.reference || "—"}</td>
                     <td className="px-4 py-3 text-xs text-slate-400">{p.createdByName || "—"}</td>
-                    {permissions.canDelete && <td className="px-4 py-3 text-right"><button onClick={() => deletePay(p)} className="text-red-500 hover:text-red-700 text-xs">Delete</button></td>}
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button onClick={() => setViewingPay(p)} className="text-slate-500 hover:text-slate-700 text-xs mr-2">View</button>
+                      {permissions.canEdit && <button onClick={() => openEdit(p)} className="text-blue-600 hover:text-blue-800 text-xs mr-2">Edit</button>}
+                      {permissions.canDelete && <button onClick={() => deletePay(p)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -227,30 +297,84 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
 
       <p className="text-xs text-slate-400">Payments {direction}. Recording a payment automatically advances the invoice status to Partially Paid / Paid.</p>
 
-      {/* record payment modal */}
-      {payingDoc && permissions.canEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setPayingDoc(null)}>
+      {/* View payment modal */}
+      {viewingPay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingPay(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold">Record Payment</h2>
-                <p className="text-xs text-slate-500 mt-0.5 font-mono">{docNo(payingDoc)} · {partyOf(payingDoc)}</p>
+                <h2 className="text-lg font-semibold">Payment Detail</h2>
+                <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                  {(isSales ? viewingPay.invoiceNo : (viewingPay.supplierInvoiceNo || viewingPay.internalNo)) || `#${viewingPay.id}`} · {(isSales ? viewingPay.customerName : viewingPay.factoryName) || "—"}
+                </p>
               </div>
-              <button onClick={() => setPayingDoc(null)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+              <button onClick={() => setViewingPay(null)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div className="text-xs text-emerald-600 font-medium mb-1">Amount</div>
+                <div className="text-2xl font-bold font-mono text-emerald-700">{fmt(viewingPay.amount, viewingPay.currency)}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Payment Date</div>
+                  <div className="font-medium">{viewingPay.paymentDate}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Method</div>
+                  <div className="font-medium">{viewingPay.method || "—"}</div>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 mb-1">Reference</div>
+                <div className="font-mono text-sm">{viewingPay.reference || "—"}</div>
+              </div>
+              {viewingPay.notes && (
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Notes</div>
+                  <div className="bg-slate-50 rounded p-2 text-slate-700 whitespace-pre-line text-xs">{viewingPay.notes}</div>
+                </div>
+              )}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                <span>Recorded by: {viewingPay.createdByName || "—"}</span>
+                <div className="flex gap-2">
+                  {permissions.canEdit && (
+                    <button onClick={() => openEdit(viewingPay)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Edit</button>
+                  )}
+                  <button onClick={() => setViewingPay(null)} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record / Edit payment modal */}
+      {modalIsOpen && permissions.canEdit && modalContext && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setPayingDoc(null); setEditingPay(null); }}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">{modalTitle}</h2>
+                <p className="text-xs text-slate-500 mt-0.5 font-mono">{modalContext.docNo} · {modalContext.party}</p>
+              </div>
+              <button onClick={() => { setPayingDoc(null); setEditingPay(null); }} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={submitPay} className="p-4 space-y-3">
-              <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 text-sm space-y-1 font-mono">
-                <div className="flex justify-between"><span className="text-slate-500">Invoice total</span><span>{fmt(payingDoc.total, payingDoc.currency)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Already paid</span><span className="text-emerald-600">{fmt(payingDoc.paid, payingDoc.currency)}</span></div>
-                <div className="flex justify-between font-semibold"><span>Outstanding</span><span className="text-amber-600">{fmt(payingDoc.outstanding, payingDoc.currency)}</span></div>
-              </div>
+              {payingDoc && !editingPay && (
+                <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 text-sm space-y-1 font-mono">
+                  <div className="flex justify-between"><span className="text-slate-500">Invoice total</span><span>{fmt(payingDoc.total, payingDoc.currency)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Already paid</span><span className="text-emerald-600">{fmt(payingDoc.paid, payingDoc.currency)}</span></div>
+                  <div className="flex justify-between font-semibold"><span>Outstanding</span><span className="text-amber-600">{fmt(payingDoc.outstanding, payingDoc.currency)}</span></div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
                   <input type="date" value={pDate} onChange={(e) => setPDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Amount ({payingDoc.currency}) *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Amount ({modalContext.currency}) *</label>
                   <input type="number" step="0.01" min="0.01" value={pAmount} onChange={(e) => setPAmount(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
                 </div>
               </div>
@@ -267,8 +391,10 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                 <input type="text" value={pNotes} onChange={(e) => setPNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
               </div>
               <div className="flex gap-3 pt-1">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">{saving ? "Saving…" : "Record Payment"}</button>
-                <button type="button" onClick={() => setPayingDoc(null)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Cancel</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                  {saving ? "Saving…" : editingPay ? "Save Changes" : "Record Payment"}
+                </button>
+                <button type="button" onClick={() => { setPayingDoc(null); setEditingPay(null); }} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Cancel</button>
               </div>
             </form>
           </div>
