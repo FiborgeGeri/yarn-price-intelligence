@@ -5,6 +5,7 @@ import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirec
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
 import FapiaoInfoSection from "@/components/FapiaoInfoSection";
+import DirectoryViewModal from "@/components/DirectoryViewModal";
 
 interface Client {
   id: number;
@@ -47,6 +48,7 @@ export default function ClientsPage({ permissions }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Client | null>(null);
+  const [viewingEntity, setViewingEntity] = useState<Client | null>(null);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
@@ -230,6 +232,7 @@ export default function ClientsPage({ permissions }: Props) {
             onContacts={() => setViewingContacts(client)}
             onEdit={() => openForm(client)}
             onDelete={() => remove(client.id)}
+            onView={() => setViewingEntity(client)}
           />
         ))}
       </div>
@@ -278,6 +281,18 @@ export default function ClientsPage({ permissions }: Props) {
         emptyText="No contacts yet for this client."
         onClose={() => setViewingContacts(null)}
         onChanged={load}
+      />
+      <DirectoryViewModal
+        entity={viewingEntity ? {
+          ...viewingEntity,
+          addressLocal: viewingEntity.addressLocal,
+          addressEnglish: viewingEntity.addressEnglish,
+        } : null}
+        entityType="customer"
+        entityLabel="Client"
+        contactsEndpoint="/api/customer-contacts"
+        contactsForeignKey="customerId"
+        onClose={() => setViewingEntity(null)}
       />
     </div>
   );

@@ -15,7 +15,6 @@ interface Props {
   values: FapiaoInfo;
   onChange: (field: keyof FapiaoInfo, value: string) => void;
   country?: string;
-  // 用於智能預填：如果 fapiao 欄位為空，會用這些值當 placeholder 提示
   defaultCompanyName?: string;
   defaultAddress?: string;
 }
@@ -41,13 +40,9 @@ export default function FapiaoInfoSection({
 
   const hasAnyData = Object.values(values).some((v) => v && String(v).trim() !== "");
 
-  // 智能預填 placeholder：如果沒填 fapiao 但有 officialName / addressLocal，用它們作提示
-  const companyPlaceholder = defaultCompanyName
-    ? defaultCompanyName
-    : "公司完整登記名稱";
-  const addressPlaceholder = defaultAddress
-    ? defaultAddress
-    : "公司登記地址";
+  // 檢查目前的公司名稱/地址是否與預設值相同
+  const companyNameMatchesDefault = !!defaultCompanyName && values.fapiaoCompanyName === defaultCompanyName;
+  const addressMatchesDefault = !!defaultAddress && values.fapiaoAddress === defaultAddress;
 
   return (
     <div className="mt-4 border-t border-slate-200 pt-4">
@@ -62,20 +57,27 @@ export default function FapiaoInfoSection({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="sm:col-span-2">
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            公司名稱 Company Name
-            {!values.fapiaoCompanyName && defaultCompanyName && (
-              <span className="ml-2 text-[10px] text-blue-500 font-normal">
-                (defaults to Official Name if left empty)
-              </span>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-slate-600">
+              公司名稱 Company Name
+            </label>
+            {defaultCompanyName && !companyNameMatchesDefault && (
+              <button
+                type="button"
+                onClick={() => onChange("fapiaoCompanyName", defaultCompanyName)}
+                className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                title={`Use Official Name: ${defaultCompanyName}`}
+              >
+                ⟲ Use Official Name
+              </button>
             )}
-          </label>
+          </div>
           <input
             type="text"
             value={values.fapiaoCompanyName || ""}
             onChange={(e) => onChange("fapiaoCompanyName", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            placeholder={companyPlaceholder}
+            placeholder="公司完整登記名稱"
           />
         </div>
 
@@ -102,20 +104,27 @@ export default function FapiaoInfoSection({
         </div>
 
         <div className="sm:col-span-2">
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            地址 Address
-            {!values.fapiaoAddress && defaultAddress && (
-              <span className="ml-2 text-[10px] text-blue-500 font-normal">
-                (defaults to Local Address if left empty)
-              </span>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-slate-600">
+              地址 Address
+            </label>
+            {defaultAddress && !addressMatchesDefault && (
+              <button
+                type="button"
+                onClick={() => onChange("fapiaoAddress", defaultAddress)}
+                className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                title={`Use Local Address: ${defaultAddress}`}
+              >
+                ⟲ Use Local Address
+              </button>
             )}
-          </label>
+          </div>
           <textarea
             value={values.fapiaoAddress || ""}
             onChange={(e) => onChange("fapiaoAddress", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             rows={2}
-            placeholder={addressPlaceholder}
+            placeholder="公司登記地址"
           />
         </div>
 
@@ -163,6 +172,12 @@ export default function FapiaoInfoSection({
           />
         </div>
       </div>
+
+      {(defaultCompanyName || defaultAddress) && (
+        <p className="text-[10px] text-slate-400 mt-2">
+          💡 Tip: Click <span className="text-blue-600 font-medium">⟲ Use Official Name / Use Local Address</span> to copy values from the main fields above.
+        </p>
+      )}
     </div>
   );
 }

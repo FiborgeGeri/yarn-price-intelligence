@@ -4,6 +4,7 @@ import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import FapiaoInfoSection from "@/components/FapiaoInfoSection";
+import DirectoryViewModal from "@/components/DirectoryViewModal";
 
 interface Company {
   id: number;
@@ -56,6 +57,7 @@ export default function CompaniesPage({ permissions }: Props) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
+  const [viewingEntity, setViewingEntity] = useState<Company | null>(null);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -187,6 +189,7 @@ export default function CompaniesPage({ permissions }: Props) {
                 <AuditInfo createdByName={company.createdByName} updatedByName={company.updatedByName} className="mt-3 pt-2 border-t border-slate-100" />
               </div>
               <div className="flex flex-col gap-1 shrink-0 items-end">
+                <button onClick={() => setViewingEntity(company)} className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1">View</button>
                 {permissions.canEdit && <button onClick={() => openForm(company)} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
                 {permissions.canDelete && <button onClick={() => handleDelete(company.id)} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Delete</button>}
               </div>
@@ -241,7 +244,7 @@ export default function CompaniesPage({ permissions }: Props) {
                 <span>Set as default company for new orders</span>
               </label>
 
-             <FapiaoInfoSection
+              <FapiaoInfoSection
                 country={country}
                 values={fapiao}
                 defaultCompanyName={officialName}
@@ -261,6 +264,13 @@ export default function CompaniesPage({ permissions }: Props) {
           </div>
         </div>
       )}
+
+      <DirectoryViewModal
+        entity={viewingEntity}
+        entityType="company"
+        entityLabel="Company"
+        onClose={() => setViewingEntity(null)}
+      />
     </div>
   );
 }

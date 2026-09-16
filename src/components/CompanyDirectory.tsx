@@ -38,6 +38,7 @@ interface DirectoryCardProps {
   onBankAccounts?: () => void;
   onEdit: () => void;
   onDelete: () => void;
+ onView?: () => void;
 }
 
 const badgeTone = {
@@ -57,8 +58,8 @@ export function DirectoryCard({
   summary,
   chips = [],
   notes,
-  contactCount,
-  bankAccountCount,
+  contactCount = 0,
+  bankAccountCount = 0,
   createdByName,
   updatedByName,
   createdAt,
@@ -68,6 +69,7 @@ export function DirectoryCard({
   onBankAccounts,
   onEdit,
   onDelete,
+  onView, 
 }: DirectoryCardProps) {
   return (
     <article className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 min-h-[230px]">
@@ -123,6 +125,7 @@ export function DirectoryCard({
               {bankAccountCount || 0} bank a/c{(bankAccountCount || 0) !== 1 ? "s" : ""} →
             </button>
           )}
+         {onView && <button onClick={onView} className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1">View</button>}
           {permissions.canEdit && <button onClick={onEdit} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
           {permissions.canDelete && <button onClick={onDelete} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Delete</button>}
         </div>

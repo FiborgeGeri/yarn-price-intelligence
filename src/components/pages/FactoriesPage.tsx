@@ -5,6 +5,7 @@ import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirec
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
 import FapiaoInfoSection from "@/components/FapiaoInfoSection";
+import DirectoryViewModal from "@/components/DirectoryViewModal";
 
 interface Factory {
   id: number;
@@ -46,6 +47,7 @@ export default function FactoriesPage({ permissions }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Factory | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Factory | null>(null);
+  const [viewingEntity, setViewingEntity] = useState<Factory | null>(null);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [relationshipFilter, setRelationshipFilter] = useState("");
@@ -228,6 +230,7 @@ export default function FactoriesPage({ permissions }: Props) {
             onContacts={() => setViewingContacts(factory)}
             onEdit={() => openForm(factory)}
             onDelete={() => remove(factory.id)}
+            onView={() => setViewingEntity(factory)}
           />
         ))}
       </div>
@@ -298,6 +301,34 @@ export default function FactoriesPage({ permissions }: Props) {
         emptyText="No contacts yet for this yarn mill."
         onClose={() => setViewingContacts(null)}
         onChanged={load}
+      />
+          <DirectoryViewModal
+        entity={viewingEntity ? {
+          ...viewingEntity,
+          name: viewingEntity.factoryName,
+          addressLocal: viewingEntity.addressLocal,
+          addressEnglish: viewingEntity.addressEnglish,
+          certNames: viewingEntity.certNames,
+        } : null}
+        entityType="factory"
+        entityLabel="Yarn Mill"
+        contactsEndpoint="/api/factory-contacts"
+        contactsForeignKey="factoryId"
+        onClose={() => setViewingEntity(null)}
+      />
+      <DirectoryViewModal
+        entity={viewingEntity ? {
+          ...viewingEntity,
+          name: viewingEntity.factoryName,
+          addressLocal: viewingEntity.addressLocal,
+          addressEnglish: viewingEntity.addressEnglish,
+          certNames: viewingEntity.certNames,
+        } : null}
+        entityType="factory"
+        entityLabel="Yarn Mill"
+        contactsEndpoint="/api/factory-contacts"
+        contactsForeignKey="factoryId"
+        onClose={() => setViewingEntity(null)}
       />
     </div>
   );
