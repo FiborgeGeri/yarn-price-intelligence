@@ -15,13 +15,22 @@ interface Props {
   values: FapiaoInfo;
   onChange: (field: keyof FapiaoInfo, value: string) => void;
   country?: string;
+  // 用於智能預填：如果 fapiao 欄位為空，會用這些值當 placeholder 提示
+  defaultCompanyName?: string;
+  defaultAddress?: string;
 }
 
 /**
  * China Fapiao (VAT invoice) information section.
  * Only shows when country is China / 中國 / 中国.
  */
-export default function FapiaoInfoSection({ values, onChange, country }: Props) {
+export default function FapiaoInfoSection({
+  values,
+  onChange,
+  country,
+  defaultCompanyName,
+  defaultAddress,
+}: Props) {
   const isChinaEntity = (() => {
     if (!country) return false;
     const c = country.trim().toLowerCase();
@@ -32,6 +41,14 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
 
   const hasAnyData = Object.values(values).some((v) => v && String(v).trim() !== "");
 
+  // 智能預填 placeholder：如果沒填 fapiao 但有 officialName / addressLocal，用它們作提示
+  const companyPlaceholder = defaultCompanyName
+    ? defaultCompanyName
+    : "公司完整登記名稱";
+  const addressPlaceholder = defaultAddress
+    ? defaultAddress
+    : "公司登記地址";
+
   return (
     <div className="mt-4 border-t border-slate-200 pt-4">
       <div className="flex items-center gap-2 mb-3">
@@ -39,19 +56,26 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
           增值稅開票資料 (China VAT Invoice)
         </span>
         {hasAnyData && (
-          <span className="text-[10px] text-emerald-600 font-medium">✓ Fapiao info filled</span>
+          <span className="text-[10px] text-emerald-600 font-medium">✓ Info filled</span>
         )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="sm:col-span-2">
-          <label className="block text-xs font-medium text-slate-600 mb-1">公司名稱 Company Name</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            公司名稱 Company Name
+            {!values.fapiaoCompanyName && defaultCompanyName && (
+              <span className="ml-2 text-[10px] text-blue-500 font-normal">
+                (defaults to Official Name if left empty)
+              </span>
+            )}
+          </label>
           <input
             type="text"
             value={values.fapiaoCompanyName || ""}
             onChange={(e) => onChange("fapiaoCompanyName", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            placeholder="e.g. 东莞升丽针织有限公司"
+            placeholder={companyPlaceholder}
           />
         </div>
 
@@ -62,7 +86,7 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
             value={values.fapiaoTaxId || ""}
             onChange={(e) => onChange("fapiaoTaxId", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
-            placeholder="e.g. 91441900617486581N"
+            placeholder="統一社會信用代碼 / 稅號"
           />
         </div>
 
@@ -73,18 +97,25 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
             value={values.fapiaoContact || ""}
             onChange={(e) => onChange("fapiaoContact", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            placeholder="e.g. 鐘艷玲"
+            placeholder="開票聯繫人姓名"
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label className="block text-xs font-medium text-slate-600 mb-1">地址 Address</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            地址 Address
+            {!values.fapiaoAddress && defaultAddress && (
+              <span className="ml-2 text-[10px] text-blue-500 font-normal">
+                (defaults to Local Address if left empty)
+              </span>
+            )}
+          </label>
           <textarea
             value={values.fapiaoAddress || ""}
             onChange={(e) => onChange("fapiaoAddress", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             rows={2}
-            placeholder="e.g. 东莞市大朗镇蔡边村白云前工业区"
+            placeholder={addressPlaceholder}
           />
         </div>
 
@@ -95,7 +126,7 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
             value={values.fapiaoPhone || ""}
             onChange={(e) => onChange("fapiaoPhone", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            placeholder="e.g. 0769-83319807"
+            placeholder="區號-電話號碼"
           />
         </div>
 
@@ -106,7 +137,7 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
             value={values.fapiaoFax || ""}
             onChange={(e) => onChange("fapiaoFax", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            placeholder="e.g. 0769-83192531"
+            placeholder="區號-傳真號碼"
           />
         </div>
 
@@ -117,7 +148,7 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
             value={values.fapiaoBankName || ""}
             onChange={(e) => onChange("fapiaoBankName", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            placeholder="e.g. 中国银行东莞大朗支行营业部"
+            placeholder="開戶銀行全稱（含支行）"
           />
         </div>
 
@@ -128,7 +159,7 @@ export default function FapiaoInfoSection({ values, onChange, country }: Props) 
             value={values.fapiaoBankAccount || ""}
             onChange={(e) => onChange("fapiaoBankAccount", e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
-            placeholder="e.g. 728957741156"
+            placeholder="銀行帳號"
           />
         </div>
       </div>

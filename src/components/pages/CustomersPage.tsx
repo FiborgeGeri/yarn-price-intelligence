@@ -253,12 +253,13 @@ export default function ClientsPage({ permissions }: Props) {
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (Local Language)</label><textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} placeholder="Full address in local language" /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (English)</label><textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} placeholder="Full address in English" /></div>
               
-              <FapiaoInfoSection
+                 <FapiaoInfoSection
                 country={country}
                 values={fapiao}
+                defaultCompanyName={officialName}
+                defaultAddress={addressLocal}
                 onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
               />
-
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editing ? "Update" : "Create"}</button>

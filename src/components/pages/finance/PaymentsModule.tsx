@@ -274,9 +274,16 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                 {loading && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading…</td></tr>}
                 {!loading && filteredPays.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No payments recorded yet.</td></tr>}
                 {filteredPays.map((p) => (
-                  <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+             <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/60">
                     <td className="px-4 py-3">{p.paymentDate}</td>
-                    <td className="px-4 py-3 font-mono text-blue-600">{(isSales ? p.invoiceNo : (p.supplierInvoiceNo || p.internalNo)) || "—"}</td>
+                                        <td className="px-4 py-3">
+                      <button 
+                        onClick={() => setViewingPay(p)}
+                        className="font-mono text-blue-600 hover:text-blue-800 hover:underline text-left"
+                      >
+                        {(isSales ? p.invoiceNo : (p.supplierInvoiceNo || p.internalNo)) || "—"}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 font-medium">{(isSales ? p.customerName : p.factoryName) || "—"}</td>
                     <td className="px-4 py-3 text-right font-mono font-medium text-emerald-600">{fmt(p.amount, p.currency)}</td>
                     <td className="px-4 py-3 text-xs">{p.method || "—"}</td>

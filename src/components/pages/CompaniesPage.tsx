@@ -241,9 +241,11 @@ export default function CompaniesPage({ permissions }: Props) {
                 <span>Set as default company for new orders</span>
               </label>
 
-              <FapiaoInfoSection
+             <FapiaoInfoSection
                 country={country}
                 values={fapiao}
+                defaultCompanyName={officialName}
+                defaultAddress={addressLocal}
                 onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
               />
 

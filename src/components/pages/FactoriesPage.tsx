@@ -272,9 +272,11 @@ export default function FactoriesPage({ permissions }: Props) {
                 </div>
               )}
 
-              <FapiaoInfoSection
+             <FapiaoInfoSection
                 country={country}
                 values={fapiao}
+                defaultCompanyName={officialName}
+                defaultAddress={addressLocal}
                 onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
               />
 
