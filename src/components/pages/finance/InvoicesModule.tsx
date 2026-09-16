@@ -469,7 +469,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
               {viewing.bankInfo && (
                 <div className="rounded-lg bg-emerald-50/50 border border-emerald-150 p-4">
                   <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider mb-2">
-                    🏦 {isSales ? "Our Beneficiary Bank (Remit payment to)" : "Yarn Mill's Payment Bank (Remit payment to)"}
+                    {isSales ? "Our Beneficiary Bank (Remit payment to)" : "Yarn Mill's Payment Bank (Remit payment to)"}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-slate-700">
                     <div><span className="text-slate-500">Bank Name:</span> <span className="font-semibold text-slate-900">{viewing.bankInfo.bankName}</span></div>
@@ -620,7 +620,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                       </div>
                     </div>
                     <p className="text-[11px] text-slate-400 mt-2">
-                      💡 Tip: {fOrderId ? (
+                      Tip: {fOrderId ? (
                         <span>Recalculates each line&apos;s unit price based on the linked {orderLabel}&apos;s original price x this percentage.</span>
                       ) : (
                         <span>Link a {orderLabel} above first, then click a % to auto-calculate deposit prices.</span>
@@ -704,7 +704,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
               {bankAccountList.length > 0 && (
                 <div className="bg-emerald-50/30 p-3 rounded-lg border border-emerald-100">
                   <label className="block text-xs font-semibold text-emerald-800 mb-1.5">
-                    🏦 {isSales ? "Beneficiary Bank Account (Select where client should pay)" : "Remittance Bank Account (Select where we should pay yarn mill)"}
+                    {isSales ? "Beneficiary Bank Account (Select where client should pay)" : "Remittance Bank Account (Select where we should pay yarn mill)"}
                   </label>
                   <select 
                     value={fBankAccountId} 

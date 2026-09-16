@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirectory";
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
+import DirectoryViewModal from "@/components/DirectoryViewModal";
 
 const CATEGORIES = [
   "Fabric Mill",
@@ -45,6 +46,7 @@ export default function ShipToPage({ permissions }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Address | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Address | null>(null);
+  const [viewingEntity, setViewingEntity] = useState<Address | null>(null);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -190,6 +192,7 @@ export default function ShipToPage({ permissions }: Props) {
             updatedAt={address.updatedAt}
             permissions={permissions}
             onContacts={() => setViewingContacts(address)}
+            onView={() => setViewingEntity(address)}
             onEdit={() => openForm(address)}
             onDelete={() => remove(address.id)}
           />
@@ -225,6 +228,14 @@ export default function ShipToPage({ permissions }: Props) {
         </div>
       )}
 
+      <DirectoryViewModal
+        entity={viewingEntity}
+        entityType="shipTo"
+        entityLabel="Ship-To Address"
+        contactsEndpoint="/api/ship-to-contacts"
+        contactsForeignKey="shipToId"
+        onClose={() => setViewingEntity(null)}
+      />
       <DirectoryContactsModal
         entity={viewingContacts ? { id: viewingContacts.id, name: viewingContacts.name, officialName: viewingContacts.officialName } : null}
         endpoint="/api/ship-to-contacts"

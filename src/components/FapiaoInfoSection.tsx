@@ -175,7 +175,7 @@ export default function FapiaoInfoSection({
 
       {(defaultCompanyName || defaultAddress) && (
         <p className="text-[10px] text-slate-400 mt-2">
-          💡 Tip: Click <span className="text-blue-600 font-medium">⟲ Use Official Name / Use Local Address</span> to copy values from the main fields above.
+          Tip: Click <span className="text-blue-600 font-medium">⟲ Use Official Name / Use Local Address</span> to copy values from the main fields above.
         </p>
       )}
     </div>
