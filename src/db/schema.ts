@@ -498,6 +498,8 @@ export const supplierInvoices = pgTable("supplier_invoices", {
   id: serial("id").primaryKey(),
   supplierInvoiceNo: varchar("supplier_invoice_no", { length: 100 }),
   internalNo: varchar("internal_no", { length: 50 }),
+  invoiceType: varchar("invoice_type", { length: 30 }).default("Commercial Invoice"),
+  depositPercentage: real("deposit_percentage"),
   companyId: integer("company_id"),
   factoryId: integer("factory_id").references(() => factories.id, { onDelete: "set null" }),
   poId: integer("po_id").references(() => purchaseOrders.id, { onDelete: "set null" }),

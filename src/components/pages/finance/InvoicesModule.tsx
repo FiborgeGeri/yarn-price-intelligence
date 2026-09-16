@@ -157,7 +157,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     const party = (isSales ? r.customerName : r.factoryName) || "";
     const order = (r.soNo || r.poNo || "") + (r.customerPoNo || "");
     const q = search.toLowerCase();
-    const matchType = !isSales || !typeFilter || r.invoiceType === typeFilter;
+    const matchType = !typeFilter || r.invoiceType === typeFilter;
     return (!q || docNo.toLowerCase().includes(q) || party.toLowerCase().includes(q) || order.toLowerCase().includes(q))
       && (!statusFilter || r.status === statusFilter)
       && matchType;
@@ -220,12 +220,10 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     setShowForm(true);
   };
 
-    // Apply deposit percentage: recalculate each line's unit price based on original × pct%
-  // Only applies when we have items with prices; use the original SO/order price as base if linked
+  // 按百分比快速重算
   const applyDepositPercentage = (pct: number) => {
-    if (!pct || pct <= 0 || pct >= 100) return;
+    if (!pct || pct <= 0 || pct > 100) return;
     const order = orderList.find((o) => o.id === fOrderId);
-    // Base prices: prefer linked order items, otherwise use current line prices as base
     const basePrices = new Map<number, number>();
     if (order?.items?.length) {
       order.items.forEach((it, i) => basePrices.set(i, Number(it.unitPrice) || 0));
@@ -269,11 +267,13 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     if (!fParty || !fDate) return;
     setSaving(true);
     const order = orderList.find((o) => o.id === fOrderId);
-       const payload = {
+    const payload = {
       id: editing?.id,
       companyId: fCompany || null,
+      invoiceType: fInvoiceType,
+      depositPercentage: fDepositPct ? parseFloat(fDepositPct) : null,
       ...(isSales
-        ? { invoiceType: fInvoiceType, depositPercentage: fDepositPct || null, customerId: fParty, soId: fOrderId || null, soNo: order?.soNo || null, customerPoNo: order?.customerPoNo || null }
+        ? { customerId: fParty, soId: fOrderId || null, soNo: order?.soNo || null, customerPoNo: order?.customerPoNo || null }
         : { supplierInvoiceNo: fSupplierInvNo || null, factoryId: fParty, poId: fOrderId || null, poNo: order?.poNo || null }),
       invoiceDate: fDate, dueDate: fDue || null,
       currency: fCurrency, vatRate: fVatRate, status: fStatus, notes: fNotes,
@@ -326,12 +326,10 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
             <p className="text-xs text-slate-400">{isSales ? "Bill clients for delivered yarn — supports Proforma, Deposit, Commercial, Balance, Debit & Credit Notes." : "Record yarn mill invoices against purchase orders."}</p>
           </div>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search no. / party / order…" className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-56" />
-          {isSales && (
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
-              <option value="">All types</option>
-              {INVOICE_TYPES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          )}
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+            <option value="">All types</option>
+            {INVOICE_TYPES.map((t) => <option key={t}>{t}</option>)}
+          </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
             <option value="">All statuses</option>
             {statuses.map((s) => <option key={s}>{s}</option>)}
@@ -344,7 +342,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
             <thead>
               <tr className="text-left text-slate-500 border-b border-slate-100">
                 <th className="px-4 py-3 font-medium">No.</th>
-                {isSales && <th className="px-4 py-3 font-medium">Type</th>}
+                <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">{partyLabel}</th>
                 <th className="px-4 py-3 font-medium">{orderLabel}</th>
                 <th className="px-4 py-3 font-medium">Date</th>
@@ -367,13 +365,11 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                 return (
                   <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50/60">
                     <td className="px-4 py-3"><button onClick={() => openView(r)} className="font-mono text-blue-600 hover:underline text-left">{docNoOf(r)}</button>{!isSales && r.internalNo && r.supplierInvoiceNo && <div className="text-[10px] text-slate-400 font-mono">{r.internalNo}</div>}</td>
-                    {isSales && (
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${TYPE_COLORS[typeLabel] || "bg-slate-100 text-slate-600 border-slate-200"}`} title={typeLabel}>
-                          {TYPE_SHORT[typeLabel] || typeLabel}
-                        </span>
-                      </td>
-                    )}
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${TYPE_COLORS[typeLabel] || "bg-slate-100 text-slate-600 border-slate-200"}`} title={typeLabel}>
+                        {TYPE_SHORT[typeLabel] || typeLabel}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 font-medium">{partyOf(r)}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{orderOf(r)}</td>
                     <td className="px-4 py-3">{r.invoiceDate}</td>
@@ -407,7 +403,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-semibold">{docLabel} {docNoOf(viewing)}</h2>
-                                    {isSales && viewing.invoiceType && (
+                  {viewing.invoiceType && (
                     <>
                       <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${TYPE_COLORS[viewing.invoiceType] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
                         {viewing.invoiceType}
@@ -489,32 +485,44 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
               <button onClick={() => { setShowForm(false); setEditing(null); }} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              {isSales && (
-                <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Invoice Type *</label>
-                  <div className="flex flex-wrap gap-2">
-                    {INVOICE_TYPES.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setFInvoiceType(t)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
-                          fInvoiceType === t
-                            ? `${TYPE_COLORS[t]} ring-2 ring-offset-1 ring-current`
-                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                                  <p className="text-[11px] text-slate-400 mt-2">
-                  {fInvoiceType === "Proforma Invoice" && "Formal quote / used for LC opening or advance payment request."}
-                  {fInvoiceType === "Deposit Invoice" && "Bill client for advance/deposit payment (e.g. 30% before production)."}
-                  {fInvoiceType === "Commercial Invoice" && "Official invoice for customs, export documents and full-amount billing."}
-                  {fInvoiceType === "Balance Invoice" && "Bill client for remaining balance after deposit has been paid."}
-                  {fInvoiceType === "Debit Note" && "Charge client additional amount (e.g. price adjustment, extra fees)."}
-                  {fInvoiceType === "Credit Note" && "Refund or credit client (e.g. return, discount, overcharge correction)."}
+              <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
+                <label className="block text-sm font-medium text-slate-700 mb-2">{docLabel} Type *</label>
+                <div className="flex flex-wrap gap-2">
+                  {INVOICE_TYPES.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setFInvoiceType(t)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                        fInvoiceType === t
+                          ? `${TYPE_COLORS[t]} ring-2 ring-offset-1 ring-current`
+                          : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  {isSales ? (
+                    <>
+                      {fInvoiceType === "Proforma Invoice" && "Formal quote for client — used for LC opening or advance payment request."}
+                      {fInvoiceType === "Deposit Invoice" && "Bill client for advance/deposit payment (e.g. 30% before production)."}
+                      {fInvoiceType === "Commercial Invoice" && "Official invoice for customs, export documents and full-amount billing."}
+                      {fInvoiceType === "Balance Invoice" && "Bill client for remaining balance after deposit has been paid."}
+                      {fInvoiceType === "Debit Note" && "Charge client additional amount (e.g. price adjustment, extra fees)."}
+                      {fInvoiceType === "Credit Note" && "Refund or credit client (e.g. return, discount, overcharge correction)."}
+                    </>
+                  ) : (
+                    <>
+                      {fInvoiceType === "Proforma Invoice" && "Proforma from yarn mill — often used when we need to open a Letter of Credit."}
+                      {fInvoiceType === "Deposit Invoice" && "Yarn mill's deposit request (e.g. 30% advance to start production)."}
+                      {fInvoiceType === "Commercial Invoice" && "Official commercial invoice from mill for customs and full-amount payment."}
+                      {fInvoiceType === "Balance Invoice" && "Mill's balance invoice for the remainder after deposit."}
+                      {fInvoiceType === "Debit Note" && "We debit the mill (e.g. quality claim, short-shipment deduction)."}
+                      {fInvoiceType === "Credit Note" && "Mill credits us back (e.g. quality allowance, price adjustment, refund)."}
+                    </>
+                  )}
                 </p>
 
                 {/* Deposit / Balance percentage helper */}
@@ -554,13 +562,16 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                       </div>
                     </div>
                     <p className="text-[11px] text-slate-400 mt-2">
-                      💡 Tip: {fOrderId ? "Recalculates each line's unit price based on the linked order's original price × this percentage." : "Link a Sales Order above first, then click a % to auto-calculate deposit prices."}
+                      💡 Tip: {fOrderId ? (
+                        <span>Recalculates each line&apos;s unit price based on the linked {orderLabel}&apos;s original price x this percentage.</span>
+                      ) : (
+                        <span>Link a {orderLabel} above first, then click a % to auto-calculate deposit prices.</span>
+                      )}
                       {fDepositPct && <span className="ml-1 text-emerald-600 font-medium">Currently: {fDepositPct}% of full order value.</span>}
                     </p>
                   </div>
                 )}
               </div>
-              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>

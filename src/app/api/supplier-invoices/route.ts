@@ -4,13 +4,23 @@ import { supplierInvoices, supplierInvoiceItems, supplierPayments, factories, co
 import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
-function createInternalNo() {
+const TYPE_PREFIX: Record<string, string> = {
+  "Proforma Invoice": "SPI",
+  "Deposit Invoice": "SDEP",
+  "Commercial Invoice": "SINV",
+  "Balance Invoice": "SBAL",
+  "Debit Note": "SDN",
+  "Credit Note": "SCN",
+};
+
+function createInternalNo(type?: string) {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `SINV-${y}${m}${day}-${rand}`;
+  const prefix = TYPE_PREFIX[type || "Commercial Invoice"] || "SINV";
+  return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -23,6 +33,8 @@ export async function GET(req: NextRequest) {
         id: supplierInvoices.id,
         supplierInvoiceNo: supplierInvoices.supplierInvoiceNo,
         internalNo: supplierInvoices.internalNo,
+        invoiceType: supplierInvoices.invoiceType,
+        depositPercentage: supplierInvoices.depositPercentage,
         companyId: supplierInvoices.companyId,
         companyName: companies.name,
         factoryId: supplierInvoices.factoryId,
@@ -116,11 +128,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, supplierInvoiceNo, companyId, factoryId, poId, poNo,
+      id, invoiceType, depositPercentage, supplierInvoiceNo, companyId, factoryId, poId, poNo,
       invoiceDate, dueDate, currency, vatRate, status, notes, userId,
       items = [],
     } = body as {
-      id?: number; supplierInvoiceNo?: string | null; companyId?: number | null; factoryId?: number | null;
+      id?: number; invoiceType?: string; depositPercentage?: number | string | null;
+      supplierInvoiceNo?: string | null; companyId?: number | null; factoryId?: number | null;
       poId?: number | null; poNo?: string | null;
       invoiceDate?: string; dueDate?: string | null; currency?: string; vatRate?: number | string;
       status?: string; notes?: string | null; userId?: number | null; items?: ItemInput[];
@@ -130,6 +143,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Yarn mill and invoice date are required" }, { status: 400 });
     }
 
+    const finalType = invoiceType || "Commercial Invoice";
+    const depositPct = depositPercentage !== null && depositPercentage !== undefined && depositPercentage !== ""
+      ? Number(depositPercentage)
+      : null;
+
     const cleanItems = (items as ItemInput[]).filter((it) => Number(it.unitPrice) > 0);
     const subtotal = cleanItems.reduce((s, it) => s + (parseQty(String(it.quantity || "")) * Number(it.unitPrice) || 0), 0);
     const rate = Number(vatRate) || 0;
@@ -138,6 +156,8 @@ export async function POST(req: NextRequest) {
 
     if (id) {
       await db.update(supplierInvoices).set({
+        invoiceType: finalType,
+        depositPercentage: depositPct,
         supplierInvoiceNo: supplierInvoiceNo || null,
         companyId: companyId || null,
         factoryId,
@@ -162,7 +182,9 @@ export async function POST(req: NextRequest) {
 
     const [created] = await db.insert(supplierInvoices).values({
       supplierInvoiceNo: supplierInvoiceNo || null,
-      internalNo: createInternalNo(),
+      internalNo: createInternalNo(finalType),
+      invoiceType: finalType,
+      depositPercentage: depositPct,
       companyId: companyId || null,
       factoryId,
       poId: poId || null,
