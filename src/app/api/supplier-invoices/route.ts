@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { supplierInvoices, supplierInvoiceItems, supplierPayments, factories, companies, yarns, treatments } from "@/db/schema";
+import { supplierInvoices, supplierInvoiceItems, supplierPayments, factories, companies, yarns, treatments, bankAccounts } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
         internalNo: supplierInvoices.internalNo,
         invoiceType: supplierInvoices.invoiceType,
         depositPercentage: supplierInvoices.depositPercentage,
+        bankAccountId: supplierInvoices.bankAccountId,
         companyId: supplierInvoices.companyId,
         companyName: companies.name,
         factoryId: supplierInvoices.factoryId,
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
       const id = Number(idParam);
       const head = withMeta.find((r) => r.id === id);
       if (!head) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      
       const items = await db
         .select({
           id: supplierInvoiceItems.id,
@@ -94,8 +96,17 @@ export async function GET(req: NextRequest) {
         .leftJoin(yarns, eq(supplierInvoiceItems.yarnId, yarns.id))
         .leftJoin(treatments, eq(yarns.treatmentId, treatments.id))
         .where(eq(supplierInvoiceItems.supplierInvoiceId, id));
+
       const payRows = await db.select().from(supplierPayments).where(eq(supplierPayments.supplierInvoiceId, id)).orderBy(desc(supplierPayments.paymentDate));
-      return NextResponse.json({ ...head, items, payments: payRows });
+      
+      // 智能撈取綁定的工廠/紗廠銀行帳戶詳細資料
+      let bankInfo = null;
+      if (head.bankAccountId) {
+        const [bank] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, head.bankAccountId));
+        if (bank) bankInfo = bank;
+      }
+
+      return NextResponse.json({ ...head, items, payments: payRows, bankInfo });
     }
 
     return NextResponse.json(withMeta);
@@ -128,11 +139,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, invoiceType, depositPercentage, supplierInvoiceNo, companyId, factoryId, poId, poNo,
+      id, invoiceType, depositPercentage, bankAccountId, supplierInvoiceNo, companyId, factoryId, poId, poNo,
       invoiceDate, dueDate, currency, vatRate, status, notes, userId,
       items = [],
     } = body as {
-      id?: number; invoiceType?: string; depositPercentage?: number | string | null;
+      id?: number; invoiceType?: string; depositPercentage?: number | string | null; bankAccountId?: number | null;
       supplierInvoiceNo?: string | null; companyId?: number | null; factoryId?: number | null;
       poId?: number | null; poNo?: string | null;
       invoiceDate?: string; dueDate?: string | null; currency?: string; vatRate?: number | string;
@@ -149,42 +160,16 @@ export async function POST(req: NextRequest) {
       : null;
 
     const cleanItems = (items as ItemInput[]).filter((it) => Number(it.unitPrice) > 0);
-    const subtotal = cleanItems.reduce((s, it) => s + (parseQty(String(it.quantity || "")) * Number(it.unitPrice) || 0), 0);
+    const subtotal = cleanItems.reduce((s, it) => s + (parseQty(String(it.quantity || "0")) * Number(it.unitPrice) || 0), 0);
     const rate = Number(vatRate) || 0;
     const vatAmount = Math.round(subtotal * (rate / 100) * 100) / 100;
     const total = Math.round((subtotal + vatAmount) * 100) / 100;
 
-    if (id) {
-      await db.update(supplierInvoices).set({
-        invoiceType: finalType,
-        depositPercentage: depositPct,
-        supplierInvoiceNo: supplierInvoiceNo || null,
-        companyId: companyId || null,
-        factoryId,
-        poId: poId || null,
-        poNo: poNo || null,
-        invoiceDate,
-        dueDate: dueDate || null,
-        currency: currency || "USD",
-        vatRate: rate,
-        subtotal, vatAmount, total,
-        status: status || "Received",
-        notes: notes || null,
-        updatedAt: new Date(),
-        updatedBy: userId || null,
-      }).where(eq(supplierInvoices.id, id));
-      await db.delete(supplierInvoiceItems).where(eq(supplierInvoiceItems.supplierInvoiceId, id));
-      if (cleanItems.length > 0) {
-        await db.insert(supplierInvoiceItems).values(cleanItems.map((it) => itemRow(id, it)));
-      }
-      return NextResponse.json({ id, updated: true });
-    }
-
-    const [created] = await db.insert(supplierInvoices).values({
-      supplierInvoiceNo: supplierInvoiceNo || null,
-      internalNo: createInternalNo(finalType),
+    const dataToSave = {
       invoiceType: finalType,
       depositPercentage: depositPct,
+      bankAccountId: bankAccountId || null,
+      supplierInvoiceNo: supplierInvoiceNo || null,
       companyId: companyId || null,
       factoryId,
       poId: poId || null,
@@ -196,8 +181,24 @@ export async function POST(req: NextRequest) {
       subtotal, vatAmount, total,
       status: status || "Received",
       notes: notes || null,
-      createdBy: userId || null,
+      updatedAt: new Date(),
       updatedBy: userId || null,
+    };
+
+    if (id) {
+      await db.update(supplierInvoices).set(dataToSave).where(eq(supplierInvoices.id, id));
+      await db.delete(supplierInvoiceItems).where(eq(supplierInvoiceItems.supplierInvoiceId, id));
+      if (cleanItems.length > 0) {
+        await db.insert(supplierInvoiceItems).values(cleanItems.map((it) => itemRow(id, it)));
+      }
+      return NextResponse.json({ id, updated: true });
+    }
+
+    const [created] = await db.insert(supplierInvoices).values({
+      internalNo: createInternalNo(finalType),
+      ...dataToSave,
+      createdAt: new Date(),
+      createdBy: userId || null,
     }).returning({ id: supplierInvoices.id, internalNo: supplierInvoices.internalNo });
 
     if (cleanItems.length > 0) {

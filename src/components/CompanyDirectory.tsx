@@ -38,7 +38,7 @@ interface DirectoryCardProps {
   onBankAccounts?: () => void;
   onEdit: () => void;
   onDelete: () => void;
- onView?: () => void;
+  onView?: () => void;
 }
 
 const badgeTone = {
@@ -75,7 +75,20 @@ export function DirectoryCard({
     <article className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 min-h-[230px]">
       <div className="flex items-start justify-between gap-4 h-full">
         <div className="flex-1 min-w-0 flex flex-col h-full">
-          <div className="font-semibold text-slate-900 truncate">{name}</div>
+          {/* 🆕 點擊公司名稱即可觸發 View */}
+          <div className="font-semibold text-slate-900 truncate">
+            {onView ? (
+              <button 
+                type="button" 
+                onClick={onView} 
+                className="text-left font-semibold text-slate-900 hover:text-blue-700 hover:underline focus:outline-none"
+              >
+                {name}
+              </button>
+            ) : (
+              name
+            )}
+          </div>
           <div className="text-xs text-slate-400 mt-0.5 min-h-4 truncate">{officialName || " "}</div>
 
           {badge && (
@@ -125,7 +138,7 @@ export function DirectoryCard({
               {bankAccountCount || 0} bank a/c{(bankAccountCount || 0) !== 1 ? "s" : ""} →
             </button>
           )}
-         {onView && <button onClick={onView} className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1">View</button>}
+          {onView && <button onClick={onView} className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1">View</button>}
           {permissions.canEdit && <button onClick={onEdit} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
           {permissions.canDelete && <button onClick={onDelete} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Delete</button>}
         </div>

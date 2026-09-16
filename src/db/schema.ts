@@ -467,6 +467,7 @@ export const invoices = pgTable("invoices", {
   invoiceNo: varchar("invoice_no", { length: 50 }),
   invoiceType: varchar("invoice_type", { length: 30 }).default("Commercial Invoice"),
   depositPercentage: real("deposit_percentage"),
+  bankAccountId: integer("bank_account_id"),
   companyId: integer("company_id"),
   customerId: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
   contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
@@ -525,6 +526,7 @@ export const supplierInvoices = pgTable("supplier_invoices", {
   internalNo: varchar("internal_no", { length: 50 }),
   invoiceType: varchar("invoice_type", { length: 30 }).default("Commercial Invoice"),
   depositPercentage: real("deposit_percentage"),
+  bankAccountId: integer("bank_account_id"),
   companyId: integer("company_id"),
   factoryId: integer("factory_id").references(() => factories.id, { onDelete: "set null" }),
   poId: integer("po_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
@@ -579,18 +581,18 @@ export const supplierPayments = pgTable("supplier_payments", {
 // currency accounts at the same bank.
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
-  entityType: varchar("entity_type", { length: 20 }).notNull(), // customer | factory | company
+  entityType: varchar("entity_type", { length: 20 }).notNull(),
   entityId: integer("entity_id").notNull(),
-  bankName: varchar("bank_name", { length: 300 }).notNull(),  
+  bankName: varchar("bank_name", { length: 300 }).notNull(),
   bankCode: varchar("bank_code", { length: 20 }),
   branch: varchar("branch", { length: 300 }),
-  accountName: varchar("account_name", { length: 300 }), // beneficiary / account holder
+  accountName: varchar("account_name", { length: 300 }),
   accountNumber: varchar("account_number", { length: 120 }),
   currency: varchar("currency", { length: 100 }).default("USD"),
   swiftCode: varchar("swift_code", { length: 20 }),
   iban: varchar("iban", { length: 60 }),
   bankAddress: text("bank_address"),
-  isDefault: boolean("is_default").default(false), // primary account of this entity
+  isDefault: boolean("is_default").default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: integer("created_by"),

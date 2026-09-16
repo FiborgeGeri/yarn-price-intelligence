@@ -9,7 +9,7 @@ import { CURRENCY_OPTIONS, UNIT_OPTIONS } from "@/lib/commerce";
 
 // ---------- shared types ----------
 interface InvoiceRow {
-  id: number; invoiceNo?: string | null; invoiceType?: string | null; depositPercentage?: number | null; internalNo?: string | null; supplierInvoiceNo?: string | null;
+  id: number; invoiceNo?: string | null; invoiceType?: string | null; depositPercentage?: number | null; bankAccountId?: number | null; internalNo?: string | null; supplierInvoiceNo?: string | null;
   companyId: number | null; companyName: string | null;
   customerId?: number | null; customerName?: string | null; factoryId?: number | null; factoryName?: string | null;
   soId?: number | null; soNo?: string | null; poId?: number | null; poNo?: string | null; customerPoNo?: string | null;
@@ -29,7 +29,8 @@ interface Company { id: number; name: string; isDefault: boolean }
 interface Toast { type: "success" | "error"; text: string }
 interface DetailItem { id: number; yarnId: number | null; yarnName: string | null; yarnCount: string | null; factoryName?: string | null; description: string | null; colorName: string | null; quantity: string | null; unitPrice: number; unit: string; weightBasis: string; incoterms: string | null; amount: number }
 interface DetailPayment { id: number; paymentDate: string; amount: number; currency: string | null; method: string | null; reference: string | null }
-interface Detail extends InvoiceRow { items: DetailItem[]; payments: DetailPayment[] }
+interface BankAccount { id: number; bankName: string; bankCode?: string | null; branch?: string | null; accountName?: string | null; accountNumber?: string | null; currency?: string | null; swiftCode?: string | null; iban?: string | null; isDefault?: boolean | null }
+interface Detail extends InvoiceRow { items: DetailItem[]; payments: DetailPayment[]; bankInfo?: BankAccount | null }
 
 const SALES_STATUSES = ["Draft", "Sent", "Partially Paid", "Paid", "Cancelled"];
 const SUPPLIER_STATUSES = ["Received", "Partially Paid", "Paid", "Cancelled"];
@@ -122,6 +123,10 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
   const [fStatus, setFStatus] = useState(isSales ? "Draft" : "Received");
   const [fNotes, setFNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  
+  // 智能銀行資料狀態
+  const [bankAccountList, setBankAccountList] = useState<BankAccount[]>([]);
+  const [fBankAccountId, setFBankAccountId] = useState(0);
 
   const showToast = useCallback((t: Toast) => { setToast(t); setTimeout(() => setToast(null), 3500); }, []);
 
@@ -183,6 +188,18 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     setFDue(d.toISOString().slice(0, 10));
   };
 
+  // 🆕 智能加載銀行帳號：Sales 讀我方、Supplier 讀紗廠
+  const fetchAvailableBanks = async (id: number) => {
+    if (!id) { setBankAccountList([]); return; }
+    try {
+      const type = isSales ? "company" : "factory";
+      const res = await fetch(`/api/bank-accounts?entityType=${type}&entityId=${id}`);
+      if (res.ok) {
+        setBankAccountList(await res.json());
+      }
+    } catch { setBankAccountList([]); }
+  };
+
   const openForm = (r?: InvoiceRow) => {
     if (r) {
       setEditing(r);
@@ -198,6 +215,11 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       setFVatRate(String(r.vatRate ?? 0));
       setFStatus(r.status);
       setFNotes(r.notes || "");
+      setFBankAccountId(r.bankAccountId || 0);
+      
+      // 載入對應銀行
+      fetchAvailableBanks((isSales ? r.companyId : r.factoryId) || 0);
+
       // load existing items
       fetch(`${api}?id=${r.id}`).then((x) => x.json()).then((d: Detail) => {
         setLines(d.items.length ? d.items.map((it) => ({
@@ -208,16 +230,50 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       });
     } else {
       setEditing(null);
-      setFCompany(companyList.find((c) => c.isDefault)?.id || 0);
+      const defaultCompId = companyList.find((c) => c.isDefault)?.id || 0;
+      setFCompany(defaultCompId);
       setFParty(0); setFOrderId(0); setFSupplierInvNo("");
       setFInvoiceType("Commercial Invoice");
       setFDepositPct("");
       setFDate(new Date().toISOString().slice(0, 10)); setFDue("");
       setFCurrency(defaultCurrency); setFVatRate(defaultVat);
       setFStatus(isSales ? "Draft" : "Received"); setFNotes("");
+      setFBankAccountId(0);
+      setBankAccountList([]);
+
+      if (isSales && defaultCompId) {
+        fetchAvailableBanks(defaultCompId);
+      }
       setLines([emptyLine()]);
     }
     setShowForm(true);
+  };
+
+  // Prefill from a linked order (new docs only)
+  const onOrderChange = (orderId: number) => {
+    setFOrderId(orderId);
+    if (!orderId || editing) return;
+    const o = orderList.find((x) => x.id === orderId);
+    if (!o) return;
+    const resolvedParty = (isSales ? o.customerId : o.factoryId) || 0;
+    setFParty(resolvedParty);
+
+    // 智能切換：Supplier 關聯 PO 時直接加載紗廠銀行
+    if (!isSales && resolvedParty) {
+      fetchAvailableBanks(resolvedParty);
+    }
+
+    if (o.items?.length) {
+      const cur = o.items[0].currency;
+      if (cur) setFCurrency(cur);
+      setLines(o.items.map((it) => ({
+        yarnId: it.yarnId ?? null,
+        description: yarnList.find((y) => y.id === it.yarnId)?.yarnName || "",
+        colorName: it.colorName || "",
+        quantity: it.quantity || "", unitPrice: String(it.unitPrice ?? ""),
+        unit: it.unit || "per KG", weightBasis: it.weightBasis || "condition", incoterms: it.incoterms || "",
+      })));
+    }
   };
 
   // 按百分比快速重算
@@ -239,26 +295,6 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     showToast({ type: "success", text: `Applied ${pct}% deposit — unit prices recalculated` });
   };
 
-  // Prefill from a linked order (new docs only)
-  const onOrderChange = (orderId: number) => {
-    setFOrderId(orderId);
-    if (!orderId || editing) return;
-    const o = orderList.find((x) => x.id === orderId);
-    if (!o) return;
-    setFParty((isSales ? o.customerId : o.factoryId) || 0);
-    if (o.items?.length) {
-      const cur = o.items[0].currency;
-      if (cur) setFCurrency(cur);
-      setLines(o.items.map((it) => ({
-        yarnId: it.yarnId ?? null,
-        description: yarnList.find((y) => y.id === it.yarnId)?.yarnName || "",
-        colorName: it.colorName || "",
-        quantity: it.quantity || "", unitPrice: String(it.unitPrice ?? ""),
-        unit: it.unit || "per KG", weightBasis: it.weightBasis || "condition", incoterms: it.incoterms || "",
-      })));
-    }
-  };
-
   const updateLine = (idx: number, field: keyof Line, value: string | number | null) =>
     setLines((p) => p.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
 
@@ -272,6 +308,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       companyId: fCompany || null,
       invoiceType: fInvoiceType,
       depositPercentage: fDepositPct ? parseFloat(fDepositPct) : null,
+      bankAccountId: fBankAccountId || null,
       ...(isSales
         ? { customerId: fParty, soId: fOrderId || null, soNo: order?.soNo || null, customerPoNo: order?.customerPoNo || null }
         : { supplierInvoiceNo: fSupplierInvNo || null, factoryId: fParty, poId: fOrderId || null, poNo: order?.poNo || null }),
@@ -427,6 +464,27 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                 <div><span className="text-slate-500 text-xs block">Status</span><span className={`px-2 py-0.5 rounded text-xs font-medium border ${STATUS_COLORS[viewing.status] || ""}`}>{viewing.status}</span></div>
                 <div><span className="text-slate-500 text-xs block">Currency / VAT</span><div>{viewing.currency} · {viewing.vatRate || 0}%</div></div>
               </div>
+
+              {/* 🆕 顯示綁定的收款/匯款銀行資訊 */}
+              {viewing.bankInfo && (
+                <div className="rounded-lg bg-emerald-50/50 border border-emerald-150 p-4">
+                  <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider mb-2">
+                    🏦 {isSales ? "Our Beneficiary Bank (Remit payment to)" : "Yarn Mill's Payment Bank (Remit payment to)"}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-slate-700">
+                    <div><span className="text-slate-500">Bank Name:</span> <span className="font-semibold text-slate-900">{viewing.bankInfo.bankName}</span></div>
+                    {viewing.bankInfo.bankCode && <div><span className="text-slate-500">Bank Code:</span> <span className="font-mono font-medium">{viewing.bankInfo.bankCode}</span></div>}
+                    {viewing.bankInfo.branch && <div><span className="text-slate-500">Branch:</span> <span>{viewing.bankInfo.branch}</span></div>}
+                    <div><span className="text-slate-500">Account Name:</span> <span className="font-semibold">{viewing.bankInfo.accountName || "N/A"}</span></div>
+                    <div className="md:col-span-2 text-sm font-mono font-bold text-slate-800 mt-1">
+                      A/C No: <span className="bg-white px-2 py-0.5 border border-slate-200 rounded">{viewing.bankInfo.accountNumber}</span>
+                    </div>
+                    {viewing.bankInfo.swiftCode && <div><span className="text-slate-500 font-sans">SWIFT/BIC:</span> <span className="font-mono font-semibold">{viewing.bankInfo.swiftCode}</span></div>}
+                    {viewing.bankInfo.iban && <div><span className="text-slate-500 font-sans">IBAN:</span> <span className="font-mono font-semibold">{viewing.bankInfo.iban}</span></div>}
+                  </div>
+                </div>
+              )}
+
               <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="text-left text-slate-600"><th className="px-4 py-2.5 font-medium">Item</th><th className="px-4 py-2.5 font-medium">Color</th><th className="px-4 py-2.5 font-medium text-right">Qty</th><th className="px-4 py-2.5 font-medium text-right">Unit Price</th><th className="px-4 py-2.5 font-medium text-right">Amount</th><th className="px-4 py-2.5 font-medium">Incoterms</th></tr></thead>
@@ -576,7 +634,16 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{partyLabel} *</label>
-                  <select value={fParty} onChange={(e) => setFParty(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" required>
+                  <select 
+                    value={fParty} 
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setFParty(val);
+                      if (!isSales) fetchAvailableBanks(val); // 智能：如果是採購，直接抓取工廠銀行
+                    }} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" 
+                    required
+                  >
                     <option value={0}>Select…</option>
                     {partyList.map((p) => <option key={p.id} value={p.id}>{p.name || p.factoryName}</option>)}
                   </select>
@@ -590,7 +657,15 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Company</label>
-                  <select value={fCompany} onChange={(e) => setFCompany(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                  <select 
+                    value={fCompany} 
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setFCompany(val);
+                      if (isSales) fetchAvailableBanks(val); // 智能：如果是銷售，切換我方收款公司時加載其銀行
+                    }} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                  >
                     <option value={0}>— Default —</option>
                     {companyList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -624,6 +699,30 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                   <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">{statuses.map((s) => <option key={s}>{s}</option>)}</select>
                 </div>
               </div>
+
+              {/* 智能銀行選擇器 UI */}
+              {bankAccountList.length > 0 && (
+                <div className="bg-emerald-50/30 p-3 rounded-lg border border-emerald-100">
+                  <label className="block text-xs font-semibold text-emerald-800 mb-1.5">
+                    🏦 {isSales ? "Beneficiary Bank Account (Select where client should pay)" : "Remittance Bank Account (Select where we should pay yarn mill)"}
+                  </label>
+                  <select 
+                    value={fBankAccountId} 
+                    onChange={(e) => setFBankAccountId(Number(e.target.value))} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value={0}>— Select payment bank account —</option>
+                    {bankAccountList.map((b) => {
+                      const currs = (b.currency || "").split(",").map((c) => c.trim()).filter(Boolean);
+                      return (
+                        <option key={b.id} value={b.id}>
+                          {b.bankName} — A/C: {b.accountNumber || "N/A"} ({currs.join(", ")}){b.isDefault ? " ★ Primary" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
 
               {/* items */}
               <div>

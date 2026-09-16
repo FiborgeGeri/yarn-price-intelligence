@@ -1,26 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { invoices, invoiceItems, payments, customers, customerContacts, companies, yarns, factories, treatments } from "@/db/schema";
+import { invoices, invoiceItems, payments, customers, customerContacts, companies, yarns, factories, treatments, bankAccounts } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
-
-const INVOICE_TYPES = [
-  "Proforma Invoice",
-  "Deposit Invoice",
-  "Commercial Invoice",
-  "Balance Invoice",
-  "Debit Note",
-  "Credit Note",
-] as const;
-
-const TYPE_PREFIX: Record<string, string> = {
-  "Proforma Invoice": "PI",
-  "Deposit Invoice": "DEP",
-  "Commercial Invoice": "INV",
-  "Balance Invoice": "BAL",
-  "Debit Note": "DN",
-  "Credit Note": "CN",
-};
 
 function createInvoiceNo(type?: string) {
   const d = new Date();
@@ -28,7 +10,15 @@ function createInvoiceNo(type?: string) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  const prefix = TYPE_PREFIX[type || "Commercial Invoice"] || "INV";
+  const prefixMap: Record<string, string> = {
+    "Proforma Invoice": "PI",
+    "Deposit Invoice": "DEP",
+    "Commercial Invoice": "INV",
+    "Balance Invoice": "BAL",
+    "Debit Note": "DN",
+    "Credit Note": "CN",
+  };
+  const prefix = prefixMap[type || "Commercial Invoice"] || "INV";
   return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
@@ -43,6 +33,7 @@ export async function GET(req: NextRequest) {
         invoiceNo: invoices.invoiceNo,
         invoiceType: invoices.invoiceType,
         depositPercentage: invoices.depositPercentage,
+        bankAccountId: invoices.bankAccountId,
         companyId: invoices.companyId,
         companyName: companies.name,
         customerId: invoices.customerId,
@@ -74,26 +65,18 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(invoices.invoiceDate), desc(invoices.createdAt));
 
     const userMap = await getUserMap();
-    const withMeta = rows.map((r) => {
-      // 若狀態為 Paid,強制 outstanding = 0(不需依賴付款紀錄)
-      // 若狀態為 Cancelled,outstanding 也視為 0
-      const isFullyPaid = r.status === "Paid" || r.status === "Cancelled";
-      const outstanding = isFullyPaid ? 0 : Math.max(0, (r.total || 0) - (r.paid || 0));
-      // 若狀態為 Paid 但沒有實際付款紀錄,顯示 paid = total(讓使用者看得清楚)
-      const displayPaid = r.status === "Paid" && (r.paid || 0) === 0 ? (r.total || 0) : (r.paid || 0);
-      return {
-        ...r,
-        paid: displayPaid,
-        outstanding,
-        createdByName: r.createdBy ? userMap[r.createdBy] || null : null,
-        updatedByName: r.updatedBy ? userMap[r.updatedBy] || null : null,
-      };
-    });
+    const withMeta = rows.map((r) => ({
+      ...r,
+      outstanding: Math.max(0, (r.total || 0) - (r.paid || 0)),
+      createdByName: r.createdBy ? userMap[r.createdBy] || null : null,
+      updatedByName: r.updatedBy ? userMap[r.updatedBy] || null : null,
+    }));
 
     if (idParam) {
       const id = Number(idParam);
       const head = withMeta.find((r) => r.id === id);
       if (!head) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      
       const items = await db
         .select({
           id: invoiceItems.id,
@@ -118,8 +101,17 @@ export async function GET(req: NextRequest) {
         .leftJoin(factories, eq(yarns.factoryId, factories.id))
         .leftJoin(treatments, eq(yarns.treatmentId, treatments.id))
         .where(eq(invoiceItems.invoiceId, id));
+
       const payRows = await db.select().from(payments).where(eq(payments.invoiceId, id)).orderBy(desc(payments.paymentDate));
-      return NextResponse.json({ ...head, items, payments: payRows });
+      
+      // 🆕 智能撈取綁定的銀行帳戶詳細資料
+      let bankInfo = null;
+      if (head.bankAccountId) {
+        const [bank] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, head.bankAccountId));
+        if (bank) bankInfo = bank;
+      }
+
+      return NextResponse.json({ ...head, items, payments: payRows, bankInfo });
     }
 
     return NextResponse.json(withMeta);
@@ -147,11 +139,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, invoiceType, depositPercentage, companyId, customerId, contactId, soId, soNo, customerPoNo,
+      id, invoiceType, depositPercentage, bankAccountId, companyId, customerId, contactId, soId, soNo, customerPoNo,
       invoiceDate, dueDate, currency, vatRate, status, notes, userId,
       items = [],
     } = body as {
-      id?: number; invoiceType?: string; depositPercentage?: number | string | null;
+      id?: number; invoiceType?: string; depositPercentage?: number | string | null; bankAccountId?: number | null;
       companyId?: number | null; customerId?: number | null; contactId?: number | null;
       soId?: number | null; soNo?: string | null; customerPoNo?: string | null;
       invoiceDate: string; dueDate?: string | null; currency?: string; vatRate?: number | string;
@@ -168,42 +160,15 @@ export async function POST(req: NextRequest) {
       : null;
 
     const cleanItems = (items as ItemInput[]).filter((it) => Number(it.unitPrice) > 0);
-    const subtotal = cleanItems.reduce((s, it) => s + (parseQty(String(it.quantity || "")) * Number(it.unitPrice) || 0), 0);
+    const subtotal = cleanItems.reduce((s, it) => s + (parseQty(String(it.quantity || "0")) * Number(it.unitPrice) || 0), 0);
     const rate = Number(vatRate) || 0;
     const vatAmount = Math.round(subtotal * (rate / 100) * 100) / 100;
     const total = Math.round((subtotal + vatAmount) * 100) / 100;
 
-    if (id) {
-      await db.update(invoices).set({
-        invoiceType: finalType,
-        depositPercentage: depositPct,
-        companyId: companyId || null,
-        customerId,
-        contactId: contactId || null,
-        soId: soId || null,
-        soNo: soNo || null,
-        customerPoNo: customerPoNo || null,
-        invoiceDate,
-        dueDate: dueDate || null,
-        currency: currency || "USD",
-        vatRate: rate,
-        subtotal, vatAmount, total,
-        status: status || "Draft",
-        notes: notes || null,
-        updatedAt: new Date(),
-        updatedBy: userId || null,
-      }).where(eq(invoices.id, id));
-      await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
-      if (cleanItems.length > 0) {
-        await db.insert(invoiceItems).values(cleanItems.map((it) => itemRow(id, it)));
-      }
-      return NextResponse.json({ id, updated: true });
-    }
-
-    const [created] = await db.insert(invoices).values({
-      invoiceNo: createInvoiceNo(finalType),
+    const dataToSave = {
       invoiceType: finalType,
       depositPercentage: depositPct,
+      bankAccountId: bankAccountId || null,
       companyId: companyId || null,
       customerId,
       contactId: contactId || null,
@@ -217,8 +182,24 @@ export async function POST(req: NextRequest) {
       subtotal, vatAmount, total,
       status: status || "Draft",
       notes: notes || null,
-      createdBy: userId || null,
+      updatedAt: new Date(),
       updatedBy: userId || null,
+    };
+
+    if (id) {
+      await db.update(invoices).set(dataToSave).where(eq(invoices.id, id));
+      await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+      if (cleanItems.length > 0) {
+        await db.insert(invoiceItems).values(cleanItems.map((it) => itemRow(id, it)));
+      }
+      return NextResponse.json({ id, updated: true });
+    }
+
+    const [created] = await db.insert(invoices).values({
+      invoiceNo: createInvoiceNo(finalType),
+      ...dataToSave,
+      createdAt: new Date(),
+      createdBy: userId || null,
     }).returning({ id: invoices.id, invoiceNo: invoices.invoiceNo });
 
     if (cleanItems.length > 0) {
