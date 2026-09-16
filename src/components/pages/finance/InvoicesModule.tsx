@@ -9,7 +9,7 @@ import { CURRENCY_OPTIONS, UNIT_OPTIONS } from "@/lib/commerce";
 
 // ---------- shared types ----------
 interface InvoiceRow {
-  id: number; invoiceNo?: string | null; invoiceType?: string | null; internalNo?: string | null; supplierInvoiceNo?: string | null;
+  id: number; invoiceNo?: string | null; invoiceType?: string | null; depositPercentage?: number | null; internalNo?: string | null; supplierInvoiceNo?: string | null;
   companyId: number | null; companyName: string | null;
   customerId?: number | null; customerName?: string | null; factoryId?: number | null; factoryName?: string | null;
   soId?: number | null; soNo?: string | null; poId?: number | null; poNo?: string | null; customerPoNo?: string | null;
@@ -113,6 +113,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
   const [fParty, setFParty] = useState(0);
   const [fOrderId, setFOrderId] = useState(0);
   const [fInvoiceType, setFInvoiceType] = useState("Commercial Invoice");
+  const [fDepositPct, setFDepositPct] = useState("");
   const [fSupplierInvNo, setFSupplierInvNo] = useState("");
   const [fDate, setFDate] = useState(new Date().toISOString().slice(0, 10));
   const [fDue, setFDue] = useState("");
@@ -189,6 +190,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       setFParty((isSales ? r.customerId : r.factoryId) || 0);
       setFOrderId((isSales ? r.soId : r.poId) || 0);
       setFInvoiceType(r.invoiceType || "Commercial Invoice");
+      setFDepositPct(r.depositPercentage ? String(r.depositPercentage) : "");
       setFSupplierInvNo(r.supplierInvoiceNo || "");
       setFDate(r.invoiceDate);
       setFDue(r.dueDate || "");
@@ -209,12 +211,34 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       setFCompany(companyList.find((c) => c.isDefault)?.id || 0);
       setFParty(0); setFOrderId(0); setFSupplierInvNo("");
       setFInvoiceType("Commercial Invoice");
+      setFDepositPct("");
       setFDate(new Date().toISOString().slice(0, 10)); setFDue("");
       setFCurrency(defaultCurrency); setFVatRate(defaultVat);
       setFStatus(isSales ? "Draft" : "Received"); setFNotes("");
       setLines([emptyLine()]);
     }
     setShowForm(true);
+  };
+
+    // Apply deposit percentage: recalculate each line's unit price based on original × pct%
+  // Only applies when we have items with prices; use the original SO/order price as base if linked
+  const applyDepositPercentage = (pct: number) => {
+    if (!pct || pct <= 0 || pct >= 100) return;
+    const order = orderList.find((o) => o.id === fOrderId);
+    // Base prices: prefer linked order items, otherwise use current line prices as base
+    const basePrices = new Map<number, number>();
+    if (order?.items?.length) {
+      order.items.forEach((it, i) => basePrices.set(i, Number(it.unitPrice) || 0));
+    }
+    setLines((prev) =>
+      prev.map((l, i) => {
+        const base = basePrices.get(i) ?? (parseFloat(l.unitPrice) || 0);
+        const newPrice = Math.round(base * (pct / 100) * 10000) / 10000;
+        return { ...l, unitPrice: String(newPrice) };
+      })
+    );
+    setFDepositPct(String(pct));
+    showToast({ type: "success", text: `Applied ${pct}% deposit — unit prices recalculated` });
   };
 
   // Prefill from a linked order (new docs only)
@@ -245,11 +269,11 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     if (!fParty || !fDate) return;
     setSaving(true);
     const order = orderList.find((o) => o.id === fOrderId);
-    const payload = {
+       const payload = {
       id: editing?.id,
       companyId: fCompany || null,
       ...(isSales
-        ? { invoiceType: fInvoiceType, customerId: fParty, soId: fOrderId || null, soNo: order?.soNo || null, customerPoNo: order?.customerPoNo || null }
+        ? { invoiceType: fInvoiceType, depositPercentage: fDepositPct || null, customerId: fParty, soId: fOrderId || null, soNo: order?.soNo || null, customerPoNo: order?.customerPoNo || null }
         : { supplierInvoiceNo: fSupplierInvNo || null, factoryId: fParty, poId: fOrderId || null, poNo: order?.poNo || null }),
       invoiceDate: fDate, dueDate: fDue || null,
       currency: fCurrency, vatRate: fVatRate, status: fStatus, notes: fNotes,
@@ -383,10 +407,17 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-semibold">{docLabel} {docNoOf(viewing)}</h2>
-                  {isSales && viewing.invoiceType && (
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${TYPE_COLORS[viewing.invoiceType] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
-                      {viewing.invoiceType}
-                    </span>
+                                    {isSales && viewing.invoiceType && (
+                    <>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${TYPE_COLORS[viewing.invoiceType] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                        {viewing.invoiceType}
+                      </span>
+                      {viewing.depositPercentage && (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                          {viewing.depositPercentage}% of order
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">{partyOf(viewing)} · {viewing.invoiceDate}{viewing.dueDate ? ` · due ${viewing.dueDate}` : ""}</p>
@@ -477,15 +508,58 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                       </button>
                     ))}
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-2">
-                    {fInvoiceType === "Proforma Invoice" && "Formal quote / used for LC opening or advance payment request."}
-                    {fInvoiceType === "Deposit Invoice" && "Bill client for advance/deposit payment (e.g. 30% before production)."}
-                    {fInvoiceType === "Commercial Invoice" && "Official invoice for customs, export documents and full-amount billing."}
-                    {fInvoiceType === "Balance Invoice" && "Bill client for remaining balance after deposit has been paid."}
-                    {fInvoiceType === "Debit Note" && "Charge client additional amount (e.g. price adjustment, extra fees)."}
-                    {fInvoiceType === "Credit Note" && "Refund or credit client (e.g. return, discount, overcharge correction)."}
-                  </p>
-                </div>
+                                  <p className="text-[11px] text-slate-400 mt-2">
+                  {fInvoiceType === "Proforma Invoice" && "Formal quote / used for LC opening or advance payment request."}
+                  {fInvoiceType === "Deposit Invoice" && "Bill client for advance/deposit payment (e.g. 30% before production)."}
+                  {fInvoiceType === "Commercial Invoice" && "Official invoice for customs, export documents and full-amount billing."}
+                  {fInvoiceType === "Balance Invoice" && "Bill client for remaining balance after deposit has been paid."}
+                  {fInvoiceType === "Debit Note" && "Charge client additional amount (e.g. price adjustment, extra fees)."}
+                  {fInvoiceType === "Credit Note" && "Refund or credit client (e.g. return, discount, overcharge correction)."}
+                </p>
+
+                {/* Deposit / Balance percentage helper */}
+                {(fInvoiceType === "Deposit Invoice" || fInvoiceType === "Balance Invoice" || fInvoiceType === "Proforma Invoice") && (
+                  <div className="mt-3 pt-3 border-t border-slate-200">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="text-xs font-medium text-slate-600">Quick % of order:</label>
+                      {[10, 20, 30, 50, 70, 80, 100].map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => applyDepositPercentage(p)}
+                          className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-300 rounded hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition"
+                        >
+                          {p}%
+                        </button>
+                      ))}
+                      <div className="flex items-center gap-1 ml-auto">
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          step="0.5"
+                          value={fDepositPct}
+                          onChange={(e) => setFDepositPct(e.target.value)}
+                          className="w-20 px-2 py-1 text-xs border border-slate-300 rounded"
+                          placeholder="Custom"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => applyDepositPercentage(parseFloat(fDepositPct))}
+                          disabled={!fDepositPct || parseFloat(fDepositPct) <= 0}
+                          className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40"
+                        >
+                          Apply %
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-2">
+                      💡 Tip: {fOrderId ? "Recalculates each line's unit price based on the linked order's original price × this percentage." : "Link a Sales Order above first, then click a % to auto-calculate deposit prices."}
+                      {fDepositPct && <span className="ml-1 text-emerald-600 font-medium">Currently: {fDepositPct}% of full order value.</span>}
+                    </p>
+                  </div>
+                )}
+              </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

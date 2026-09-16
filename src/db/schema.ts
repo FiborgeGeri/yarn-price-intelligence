@@ -441,6 +441,7 @@ export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
   invoiceNo: varchar("invoice_no", { length: 50 }),
   invoiceType: varchar("invoice_type", { length: 30 }).default("Commercial Invoice"),
+  depositPercentage: real("deposit_percentage"),
   companyId: integer("company_id"),
   customerId: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
   contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),

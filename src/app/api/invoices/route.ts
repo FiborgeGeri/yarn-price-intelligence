@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
         id: invoices.id,
         invoiceNo: invoices.invoiceNo,
         invoiceType: invoices.invoiceType,
+        depositPercentage: invoices.depositPercentage,
         companyId: invoices.companyId,
         companyName: companies.name,
         customerId: invoices.customerId,
@@ -73,12 +74,21 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(invoices.invoiceDate), desc(invoices.createdAt));
 
     const userMap = await getUserMap();
-    const withMeta = rows.map((r) => ({
-      ...r,
-      outstanding: Math.max(0, (r.total || 0) - (r.paid || 0)),
-      createdByName: r.createdBy ? userMap[r.createdBy] || null : null,
-      updatedByName: r.updatedBy ? userMap[r.updatedBy] || null : null,
-    }));
+    const withMeta = rows.map((r) => {
+      // 若狀態為 Paid,強制 outstanding = 0(不需依賴付款紀錄)
+      // 若狀態為 Cancelled,outstanding 也視為 0
+      const isFullyPaid = r.status === "Paid" || r.status === "Cancelled";
+      const outstanding = isFullyPaid ? 0 : Math.max(0, (r.total || 0) - (r.paid || 0));
+      // 若狀態為 Paid 但沒有實際付款紀錄,顯示 paid = total(讓使用者看得清楚)
+      const displayPaid = r.status === "Paid" && (r.paid || 0) === 0 ? (r.total || 0) : (r.paid || 0);
+      return {
+        ...r,
+        paid: displayPaid,
+        outstanding,
+        createdByName: r.createdBy ? userMap[r.createdBy] || null : null,
+        updatedByName: r.updatedBy ? userMap[r.updatedBy] || null : null,
+      };
+    });
 
     if (idParam) {
       const id = Number(idParam);
@@ -137,11 +147,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, invoiceType, companyId, customerId, contactId, soId, soNo, customerPoNo,
+      id, invoiceType, depositPercentage, companyId, customerId, contactId, soId, soNo, customerPoNo,
       invoiceDate, dueDate, currency, vatRate, status, notes, userId,
       items = [],
     } = body as {
-      id?: number; invoiceType?: string;
+      id?: number; invoiceType?: string; depositPercentage?: number | string | null;
       companyId?: number | null; customerId?: number | null; contactId?: number | null;
       soId?: number | null; soNo?: string | null; customerPoNo?: string | null;
       invoiceDate: string; dueDate?: string | null; currency?: string; vatRate?: number | string;
@@ -153,6 +163,10 @@ export async function POST(req: NextRequest) {
     }
 
     const finalType = invoiceType || "Commercial Invoice";
+    const depositPct = depositPercentage !== null && depositPercentage !== undefined && depositPercentage !== ""
+      ? Number(depositPercentage)
+      : null;
+
     const cleanItems = (items as ItemInput[]).filter((it) => Number(it.unitPrice) > 0);
     const subtotal = cleanItems.reduce((s, it) => s + (parseQty(String(it.quantity || "")) * Number(it.unitPrice) || 0), 0);
     const rate = Number(vatRate) || 0;
@@ -162,6 +176,7 @@ export async function POST(req: NextRequest) {
     if (id) {
       await db.update(invoices).set({
         invoiceType: finalType,
+        depositPercentage: depositPct,
         companyId: companyId || null,
         customerId,
         contactId: contactId || null,
@@ -188,6 +203,7 @@ export async function POST(req: NextRequest) {
     const [created] = await db.insert(invoices).values({
       invoiceNo: createInvoiceNo(finalType),
       invoiceType: finalType,
+      depositPercentage: depositPct,
       companyId: companyId || null,
       customerId,
       contactId: contactId || null,
