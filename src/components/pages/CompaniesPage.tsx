@@ -44,7 +44,6 @@ function toImageUrl(link: string): string {
   if (match) {
     return `https://drive.google.com/uc?export=view&id=${match[1]}`;
   }
-  // Also handle open?id= format
   const openMatch = link.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
   if (openMatch) {
     return `https://drive.google.com/uc?export=view&id=${openMatch[1]}`;
@@ -177,7 +176,13 @@ export default function CompaniesPage({ permissions }: Props) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   {company.logoPath && <img src={toImageUrl(company.logoPath)} alt="" className="w-8 h-8 object-contain rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
-                  <span className="font-semibold text-slate-900">{company.name}</span>
+                  <button 
+                    type="button"
+                    onClick={() => setViewingEntity(company)} 
+                    className="font-semibold text-slate-900 hover:text-blue-700 hover:underline text-left"
+                  >
+                    {company.name}
+                  </button>
                   {company.isDefault && <span className="px-2 py-0.5 bg-[#fff0e8] text-[#b8613f] border border-[#f1c6b2] rounded text-[10px] font-semibold">Default</span>}
                 </div>
                 {company.officialName && <div className="text-xs text-slate-400 mt-0.5">{company.officialName}</div>}
