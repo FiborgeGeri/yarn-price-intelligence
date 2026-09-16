@@ -49,11 +49,29 @@ export default function Home() {
     try {
       const s = localStorage.getItem("auth_user");
       if (s) setUser(JSON.parse(s));
-      const p = sessionStorage.getItem("fib_page");
-      if (p) setCurrentPage(p);
+      
+      // 優先檢查是否有 QR Code 掃描未完成的重導向
+      const scanTargetPage = sessionStorage.getItem("scanTargetPage");
+      if (scanTargetPage) {
+        setCurrentPage(scanTargetPage);
+        sessionStorage.removeItem("scanTargetPage");
+      } else {
+        const p = sessionStorage.getItem("fib_page");
+        if (p) setCurrentPage(p);
+      }
     } catch {}
     setLoading(false);
   }, []);
+
+  // 當使用者在登入頁面完成登入後，再次檢查是否有未完成的 QR 掃描跳轉
+  useEffect(() => {
+    if (!user) return;
+    const scanTargetPage = sessionStorage.getItem("scanTargetPage");
+    if (scanTargetPage) {
+      setCurrentPage(scanTargetPage);
+      sessionStorage.removeItem("scanTargetPage");
+    }
+  }, [user]);
 
   // Expired or revoked server session -> back to the login screen.
   useEffect(() => {
@@ -61,7 +79,6 @@ export default function Home() {
     fetch("/api/auth/me")
       .then((r) => { if (r.status === 401) handleLogout(); })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Remember the active module across refreshes.

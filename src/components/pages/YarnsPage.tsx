@@ -4,6 +4,7 @@ import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import { IconTrash, IconUpload } from "@/components/Icons";
+import QRCodeBadge from "@/components/QRCodeBadge";
 
 const ANIMAL_FIBERS = ["wool", "merino", "cashmere", "mohair", "alpaca", "angora", "camel", "yak", "silk", "vicuña", "vicuna", "llama", "qiviut", "pashmina", "shahtoosh", "guanaco", "bison", "musk ox"];
 const WORSTED_MILLS = ["indorama", "schoeller", "suedwolle"];
@@ -15,6 +16,20 @@ function detectAnimalFibers(composition: string): string[] {
 }
 function formatFiberLabel(fiber: string): string { return fiber.charAt(0).toUpperCase() + fiber.slice(1); }
 
+// Convert a Google Drive share link to a direct image URL.
+function toImageUrl(link: string): string {
+  if (!link) return "";
+  const match = link.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  }
+  const openMatch = link.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (openMatch) {
+    return `https://drive.google.com/uc?export=view&id=${openMatch[1]}`;
+  }
+  return link;
+}
+
 interface Yarn {
   id: number; yarnName: string; factoryId: number; yarnCount: string;
   yarnTypeId: number; yarnTypeName: string;
@@ -24,6 +39,7 @@ interface Yarn {
   treatmentName: string; certIds: number[]; dyeMethodIds: number[]; dyeMethodNames: string[];
   latestPrice: number | null; latestCurrency: string | null;
   latestUnit: string | null; latestPriceDate: string | null;
+  imagePath: string | null;
   createdByName: string; updatedByName: string; createdAt: string; updatedAt: string;
 }
 interface Factory { id: number; factoryName: string; relationship: string; }
@@ -33,6 +49,19 @@ interface YarnTypeOpt { id: number; name: string; }
 interface SpinningTypeOpt { id: number; name: string; }
 interface DyeMethodOpt { id: number; name: string; }
 interface Props { permissions: Permissions; }
+interface FormItem {
+  yarnId: number;
+  colorName: string;
+  colorCode: string;
+  colorReference: string;
+  quantity: string;
+  unitPrice: string;
+  currency: string;
+  unit: string;
+  weightBasis: string;
+  incoterms: string;
+  notes: string;
+}
 
 export default function YarnsPage({ permissions }: Props) {
   const [yarns, setYarns] = useState<Yarn[]>([]);
@@ -64,6 +93,7 @@ export default function YarnsPage({ permissions }: Props) {
   const [formComposition, setFormComposition] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [formCerts, setFormCerts] = useState<number[]>([]);
+  const [formImagePath, setFormImagePath] = useState("");
   const [saving, setSaving] = useState(false);
   const [bulkText, setBulkText] = useState("");
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -87,6 +117,20 @@ export default function YarnsPage({ permissions }: Props) {
     setLoading(false); setSelected(new Set());
   };
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (yarns.length > 0) {
+      const targetId = sessionStorage.getItem("scanTargetId");
+      if (targetId) {
+        const numId = Number(targetId);
+        const matched = yarns.find((y) => y.id === numId);
+        if (matched) {
+          setViewing(matched);
+        }
+        sessionStorage.removeItem("scanTargetId");
+      }
+    }
+  }, [yarns]);
 
   const filterOptions = useMemo(() => {
     const myMills = factories.filter((f) => f.relationship === "My Factory").sort((a, b) => a.factoryName.localeCompare(b.factoryName));
@@ -120,7 +164,6 @@ export default function YarnsPage({ permissions }: Props) {
     setBulkDeleting(false); setTimeout(() => setToast(null), 3000);
   };
 
-  // Auto-set Worsted for known mills
   const autoSetWorsted = (factoryId: number) => {
     const fac = factories.find((f) => f.id === factoryId);
     if (fac && WORSTED_MILLS.some((m) => fac.factoryName.toLowerCase().includes(m))) {
@@ -140,11 +183,13 @@ export default function YarnsPage({ permissions }: Props) {
       setFormMicron(yarn.micron || "");
       setFormTreatment(yarn.treatmentId || 0); setFormComposition(yarn.composition || "");
       setFormNotes(yarn.notes || ""); setFormCerts(yarn.certIds || []);
+      setFormImagePath(yarn.imagePath || "");
     } else {
       setEditing(null); setFormName(""); setFormFactory(0); setFormCount(""); setFormYarnType(0);
       setFormSpinningType(0);
       setFormDyeMethods([]); setFormMicron("");
       setFormTreatment(0); setFormComposition(""); setFormNotes(""); setFormCerts([]);
+      setFormImagePath("");
     }
     setShowForm(true);
   };
@@ -157,19 +202,19 @@ export default function YarnsPage({ permissions }: Props) {
     setFormMicron(yarn.micron || "");
     setFormTreatment(yarn.treatmentId || 0); setFormComposition(yarn.composition || "");
     setFormNotes(yarn.notes || ""); setFormCerts(yarn.certIds || []);
+    setFormImagePath(yarn.imagePath || "");
     setShowForm(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formFactory) { setToast({ type: "error", text: "Name and yarn mill are required" }); return; }
-    // Composition percentage validation
     if (formComposition.trim()) {
       const pcts = formComposition.match(/(\d+(?:\.\d+)?)\s*%/g);
       if (pcts) {
         const total = pcts.reduce((sum, p) => sum + parseFloat(p), 0);
         if (Math.abs(total - 100) > 0.5) {
-          alert(`⚠️ Composition totals ${total.toFixed(1)}%\n\nIt must equal 100%. Please fix the composition before saving.`);
+          alert(`Composition totals ${total.toFixed(1)}%\n\nIt must equal 100%. Please fix the composition before saving.`);
           return;
         }
       }
@@ -185,6 +230,7 @@ export default function YarnsPage({ permissions }: Props) {
           micron: formMicron, treatmentId: formTreatment || null,
           composition: formComposition, notes: formNotes, certIds: formCerts,
           dyeMethodIds: formDyeMethods,
+          imagePath: formImagePath || null,
           userId: getUserId(),
         }),
       });
@@ -223,7 +269,7 @@ export default function YarnsPage({ permissions }: Props) {
     setBulkSaving(false); setTimeout(() => setToast(null), 3000);
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin mx-auto" /></div>;
 
   return (
     <div>
@@ -238,11 +284,11 @@ export default function YarnsPage({ permissions }: Props) {
         </div>
       </div>
 
-      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-[#3a6650] border border-[#cde3d3]"}`}>{toast.text}</div>}
+      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{toast.text}</div>}
 
       {someSelected && permissions.canDelete && (
-        <div className="mb-4 p-3 bg-blue-50 border border-[#f5c5ae] rounded-lg flex items-center justify-between">
-          <span className="text-sm text-[#a75334] font-medium">{selected.size} yarn(s) selected</span>
+        <div className="mb-4 p-3 bg-blue-50 border border-slate-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-slate-700 font-medium">{selected.size} yarn(s) selected</span>
           <div className="flex gap-2">
             <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800">Clear</button>
             <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"><IconTrash className="w-4 h-4" /> {bulkDeleting ? "Deleting..." : "Delete Selected"}</button>
@@ -285,6 +331,7 @@ export default function YarnsPage({ permissions }: Props) {
                 <td className="px-4 py-3">
                   <button onClick={() => setViewing(y)} className="flex items-center gap-2 text-left group">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${y.relationship === "My Factory" ? "bg-[#e5885d]" : "bg-[#4d7d61]"}`} />
+                    {y.imagePath && <img src={toImageUrl(y.imagePath)} alt="" className="w-6 h-6 object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
                     <span className="font-medium text-[#c4683f] group-hover:underline">{y.yarnName}</span>
                   </button>
                 </td>
@@ -321,6 +368,16 @@ export default function YarnsPage({ permissions }: Props) {
               <button onClick={() => setViewing(null)} className="text-slate-400 hover:text-slate-600 text-xl leading-none p-1">✕</button>
             </div>
             <div className="p-5 space-y-4">
+              <div className="flex gap-4 items-start bg-slate-50 rounded-xl p-3 border border-slate-100">
+                {viewing.imagePath ? (
+                  <img src={toImageUrl(viewing.imagePath)} alt="" className="w-24 h-24 object-cover rounded-lg border border-slate-200 shadow-sm" />
+                ) : (
+                  <div className="w-24 h-24 bg-slate-200 rounded-lg flex items-center justify-center text-xs text-slate-400">No Image</div>
+                )}
+                <div className="flex-1" />
+                <QRCodeBadge type="yarn" id={viewing.id} reference={viewing.yarnName} />
+              </div>
+
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-slate-500 text-xs block mb-0.5">Composition</span><div className="font-medium">{viewing.composition || "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Yarn Count</span><div className="font-medium">{viewing.yarnCount || "—"}</div></div>
@@ -329,7 +386,6 @@ export default function YarnsPage({ permissions }: Props) {
                 <div><span className="text-slate-500 text-xs block mb-0.5">Yarn Type</span><div className="font-medium">{viewing.yarnTypeName || "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Spinning Type</span><div className="font-medium">{viewing.spinningTypeName || "—"}</div></div>
                 <div><span className="text-slate-500 text-xs block mb-0.5">Dye Method</span><div className="font-medium">{viewing.dyeMethodNames?.length ? viewing.dyeMethodNames.join(", ") : "—"}</div></div>
-
               </div>
               {viewing.latestPrice != null && (
                 <div className="border-t border-slate-200 pt-4"><span className="text-slate-500 text-xs block mb-0.5">Latest Price</span><div className="text-lg font-bold font-mono">{viewing.latestCurrency || "USD"} {viewing.latestPrice.toFixed(2)} <span className="text-sm font-normal text-slate-500">{viewing.latestUnit || "per KG"}</span></div><div className="text-xs text-slate-400">{viewing.latestPriceDate}</div></div>
@@ -387,7 +443,6 @@ export default function YarnsPage({ permissions }: Props) {
                 </div>
               </div>
 
-              {/* Smart Micron */}
               {detectedFibers.length > 0 ? (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Micron <span className="text-xs text-slate-400 font-normal">({detectedFibers.length} animal fiber{detectedFibers.length > 1 ? "s" : ""} detected)</span></label>
@@ -405,7 +460,6 @@ export default function YarnsPage({ permissions }: Props) {
                 <div className="text-xs text-slate-400 bg-slate-50 px-3 py-2 rounded-lg">No animal fiber detected — micron not required for synthetic fibers</div>
               ) : null}
 
-              {/* Dye Methods (multi-select like certificates) */}
               {dyeMethodOpts.length > 0 && (
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Dye Method(s)</label>
                   <div className="flex flex-wrap gap-2">{dyeMethodOpts.map((d) => (
@@ -421,6 +475,12 @@ export default function YarnsPage({ permissions }: Props) {
                   ))}</div>
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Yarn Image URL</label>
+                <input type="text" value={formImagePath} onChange={(e) => setFormImagePath(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Paste Google Drive link or image URL" />
+              </div>
+
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editing ? "Update" : "Create"}</button>

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Menu, LogOut, ChevronDown, CircleUserRound, Clock } from "lucide-react";
+import GlobalSearch from "@/components/GlobalSearch";
 
 interface Props {
   user: { username: string; displayName: string; role: string };
@@ -30,12 +31,13 @@ export default function TopBar({ user, onLogout, onToggleSidebar }: Props) {
   const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <header className="h-14 bg-white/55 backdrop-blur-2xl border-b border-white/80 flex items-center justify-between px-4 shrink-0">
-      <div className="flex items-center gap-3">
+    <header className="h-14 bg-white/55 backdrop-blur-2xl border-b border-white/80 flex items-center justify-between px-4 shrink-0 gap-4">
+      {/* Left side: Sidebar Toggle & Clock (時鐘在小螢幕自動隱藏，避免擠壓) */}
+      <div className="flex items-center gap-3 shrink-0">
         <button onClick={onToggleSidebar} className="p-2 hover:bg-white/80 rounded-xl lg:hidden transition-colors">
           <Menu className="w-5 h-5 text-[#6d625b]" />
         </button>
-        <div className="flex items-center gap-3 rounded-full border border-white/80 bg-white/60 px-4 py-1.5 shadow-[0_4px_16px_rgba(70,58,52,0.05)]">
+        <div className="hidden md:flex items-center gap-3 rounded-full border border-white/80 bg-white/60 px-4 py-1.5 shadow-[0_4px_16px_rgba(70,58,52,0.05)]">
           <Clock className="w-3.5 h-3.5 text-[#d96f3c]" />
           <span className="text-[13px] font-medium text-[#5c524b]">{dayStr}</span>
           <span className="h-4 w-px bg-[#e3d5cb]" />
@@ -43,7 +45,13 @@ export default function TopBar({ user, onLogout, onToggleSidebar }: Props) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* Center: Global Search Bar (寬度自適應，最大 450px) */}
+      <div className="flex-1 max-w-xs md:max-w-md">
+        <GlobalSearch />
+      </div>
+
+      {/* Right side: User Profile dropdown */}
+      <div className="flex items-center gap-2 shrink-0">
         <div ref={profileRef} className="relative">
           <button
             onClick={() => setShowProfile(!showProfile)}

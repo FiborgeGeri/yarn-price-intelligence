@@ -81,7 +81,6 @@ export default function DirectoryViewModal({
     const load = async () => {
       setLoading(true);
       try {
-        // 讀取聯絡人
         const promises: Promise<any>[] = [];
         if (contactsEndpoint && contactsForeignKey) {
           promises.push(
@@ -92,7 +91,6 @@ export default function DirectoryViewModal({
         } else {
           promises.push(Promise.resolve([]));
         }
-        // 讀取銀行帳戶（company/customer/factory 有；shipTo 沒有）
         if (entityType !== "shipTo") {
           promises.push(
             fetch(`/api/bank-accounts?entityType=${entityType}&entityId=${entity.id}`)
@@ -267,9 +265,9 @@ export default function DirectoryViewModal({
                         )}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-                        {c.email && <span>📧 {c.email}</span>}
-                        {c.phone && <span>☎️ {c.phone}</span>}
-                        {c.cellPhone && <span>📱 {c.cellPhone}</span>}
+                        {c.email && <span>Email: {c.email}</span>}
+                        {c.phone && <span>Tel: {c.phone}</span>}
+                        {c.cellPhone && <span>Mobile: {c.cellPhone}</span>}
                       </div>
                       {c.notes && <div className="mt-1 text-xs text-slate-500 italic">{c.notes}</div>}
                     </div>

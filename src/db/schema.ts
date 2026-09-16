@@ -150,6 +150,7 @@ export const yarns = pgTable("yarns", {
   micron: varchar("micron", { length: 50 }),
   treatmentId: integer("treatment_id").references(() => treatments.id),
   composition: varchar("composition", { length: 300 }),
+  imagePath: varchar("image_path", { length: 500 }),
   notes: text("notes"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
