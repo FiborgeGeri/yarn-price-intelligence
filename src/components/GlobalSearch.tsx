@@ -82,15 +82,15 @@ export default function GlobalSearch() {
   const handleSelect = (item: SearchResult) => {
     const page = PAGE_MAP[item.type];
     if (!page) return;
-    
+
     sessionStorage.setItem("scanTargetPage", page);
     sessionStorage.setItem("scanTargetId", String(item.id));
-    
+
     setFocused(false);
     setQ("");
-    
-    window.dispatchEvent(new Event("storage"));
-    window.location.reload(); 
+
+    // 使用自定義事件通知 page.tsx 切換頁面（不需要 reload）
+    window.dispatchEvent(new CustomEvent("fib-navigate", { detail: { page } }));
   };
 
   return (

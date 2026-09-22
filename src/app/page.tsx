@@ -42,6 +42,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pageKey, setPageKey] = useState(0);
 
   const permissions: Permissions = useMemo(() => getPermissions(user?.role), [user?.role]);
 
@@ -63,6 +64,19 @@ export default function Home() {
     setLoading(false);
   }, []);
 
+  // 監聽全域搜尋 / QR 掃描的跳轉事件 (不需 reload，直接無縫切換並重新渲染子頁面)
+  useEffect(() => {
+    const handleNavigate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.page) {
+        setCurrentPage(detail.page);
+        setPageKey((k) => k + 1); // 強制重新渲染目標頁面
+      }
+    };
+    window.addEventListener("fib-navigate", handleNavigate);
+    return () => window.removeEventListener("fib-navigate", handleNavigate);
+  }, []);
+
   // 當使用者在登入頁面完成登入後，再次檢查是否有未完成的 QR 掃描跳轉
   useEffect(() => {
     if (!user) return;
@@ -79,6 +93,7 @@ export default function Home() {
     fetch("/api/auth/me")
       .then((r) => { if (r.status === 401) handleLogout(); })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Remember the active module across refreshes.
@@ -140,7 +155,7 @@ export default function Home() {
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} user={user} onLogout={handleLogout} permissions={permissions} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-slate-50">{renderPage()}</main>
+        <main key={pageKey} className="flex-1 overflow-auto p-4 md:p-6 bg-slate-50">{renderPage()}</main>
       </div>
     </div>
   );
