@@ -31,7 +31,7 @@ export default function TopBar({ user, onLogout, onToggleSidebar }: Props) {
   const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <header className="h-14 bg-white/55 backdrop-blur-2xl border-b border-white/80 flex items-center justify-between px-4 shrink-0 gap-4">
+        <header className="h-14 bg-white/55 backdrop-blur-2xl border-b border-white/80 flex items-center justify-between px-4 shrink-0 gap-4 relative z-[200]">
       {/* Left side: Sidebar Toggle & Clock (時鐘在小螢幕自動隱藏，避免擠壓) */}
       <div className="flex items-center gap-3 shrink-0">
         <button onClick={onToggleSidebar} className="p-2 hover:bg-white/80 rounded-xl lg:hidden transition-colors">
