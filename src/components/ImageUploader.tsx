@@ -1,22 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { Upload, X, Loader2 } from "lucide-react";
 
 interface Props {
-  /** Current image URL (single string) or array of URLs (multiple images) */
   value: string | string[];
-  /** Callback function when images are added or removed */
   onChange: (value: string | string[]) => void;
-  /** Cloudinary folder path (e.g., "yarns", "receipts") */
   folder?: string;
-  /** Allow uploading multiple images */
   multiple?: boolean;
-  /** Maximum number of allowed images (only for multiple = true) */
   maxImages?: number;
-  /** Label text shown above the uploader */
   label?: string;
-  /** Help text shown below the uploader */
   hint?: string;
 }
 
@@ -154,6 +147,3 @@ export default function ImageUploader({
     </div>
   );
 }
-
-// Simple React.useMemo polyfill or import inside component scope
-import { useMemo } from "react";

@@ -7,7 +7,6 @@ import { IconTrash, IconUpload } from "@/components/Icons";
 import QRCodeBadge from "@/components/QRCodeBadge";
 import ImageUploader from "@/components/ImageUploader";
 
-
 const ANIMAL_FIBERS = ["wool", "merino", "cashmere", "mohair", "alpaca", "angora", "camel", "yak", "silk", "vicuña", "vicuna", "llama", "qiviut", "pashmina", "shahtoosh", "guanaco", "bison", "musk ox"];
 const WORSTED_MILLS = ["indorama", "schoeller", "suedwolle"];
 
@@ -18,9 +17,15 @@ function detectAnimalFibers(composition: string): string[] {
 }
 function formatFiberLabel(fiber: string): string { return fiber.charAt(0).toUpperCase() + fiber.slice(1); }
 
-// Convert a Google Drive share link to a direct image URL.
+// Convert a Google Drive share link or JSON array to a direct image URL.
 function toImageUrl(link: string): string {
   if (!link) return "";
+  try {
+    const parsed = JSON.parse(link);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return toImageUrl(parsed[0]);
+    }
+  } catch {}
   const match = link.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (match) {
     return `https://drive.google.com/uc?export=view&id=${match[1]}`;
@@ -31,6 +36,8 @@ function toImageUrl(link: string): string {
   }
   return link;
 }
+
+// Get all image URLs from a JSON string or single URL
 function getAllImages(link: string): string[] {
   if (!link) return [];
   try {
@@ -39,6 +46,7 @@ function getAllImages(link: string): string[] {
   } catch {}
   return [link];
 }
+
 interface Yarn {
   id: number; yarnName: string; factoryId: number; yarnCount: string;
   yarnTypeId: number; yarnTypeName: string;
@@ -58,19 +66,6 @@ interface YarnTypeOpt { id: number; name: string; }
 interface SpinningTypeOpt { id: number; name: string; }
 interface DyeMethodOpt { id: number; name: string; }
 interface Props { permissions: Permissions; }
-interface FormItem {
-  yarnId: number;
-  colorName: string;
-  colorCode: string;
-  colorReference: string;
-  quantity: string;
-  unitPrice: string;
-  currency: string;
-  unit: string;
-  weightBasis: string;
-  incoterms: string;
-  notes: string;
-}
 
 export default function YarnsPage({ permissions }: Props) {
   const [yarns, setYarns] = useState<Yarn[]>([]);
@@ -377,14 +372,25 @@ export default function YarnsPage({ permissions }: Props) {
               <button onClick={() => setViewing(null)} className="text-slate-400 hover:text-slate-600 text-xl leading-none p-1">✕</button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="flex gap-4 items-start bg-slate-50 rounded-xl p-3 border border-slate-100">
-                {viewing.imagePath ? (
-                  <img src={toImageUrl(viewing.imagePath)} alt="" className="w-24 h-24 object-cover rounded-lg border border-slate-200 shadow-sm" />
-                ) : (
-                  <div className="w-24 h-24 bg-slate-200 rounded-lg flex items-center justify-center text-xs text-slate-400">No Image</div>
-                )}
-                <div className="flex-1" />
-                <QRCodeBadge type="yarn" id={viewing.id} reference={viewing.yarnName} />
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                <div className="flex gap-4 items-start">
+                  <div className="flex-1">
+                    {(() => {
+                      const imgs = getAllImages(viewing.imagePath || "");
+                      if (imgs.length === 0) return <div className="w-24 h-24 bg-slate-200 rounded-lg flex items-center justify-center text-xs text-slate-400">No Image</div>;
+                      return (
+                        <div className="flex gap-2 flex-wrap">
+                          {imgs.map((img, i) => (
+                            <a key={i} href={toImageUrl(img)} target="_blank" rel="noopener noreferrer">
+                              <img src={toImageUrl(img)} alt="" className="w-20 h-20 object-cover rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-zoom-in" />
+                            </a>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <QRCodeBadge type="yarn" id={viewing.id} reference={viewing.yarnName} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -452,6 +458,7 @@ export default function YarnsPage({ permissions }: Props) {
                 </div>
               </div>
 
+              {/* Smart Micron */}
               {detectedFibers.length > 0 ? (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Micron <span className="text-xs text-slate-400 font-normal">({detectedFibers.length} animal fiber{detectedFibers.length > 1 ? "s" : ""} detected)</span></label>
@@ -469,6 +476,7 @@ export default function YarnsPage({ permissions }: Props) {
                 <div className="text-xs text-slate-400 bg-slate-50 px-3 py-2 rounded-lg">No animal fiber detected — micron not required for synthetic fibers</div>
               ) : null}
 
+              {/* Dye Methods (multi-select like certificates) */}
               {dyeMethodOpts.length > 0 && (
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Dye Method(s)</label>
                   <div className="flex flex-wrap gap-2">{dyeMethodOpts.map((d) => (
@@ -485,13 +493,24 @@ export default function YarnsPage({ permissions }: Props) {
                 </div>
               )}
 
-                            <ImageUploader
+              {/* 🆕 產品圖片上傳組件 (替換掉了原本的文字 Input，全面整合 Cloudinary) */}
+              <ImageUploader
                 label="Yarn Images"
                 folder="yarns"
                 multiple
                 maxImages={5}
-                value={(() => { try { const p = JSON.parse(formImagePath || "[]"); return Array.isArray(p) ? p : (formImagePath ? [formImagePath] : []); } catch { return formImagePath ? [formImagePath] : []; } })()}
-                onChange={(val) => { const arr = Array.isArray(val) ? val : [val]; setFormImagePath(arr.length > 0 ? JSON.stringify(arr) : ""); }}
+                value={(() => { 
+                  try { 
+                    const p = JSON.parse(formImagePath || "[]"); 
+                    return Array.isArray(p) ? p : (formImagePath ? [formImagePath] : []); 
+                  } catch { 
+                    return formImagePath ? [formImagePath] : []; 
+                  } 
+                })()}
+                onChange={(val) => { 
+                  const arr = Array.isArray(val) ? val : [val]; 
+                  setFormImagePath(arr.length > 0 ? JSON.stringify(arr) : ""); 
+                }}
                 hint="Upload yarn photos (front, side, close-up, color card, etc.)"
               />
 
