@@ -114,8 +114,7 @@ export default function GlobalSearch() {
       </div>
 
       {focused && (results.length > 0 || query.trim().length >= 2) && (
-        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-80 overflow-y-auto p-2 z-[100]">
-          {results.length === 0 && !loading && (
+<div className="fixed left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-80 overflow-y-auto p-2 z-[9999]" style={{ top: '56px', maxWidth: '28rem', marginLeft: 'auto', marginRight: 'auto' }}>          {results.length === 0 && !loading && (
             <div className="text-center py-6 text-xs text-slate-400">
               No matching records found.
             </div>

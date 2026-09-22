@@ -5,6 +5,8 @@ import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import { IconTrash, IconUpload } from "@/components/Icons";
 import QRCodeBadge from "@/components/QRCodeBadge";
+import ImageUploader from "@/components/ImageUploader";
+
 
 const ANIMAL_FIBERS = ["wool", "merino", "cashmere", "mohair", "alpaca", "angora", "camel", "yak", "silk", "vicuña", "vicuna", "llama", "qiviut", "pashmina", "shahtoosh", "guanaco", "bison", "musk ox"];
 const WORSTED_MILLS = ["indorama", "schoeller", "suedwolle"];
@@ -29,7 +31,14 @@ function toImageUrl(link: string): string {
   }
   return link;
 }
-
+function getAllImages(link: string): string[] {
+  if (!link) return [];
+  try {
+    const parsed = JSON.parse(link);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean);
+  } catch {}
+  return [link];
+}
 interface Yarn {
   id: number; yarnName: string; factoryId: number; yarnCount: string;
   yarnTypeId: number; yarnTypeName: string;
@@ -476,10 +485,15 @@ export default function YarnsPage({ permissions }: Props) {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Yarn Image URL</label>
-                <input type="text" value={formImagePath} onChange={(e) => setFormImagePath(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Paste Google Drive link or image URL" />
-              </div>
+                            <ImageUploader
+                label="Yarn Images"
+                folder="yarns"
+                multiple
+                maxImages={5}
+                value={(() => { try { const p = JSON.parse(formImagePath || "[]"); return Array.isArray(p) ? p : (formImagePath ? [formImagePath] : []); } catch { return formImagePath ? [formImagePath] : []; } })()}
+                onChange={(val) => { const arr = Array.isArray(val) ? val : [val]; setFormImagePath(arr.length > 0 ? JSON.stringify(arr) : ""); }}
+                hint="Upload yarn photos (front, side, close-up, color card, etc.)"
+              />
 
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
               <div className="flex gap-3 pt-2">
