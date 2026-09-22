@@ -6,10 +6,11 @@ import { getUserId } from "@/lib/getUserId";
 import AuditInfo from "@/components/AuditInfo";
 import IncotermsInput from "@/components/IncotermsInput";
 import { CURRENCY_OPTIONS, UNIT_OPTIONS } from "@/lib/commerce";
+import ImageUploader from "@/components/ImageUploader";
 
 // ---------- shared types ----------
 interface InvoiceRow {
-  id: number; invoiceNo?: string | null; invoiceType?: string | null; depositPercentage?: number | null; bankAccountId?: number | null; internalNo?: string | null; supplierInvoiceNo?: string | null;
+  id: number; invoiceNo?: string | null; invoiceType?: string | null; depositPercentage?: number | null; bankAccountId?: number | null; attachmentPath?: string | null; internalNo?: string | null; supplierInvoiceNo?: string | null;
   companyId: number | null; companyName: string | null;
   customerId?: number | null; customerName?: string | null; factoryId?: number | null; factoryName?: string | null;
   soId?: number | null; soNo?: string | null; poId?: number | null; poNo?: string | null; customerPoNo?: string | null;
@@ -78,7 +79,6 @@ function fmt(n: number | null | undefined, c?: string | null) {
 }
 const emptyLine = (): Line => ({ yarnId: null, description: "", colorName: "", quantity: "", unitPrice: "", unit: "per KG", weightBasis: "condition", incoterms: "" });
 
-// ---------- configurable module ----------
 export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "supplier"; permissions: Permissions }) {
   const isSales = kind === "sales";
   const api = isSales ? "/api/invoices" : "/api/supplier-invoices";
@@ -123,8 +123,8 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
   const [fStatus, setFStatus] = useState(isSales ? "Draft" : "Received");
   const [fNotes, setFNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
-  
-  // 智能銀行資料狀態
+  const [fAttachment, setFAttachment] = useState(""); // 🆕 附件路徑
+
   const [bankAccountList, setBankAccountList] = useState<BankAccount[]>([]);
   const [fBankAccountId, setFBankAccountId] = useState(0);
 
@@ -188,7 +188,6 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     setFDue(d.toISOString().slice(0, 10));
   };
 
-  // 🆕 智能加載銀行帳號：Sales 讀我方、Supplier 讀紗廠
   const fetchAvailableBanks = async (id: number) => {
     if (!id) { setBankAccountList([]); return; }
     try {
@@ -216,11 +215,10 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       setFStatus(r.status);
       setFNotes(r.notes || "");
       setFBankAccountId(r.bankAccountId || 0);
+      setFAttachment(r.attachmentPath || ""); // 載入附件
       
-      // 載入對應銀行
       fetchAvailableBanks((isSales ? r.companyId : r.factoryId) || 0);
 
-      // load existing items
       fetch(`${api}?id=${r.id}`).then((x) => x.json()).then((d: Detail) => {
         setLines(d.items.length ? d.items.map((it) => ({
           yarnId: it.yarnId, description: it.description || it.yarnName || "", colorName: it.colorName || "",
@@ -240,6 +238,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       setFStatus(isSales ? "Draft" : "Received"); setFNotes("");
       setFBankAccountId(0);
       setBankAccountList([]);
+      setFAttachment("");
 
       if (isSales && defaultCompId) {
         fetchAvailableBanks(defaultCompId);
@@ -249,7 +248,6 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     setShowForm(true);
   };
 
-  // Prefill from a linked order (new docs only)
   const onOrderChange = (orderId: number) => {
     setFOrderId(orderId);
     if (!orderId || editing) return;
@@ -258,7 +256,6 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     const resolvedParty = (isSales ? o.customerId : o.factoryId) || 0;
     setFParty(resolvedParty);
 
-    // 智能切換：Supplier 關聯 PO 時直接加載紗廠銀行
     if (!isSales && resolvedParty) {
       fetchAvailableBanks(resolvedParty);
     }
@@ -276,7 +273,6 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
     }
   };
 
-  // 按百分比快速重算
   const applyDepositPercentage = (pct: number) => {
     if (!pct || pct <= 0 || pct > 100) return;
     const order = orderList.find((o) => o.id === fOrderId);
@@ -309,6 +305,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
       invoiceType: fInvoiceType,
       depositPercentage: fDepositPct ? parseFloat(fDepositPct) : null,
       bankAccountId: fBankAccountId || null,
+      attachmentPath: fAttachment || null, // 儲存附件
       ...(isSales
         ? { customerId: fParty, soId: fOrderId || null, soNo: order?.soNo || null, customerPoNo: order?.customerPoNo || null }
         : { supplierInvoiceNo: fSupplierInvNo || null, factoryId: fParty, poId: fOrderId || null, poNo: order?.poNo || null }),
@@ -465,7 +462,6 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                 <div><span className="text-slate-500 text-xs block">Currency / VAT</span><div>{viewing.currency} · {viewing.vatRate || 0}%</div></div>
               </div>
 
-              {/* 🆕 顯示綁定的收款/匯款銀行資訊 */}
               {viewing.bankInfo && (
                 <div className="rounded-lg bg-emerald-50/50 border border-emerald-150 p-4">
                   <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider mb-2">
@@ -524,6 +520,27 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                   </div>
                 </div>
               )}
+
+              {/* 🆕 顯示發票附件照片 */}
+              {(() => {
+                const att = viewing.attachmentPath || "";
+                let imgs: string[] = [];
+                try { const parsed = JSON.parse(att); imgs = Array.isArray(parsed) ? parsed : (att ? [att] : []); } catch { imgs = att ? [att] : []; }
+                if (imgs.length === 0) return null;
+                return (
+                  <div className="border-t border-slate-200 pt-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Attachments</div>
+                    <div className="flex gap-2 flex-wrap">
+                      {imgs.map((img, i) => (
+                        <a key={i} href={img} target="_blank" rel="noopener noreferrer">
+                          <img src={img} alt="" className="w-20 h-20 object-cover rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-zoom-in" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {viewing.notes && <div className="text-sm text-slate-600 whitespace-pre-line bg-slate-50 rounded-lg p-3 border border-slate-100">{viewing.notes}</div>}
               <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} />
             </div>
@@ -639,7 +656,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       setFParty(val);
-                      if (!isSales) fetchAvailableBanks(val); // 智能：如果是採購，直接抓取工廠銀行
+                      if (!isSales) fetchAvailableBanks(val);
                     }} 
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" 
                     required
@@ -662,7 +679,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       setFCompany(val);
-                      if (isSales) fetchAvailableBanks(val); // 智能：如果是銷售，切換我方收款公司時加載其銀行
+                      if (isSales) fetchAvailableBanks(val);
                     }} 
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
                   >
@@ -716,7 +733,7 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                       const currs = (b.currency || "").split(",").map((c) => c.trim()).filter(Boolean);
                       return (
                         <option key={b.id} value={b.id}>
-                          {b.bankName} — A/C: {b.accountNumber || "N/A"} ({currs.join(", ")}){b.isDefault ? " ★ Primary" : ""}
+                          {b.bankName} — A/C: {b.accountNumber || "N/A"} ({currs.join(", ")}){b.isDefault ? " (Primary)" : ""}
                         </option>
                       );
                     })}
@@ -760,6 +777,27 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
                   ))}
                 </div>
               </div>
+
+              {/* 🆕 附件上傳面板 (可上傳 PDF、packing list 圖片等支援多圖) */}
+              <ImageUploader
+                label="Invoice Attachments"
+                folder="invoices"
+                multiple
+                maxImages={5}
+                value={(() => { 
+                  try { 
+                    const p = JSON.parse(fAttachment || "[]"); 
+                    return Array.isArray(p) ? p : (fAttachment ? [fAttachment] : []); 
+                  } catch { 
+                    return fAttachment ? [fAttachment] : []; 
+                  } 
+                })()}
+                onChange={(val) => { 
+                  const arr = Array.isArray(val) ? val : [val]; 
+                  setFAttachment(arr.length > 0 ? JSON.stringify(arr) : ""); 
+                }}
+                hint="Upload invoice PDF, packing list, or supporting document photos"
+              />
 
               {/* totals */}
               <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-1 text-sm font-mono">

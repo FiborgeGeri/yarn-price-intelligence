@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
         invoiceType: invoices.invoiceType,
         depositPercentage: invoices.depositPercentage,
         bankAccountId: invoices.bankAccountId,
+        attachmentPath: invoices.attachmentPath, // 🆕 新增
         companyId: invoices.companyId,
         companyName: companies.name,
         customerId: invoices.customerId,
@@ -104,7 +105,6 @@ export async function GET(req: NextRequest) {
 
       const payRows = await db.select().from(payments).where(eq(payments.invoiceId, id)).orderBy(desc(payments.paymentDate));
       
-      // 🆕 智能撈取綁定的銀行帳戶詳細資料
       let bankInfo = null;
       if (head.bankAccountId) {
         const [bank] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, head.bankAccountId));
@@ -139,12 +139,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, invoiceType, depositPercentage, bankAccountId, companyId, customerId, contactId, soId, soNo, customerPoNo,
+      id, invoiceType, depositPercentage, bankAccountId, attachmentPath, companyId, customerId, contactId, soId, soNo, customerPoNo,
       invoiceDate, dueDate, currency, vatRate, status, notes, userId,
       items = [],
     } = body as {
       id?: number; invoiceType?: string; depositPercentage?: number | string | null; bankAccountId?: number | null;
-      companyId?: number | null; customerId?: number | null; contactId?: number | null;
+      attachmentPath?: string | null; companyId?: number | null; customerId?: number | null; contactId?: number | null;
       soId?: number | null; soNo?: string | null; customerPoNo?: string | null;
       invoiceDate: string; dueDate?: string | null; currency?: string; vatRate?: number | string;
       status?: string; notes?: string | null; userId?: number | null; items?: ItemInput[];
@@ -169,6 +169,7 @@ export async function POST(req: NextRequest) {
       invoiceType: finalType,
       depositPercentage: depositPct,
       bankAccountId: bankAccountId || null,
+      attachmentPath: attachmentPath || null, // 🆕 新增儲存 attachmentPath
       companyId: companyId || null,
       customerId,
       contactId: contactId || null,

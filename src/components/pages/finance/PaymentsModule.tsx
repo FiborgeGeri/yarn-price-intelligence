@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Permissions } from "@/lib/permissions";
 import { getUserId } from "@/lib/getUserId";
+import ImageUploader from "@/components/ImageUploader";
 
 interface DocRow {
   id: number; invoiceNo?: string | null; internalNo?: string | null; supplierInvoiceNo?: string | null;
@@ -15,6 +16,7 @@ interface PayRow {
   invoiceNo?: string | null; supplierInvoiceNo?: string | null; internalNo?: string | null;
   customerName?: string | null; factoryName?: string | null;
   paymentDate: string; amount: number; currency: string | null; method: string | null; reference: string | null; notes: string | null;
+  receiptImagePath?: string | null;
   createdByName: string | null;
 }
 interface Toast { type: "success" | "error"; text: string }
@@ -41,7 +43,6 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
   const docsApi = isSales ? "/api/invoices" : "/api/supplier-invoices";
   const paysApi = isSales ? "/api/payments" : "/api/supplier-payments";
   const idField = isSales ? "invoiceId" : "supplierInvoiceId";
-  const title = isSales ? "Payments / Receivables" : "Payables";
   const partyLabel = isSales ? "Client" : "Yarn Mill";
   const direction = isSales ? "received from clients" : "paid to yarn mills";
 
@@ -62,6 +63,7 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
   const [pMethod, setPMethod] = useState(METHODS[0]);
   const [pRef, setPRef] = useState("");
   const [pNotes, setPNotes] = useState("");
+  const [pReceipt, setPReceipt] = useState("");
   const [saving, setSaving] = useState(false);
 
   const showToast = useCallback((t: Toast) => { setToast(t); setTimeout(() => setToast(null), 3500); }, []);
@@ -107,7 +109,7 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
     setEditingPay(null);
     setPAmount(d.outstanding.toFixed(2));
     setPDate(new Date().toISOString().slice(0, 10));
-    setPMethod(METHODS[0]); setPRef(""); setPNotes("");
+    setPMethod(METHODS[0]); setPRef(""); setPNotes(""); setPReceipt("");
   };
 
   const openEdit = (p: PayRow) => {
@@ -119,6 +121,7 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
     setPMethod(p.method || METHODS[0]);
     setPRef(p.reference || "");
     setPNotes(p.notes || "");
+    setPReceipt(p.receiptImagePath || "");
   };
 
   const submitPay = async (e: React.FormEvent) => {
@@ -141,6 +144,7 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
           method: pMethod,
           reference: pRef,
           notes: pNotes,
+          receiptImagePath: pReceipt || null,
           userId: getUserId(),
         }),
       });
@@ -156,6 +160,7 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
           method: pMethod,
           reference: pRef,
           notes: pNotes,
+          receiptImagePath: pReceipt || null,
           userId: getUserId(),
         }),
       });
@@ -237,7 +242,15 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                   const pct = d.total ? Math.min(100, (d.paid / d.total) * 100) : 0;
                   return (
                     <tr key={d.id} className="border-t border-slate-100 hover:bg-slate-50/60">
-                      <td className="px-4 py-3 font-mono text-blue-600">{docNo(d)}</td>
+                      {/* 🆕 點擊未結算發票號碼：直接定位觸發 openPay(d) 進行收款/付款 */}
+                      <td className="px-4 py-3 font-mono text-blue-600">
+                        <button 
+                          onClick={() => openPay(d)}
+                          className="font-mono text-blue-600 hover:text-blue-800 hover:underline text-left focus:outline-none"
+                        >
+                          {docNo(d)}
+                        </button>
+                      </td>
                       <td className="px-4 py-3 font-medium">{partyOf(d)}</td>
                       <td className="px-4 py-3">{d.dueDate || "—"}</td>
                       <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs ${ag.cls}`}>{ag.label}</span></td>
@@ -274,12 +287,12 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                 {loading && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading…</td></tr>}
                 {!loading && filteredPays.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No payments recorded yet.</td></tr>}
                 {filteredPays.map((p) => (
-             <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                  <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/60">
                     <td className="px-4 py-3">{p.paymentDate}</td>
-                                        <td className="px-4 py-3">
+                    <td className="px-4 py-3 font-mono text-blue-600">
                       <button 
                         onClick={() => setViewingPay(p)}
-                        className="font-mono text-blue-600 hover:text-blue-800 hover:underline text-left"
+                        className="font-mono text-blue-600 hover:text-blue-800 hover:underline text-left focus:outline-none"
                       >
                         {(isSales ? p.invoiceNo : (p.supplierInvoiceNo || p.internalNo)) || "—"}
                       </button>
@@ -342,6 +355,21 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                   <div className="bg-slate-50 rounded p-2 text-slate-700 whitespace-pre-line text-xs">{viewingPay.notes}</div>
                 </div>
               )}
+
+              {/* 🆕 顯示水單附件 */}
+              {viewingPay.receiptImagePath && (
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Payment Receipt / Remittance Slip</div>
+                  <a href={viewingPay.receiptImagePath} target="_blank" rel="noopener noreferrer">
+                    <img 
+                      src={viewingPay.receiptImagePath} 
+                      alt="Receipt" 
+                      className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-zoom-in" 
+                    />
+                  </a>
+                </div>
+              )}
+
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
                 <span>Recorded by: {viewingPay.createdByName || "—"}</span>
                 <div className="flex gap-2">
@@ -397,6 +425,17 @@ export default function PaymentsModule({ kind, permissions }: { kind: "sales" | 
                 <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
                 <input type="text" value={pNotes} onChange={(e) => setPNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
               </div>
+
+              {/* 🆕 水單上傳組件 (一次只能上傳一張水單) */}
+              <ImageUploader
+                label="Payment Receipt / Remittance Slip"
+                folder="receipts"
+                multiple={false}
+                value={pReceipt}
+                onChange={(val) => setPReceipt(typeof val === "string" ? val : (val[0] || ""))}
+                hint="Upload bank transfer receipt or remittance slip image"
+              />
+
               <div className="flex gap-3 pt-1">
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                   {saving ? "Saving…" : editingPay ? "Save Changes" : "Record Payment"}

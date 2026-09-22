@@ -7,6 +7,7 @@ import {
   real,
   varchar,
   boolean,
+  decimal,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -27,7 +28,8 @@ export const companies = pgTable("companies", {
   telephone: varchar("telephone", { length: 100 }),
   country: varchar("country", { length: 100 }),
   logoPath: varchar("logo_path", { length: 500 }),
-    isDefault: boolean("is_default").default(false),
+  isDefault: boolean("is_default").default(false),
+  // 中國增值稅開票資料
   fapiaoCompanyName: varchar("fapiao_company_name", { length: 500 }),
   fapiaoTaxId: varchar("fapiao_tax_id", { length: 50 }),
   fapiaoAddress: text("fapiao_address"),
@@ -43,14 +45,15 @@ export const companies = pgTable("companies", {
   updatedBy: integer("updated_by"),
 });
 
-export const factories= pgTable("factories", {
+export const factories = pgTable("factories", {
   id: serial("id").primaryKey(),
   factoryName: varchar("factory_name", { length: 300 }).notNull(),
   officialName: varchar("official_name", { length: 500 }),
   addressLocal: text("address_local"),
   addressEnglish: text("address_english"),
   country: varchar("country", { length: 100 }),
-    telephone: varchar("telephone", { length: 100 }),
+  telephone: varchar("telephone", { length: 100 }),
+  // 中國增值稅開票資料
   fapiaoCompanyName: varchar("fapiao_company_name", { length: 500 }),
   fapiaoTaxId: varchar("fapiao_tax_id", { length: 50 }),
   fapiaoAddress: text("fapiao_address"),
@@ -194,7 +197,8 @@ export const customers = pgTable("customers", {
   addressLocal: text("address_local"),
   addressEnglish: text("address_english"),
   country: varchar("country", { length: 100 }),
-    telephone: varchar("telephone", { length: 100 }),
+  telephone: varchar("telephone", { length: 100 }),
+  // 中國增值稅開票資料
   fapiaoCompanyName: varchar("fapiao_company_name", { length: 500 }),
   fapiaoTaxId: varchar("fapiao_tax_id", { length: 50 }),
   fapiaoAddress: text("fapiao_address"),
@@ -278,7 +282,6 @@ export const salesOrders = pgTable("sales_orders", {
   soDate: varchar("so_date", { length: 20 }).notNull(),
   deliveryDate: varchar("delivery_date", { length: 20 }),
   status: varchar("status", { length: 50 }).default("Confirmed"),
-  colorReference: varchar("color_reference", { length: 200 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: integer("created_by"),
@@ -325,7 +328,6 @@ export const purchaseOrders = pgTable("purchase_orders", {
   deliveryDate: varchar("delivery_date", { length: 20 }),
   incoterms: varchar("incoterms", { length: 100 }),
   status: varchar("status", { length: 50 }).default("Draft"),
-  colorReference: varchar("color_reference", { length: 200 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: integer("created_by"),
@@ -413,7 +415,7 @@ export const dnItems = pgTable("dn_items", {
   packingDetails: text("packing_details"),
   grossWeight: varchar("gross_weight", { length: 50 }),
   netWeight: varchar("net_weight", { length: 50 }),
-  lotNo: varchar("lot_no", { length: 100 }),
+  lotNo: varchar("lot_no", { length: 100 }), 
   notes: text("notes"),
 });
 
@@ -469,6 +471,7 @@ export const invoices = pgTable("invoices", {
   invoiceType: varchar("invoice_type", { length: 30 }).default("Commercial Invoice"),
   depositPercentage: real("deposit_percentage"),
   bankAccountId: integer("bank_account_id"),
+  attachmentPath: text("attachment_path"), // 🆕 檔案附件
   companyId: integer("company_id"),
   customerId: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
   contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
@@ -515,6 +518,7 @@ export const payments = pgTable("payments", {
   currency: varchar("currency", { length: 10 }).default("USD"),
   method: varchar("method", { length: 50 }),
   reference: varchar("reference", { length: 200 }),
+  receiptImagePath: text("receipt_image_path"), // 🆕 水單/匯款憑據
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: integer("created_by"),
@@ -528,6 +532,7 @@ export const supplierInvoices = pgTable("supplier_invoices", {
   invoiceType: varchar("invoice_type", { length: 30 }).default("Commercial Invoice"),
   depositPercentage: real("deposit_percentage"),
   bankAccountId: integer("bank_account_id"),
+  attachmentPath: text("attachment_path"), // 🆕 供應商發票檔案附件
   companyId: integer("company_id"),
   factoryId: integer("factory_id").references(() => factories.id, { onDelete: "set null" }),
   poId: integer("po_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
@@ -572,19 +577,18 @@ export const supplierPayments = pgTable("supplier_payments", {
   currency: varchar("currency", { length: 10 }).default("USD"),
   method: varchar("method", { length: 50 }),
   reference: varchar("reference", { length: 200 }),
+  receiptImagePath: text("receipt_image_path"), // 🆕 水單/匯款憑據
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: integer("created_by"),
 });
 
-// Bank accounts for Clients (customers), Yarn Mills (factories) and our own
-// Companies. One entity can hold accounts at several banks, and several
-// currency accounts at the same bank.
+// Bank accounts
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
   entityType: varchar("entity_type", { length: 20 }).notNull(),
   entityId: integer("entity_id").notNull(),
-  bankName: varchar("bank_name", { length: 300 }).notNull(),
+  bankName: varchar("bank_name", { length: 300 }).notNull(),  
   bankCode: varchar("bank_code", { length: 20 }),
   branch: varchar("branch", { length: 300 }),
   accountName: varchar("account_name", { length: 300 }),
@@ -601,7 +605,7 @@ export const bankAccounts = pgTable("bank_accounts", {
   updatedBy: integer("updated_by"),
 });
 
-// System-wide key/value settings (editable from System Settings page)
+// System settings
 export const systemSettings = pgTable("system_settings", {
   id: serial("id").primaryKey(),
   key: varchar("key", { length: 100 }).notNull().unique(),

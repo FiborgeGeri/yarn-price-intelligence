@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { supplierInvoices, supplierInvoiceItems, supplierPayments, factories, companies, yarns, treatments, bankAccounts } from "@/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
 const TYPE_PREFIX: Record<string, string> = {
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
         invoiceType: supplierInvoices.invoiceType,
         depositPercentage: supplierInvoices.depositPercentage,
         bankAccountId: supplierInvoices.bankAccountId,
+        attachmentPath: supplierInvoices.attachmentPath,
         companyId: supplierInvoices.companyId,
         companyName: companies.name,
         factoryId: supplierInvoices.factoryId,
@@ -99,7 +100,6 @@ export async function GET(req: NextRequest) {
 
       const payRows = await db.select().from(supplierPayments).where(eq(supplierPayments.supplierInvoiceId, id)).orderBy(desc(supplierPayments.paymentDate));
       
-      // 智能撈取綁定的工廠/紗廠銀行帳戶詳細資料
       let bankInfo = null;
       if (head.bankAccountId) {
         const [bank] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, head.bankAccountId));
@@ -130,6 +130,7 @@ interface ItemInput {
   notes?: string;
 }
 
+// 🆕 新增：解析數量字串輔助函數
 function parseQty(q: string): number {
   const n = parseFloat(q.replace(/[, ]/g, ""));
   return isNaN(n) ? 0 : n;
@@ -139,12 +140,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, invoiceType, depositPercentage, bankAccountId, supplierInvoiceNo, companyId, factoryId, poId, poNo,
+      id, invoiceType, depositPercentage, bankAccountId, attachmentPath, supplierInvoiceNo, companyId, factoryId, poId, poNo,
       invoiceDate, dueDate, currency, vatRate, status, notes, userId,
       items = [],
     } = body as {
       id?: number; invoiceType?: string; depositPercentage?: number | string | null; bankAccountId?: number | null;
-      supplierInvoiceNo?: string | null; companyId?: number | null; factoryId?: number | null;
+      attachmentPath?: string | null; supplierInvoiceNo?: string | null; companyId?: number | null; factoryId?: number | null;
       poId?: number | null; poNo?: string | null;
       invoiceDate?: string; dueDate?: string | null; currency?: string; vatRate?: number | string;
       status?: string; notes?: string | null; userId?: number | null; items?: ItemInput[];
@@ -169,6 +170,7 @@ export async function POST(req: NextRequest) {
       invoiceType: finalType,
       depositPercentage: depositPct,
       bankAccountId: bankAccountId || null,
+      attachmentPath: attachmentPath || null,
       supplierInvoiceNo: supplierInvoiceNo || null,
       companyId: companyId || null,
       factoryId,
@@ -241,3 +243,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
 }
+
+// Simple React.useMemo polyfill or import inside component scope
+import { sql } from "drizzle-orm";
