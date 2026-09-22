@@ -542,6 +542,14 @@ export default function InvoiceModule({ kind, permissions }: { kind: "sales" | "
               })()}
 
               {viewing.notes && <div className="text-sm text-slate-600 whitespace-pre-line bg-slate-50 rounded-lg p-3 border border-slate-100">{viewing.notes}</div>}
+           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <a 
+                  href={`/api/export/excel?type=${isSales ? "invoice" : "supplier-invoice"}&id=${viewing.id}`} 
+                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 inline-flex items-center gap-1.5"
+                >
+                  Export Excel
+                </a>
+              </div>
               <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} />
             </div>
           </div>

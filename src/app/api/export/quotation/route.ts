@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { systemSettings } from "@/db/schema";
 import { db } from "@/db";
 import {
   quotations,
@@ -248,11 +249,17 @@ export async function GET(req: NextRequest) {
         console.warn("Could not load company logo:", logoErr);
       }
     }
-    if (logoImageId !== null) {
+        if (logoImageId !== null) {
       ws.addImage(logoImageId, {
         tl: { col: 0, row: 0 },
         ext: { width: 120, height: 40 },
       });
+      //在 Logo 下方加入公司英文全名 + 中文
+      ws.mergeCells("A3:C3");
+      ws.getCell("A3").value = `${companyOfficialName.toUpperCase()}\n富維企業有限公司`;
+      ws.getCell("A3").font = { name: "Arial", size: 9, bold: true, color: { argb: BLACK } };
+      ws.getCell("A3").alignment = { wrapText: true, vertical: "top", horizontal: "left" };
+      ws.getRow(3).height = 32;
     }
 
     ws.mergeCells("A2:C6");
@@ -351,13 +358,32 @@ export async function GET(req: NextRequest) {
       ? `All prices are quoted on a ${Array.from(basisSet)[0]} basis${basisSet.has("Conditioned Weight") ? " (at standard moisture regain)" : ""}.`
       : "Prices use the weight basis shown in each price cell (COND. WT. or NET WT.).";
 
-    const remarks = [
-      ["1. Minimum Order Quantities & Surcharge", "MOQ/Color: Top-dyed = 500kg; Yarn-dyed = 300kg.\nMOQ/Order: 1,000kg for China; 2,000kg for international destinations.\nSurcharges: Orders below standard MOQ incur a surcharge. As surcharges vary by quality and fiber blend, please contact our sales representative for details."],
-      ["2. Customization & Certification", "Available options: Man Made Fiber: Virgin/Recycled (GRS); Cotton: BCI/Organic Cotton; Wool: RWS and other wool/organic certificates.\nNote: Certified materials must be specified at inquiry stage and may affect pricing."],
-      ["3. Transaction Certificates (TC)", "TC Fees: Free of charge for orders ≥ 1,000kg per certificate.\nSmall Order Service Fee: RMB 500 (or USD 70) per certificate for orders < 1,000kg."],
-      ["4. Invoicing Weight Basis", basisText],
-      ["5. Lead Times", "Sample Production: 10–14 days (Ex-Mill).\nBulk Production: 30–35 days (Ex-Mill).\nNote: Lead times are for reference and may be extended for specialty treatments, complex dyeing, or certified materials. Final timing is confirmed upon order placement."],
-    ];
+    // 🆕 從 System Settings 讀取自訂 Remarks，若有則覆蓋預設值
+let customRemarks: [string, string][] | null = null;
+try {
+  const [customRow] = await db.select({ value: systemSettings.value })
+    .from(systemSettings)
+    .where(eq(systemSettings.key, "template_quotation_remarks"));
+  if (customRow?.value?.trim()) {
+    // 用 "\n\n" 分割不同段落，每段第一行是標題，後面是內容
+    const sections = customRow.value.split(/\n\s*\n/).filter(s => s.trim());
+    customRemarks = sections.map(section => {
+      const lines = section.split("\n");
+      const title = lines[0].trim();
+      const body = lines.slice(1).join("\n").trim();
+      return [title, body || title] as [string, string];
+    });
+  }
+} catch (err) {
+  console.warn("Could not load custom quotation remarks:", err);
+}
+      const remarks: [string, string][] = customRemarks || [
+  ["1. Minimum Order Quantities & Surcharge", "MOQ/Color: Top-dyed = 500kg; Yarn-dyed = 300kg.\nMOQ/Order: 1,000kg for China; 2,000kg for international destinations.\nSurcharges: Orders below standard MOQ incur a surcharge. As surcharges vary by quality and fiber blend, please contact our sales representative for details."],
+  ["2. Customization & Certification", "Available options: Man Made Fiber: Virgin/Recycled (GRS); Cotton: BCI/Organic Cotton; Wool: RWS and other wool/organic certificates.\nNote: Certified materials must be specified at inquiry stage and may affect pricing."],
+  ["3. Transaction Certificates (TC)", "TC Fees: Free of charge for orders ≥ 1,000kg per certificate.\nSmall Order Service Fee: RMB 500 (or USD 70) per certificate for orders < 1,000kg."],
+  ["4. Invoicing Weight Basis", basisText],
+  ["5. Lead Times", "Sample Production: 10–14 days (Ex-Mill).\nBulk Production: 30–35 days (Ex-Mill).\nNote: Lead times are for reference and may be extended for specialty treatments, complex dyeing, or certified materials. Final timing is confirmed upon order placement."],
+];
 
     for (const [title, body] of remarks) {
       ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
@@ -373,17 +399,7 @@ export async function GET(req: NextRequest) {
       ws.getRow(rowNo).height = Math.max(30, body.split("\n").length * 16);
       rowNo += 2;
     }
-
-    // Footer.
-    ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
-    ws.getCell(rowNo, 1).value = `◉  ${companyOfficialName.toUpperCase()}`;
-    ws.getCell(rowNo, 1).font = { name: "Arial", size: 10, bold: true, color: { argb: BLACK } };
-    ws.getCell(rowNo, 1).alignment = { horizontal: "center", vertical: "middle" };
-    rowNo++;
-    ws.mergeCells(`A${rowNo}:${lastColLetter}${rowNo}`);
-    ws.getCell(rowNo, 1).value = "富維企業有限公司";
-    ws.getCell(rowNo, 1).font = { name: "Microsoft JhengHei", size: 10, bold: true, color: { argb: BLACK } };
-    ws.getCell(rowNo, 1).alignment = { horizontal: "center", vertical: "middle" };
+    //底部落款已移至左上 Logo 下方，此處僅設定列印區域
     ws.pageSetup.printArea = `A1:E${rowNo}`;
     ws.headerFooter.oddFooter = "&CPage &P of &N";
 

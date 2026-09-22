@@ -453,7 +453,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2 flex-wrap">
-                    <a href={`/api/export/po?id=${p.id}`} className="text-slate-600 hover:text-slate-900 text-xs inline-flex items-center gap-1">
+                    <a href={`/api/export/excel?type=po&id=${p.id}`} className="text-slate-600 hover:text-slate-900 text-xs inline-flex items-center gap-1">
                       <IconDownload className="w-3 h-3" />Export
                     </a>
                     {permissions.canEdit && <button onClick={() => openForm(p)} className="text-blue-600 hover:text-blue-800 text-xs">Edit</button>}
@@ -580,7 +580,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                     setTimeout(() => setToast(null), 3000);
                   }} className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">▶ Start Production</button>
                 )}
-                <a href={`/api/export/po?id=${viewing.id}`} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 inline-flex items-center gap-1.5">
+                <a href={`/api/export/excel?type=po&id=${viewing.id}`} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 inline-flex items-center gap-1.5">
                   <IconDownload className="w-3.5 h-3.5" /> Export PO
                 </a>
                 {permissions.canEdit && (
