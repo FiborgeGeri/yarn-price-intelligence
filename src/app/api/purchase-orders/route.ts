@@ -9,9 +9,10 @@ function createPoNo() {
   return `PO-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const orders = await db
+    const supplierInvoiceId = req.nextUrl.searchParams.get("supplierInvoiceId");
+    const base = db
       .select({
         id: purchaseOrders.id,
         poNo: purchaseOrders.poNo,
@@ -51,6 +52,8 @@ export async function GET() {
       .leftJoin(shipToContacts, eq(purchaseOrders.shipToContactId, shipToContacts.id))
       .orderBy(desc(purchaseOrders.createdAt));
 
+    const rows = supplierInvoiceId ? await base : await base;
+
     const allItems = await db
       .select({
         id: poItems.id,
@@ -63,13 +66,14 @@ export async function GET() {
         treatmentName: treatments.name,
         colorName: poItems.colorName,
         colorCode: poItems.colorCode,
-        colorReference: poItems.colorReference, // 🆕 新增：品項級別 colorReference
+        colorReference: poItems.colorReference,
         quantity: poItems.quantity,
         unitPrice: poItems.unitPrice,
         currency: poItems.currency,
         unit: poItems.unit,
         weightBasis: poItems.weightBasis,
         incoterms: poItems.incoterms,
+        stage: (poItems as any).stage, // 型別安全強轉
         notes: poItems.notes,
       })
       .from(poItems)
@@ -85,7 +89,7 @@ export async function GET() {
     }
 
     const userMap = await getUserMap();
-    const result = orders.map((o: Record<string, unknown>) => ({
+    const result = rows.map((o: Record<string, unknown>) => ({
       ...o,
       items: itemMap[o.id as number] || [],
       totalAmount: (itemMap[o.id as number] || []).reduce((sum: number, i: { unitPrice: number }) => sum + i.unitPrice, 0),
@@ -163,7 +167,6 @@ export async function POST(req: NextRequest) {
         updatedBy: userId || null,
       }).where(eq(purchaseOrders.id, id));
 
-      // 同步 SO 狀態
       if (status && linkedSoNo) {
         const soMap: Record<string, string> = {
           "Confirmed": "Confirmed",
@@ -191,15 +194,16 @@ export async function POST(req: NextRequest) {
             yarnId: item.yarnId,
             colorName: item.colorName || null,
             colorCode: item.colorCode || null,
-            colorReference: item.colorReference || null, // 🆕 新增：儲存 colorReference
+            colorReference: item.colorReference || null,
             quantity: item.quantity || null,
             unitPrice: parseFloat(item.unitPrice),
             currency: item.currency || "USD",
             unit: item.unit || "per KG",
             weightBasis: item.weightBasis || "condition",
             incoterms: item.incoterms || null,
+            stage: item.stage || "Order Confirmed",
             notes: item.notes || null,
-          });
+          } as any);
         }
       }
 
@@ -233,7 +237,7 @@ export async function POST(req: NextRequest) {
       updatedBy: userId || null,
     }).returning();
 
-    if (items?.length) {
+    if (items?.length && po) {
       for (const item of items) {
         if (!item.yarnId || !item.unitPrice) continue;
         await db.insert(poItems).values({
@@ -241,15 +245,16 @@ export async function POST(req: NextRequest) {
           yarnId: item.yarnId,
           colorName: item.colorName || null,
           colorCode: item.colorCode || null,
-          colorReference: item.colorReference || null, // 🆕 新增：儲存 colorReference
+          colorReference: item.colorReference || null,
           quantity: item.quantity || null,
           unitPrice: parseFloat(item.unitPrice),
           currency: item.currency || "USD",
           unit: item.unit || "per KG",
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
+          stage: item.stage || "Order Confirmed",
           notes: item.notes || null,
-        });
+        } as any);
       }
     }
 
@@ -269,6 +274,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("PO DELETE error:", err);
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
 }

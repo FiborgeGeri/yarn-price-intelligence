@@ -9,7 +9,6 @@ import IncotermsInput from "@/components/IncotermsInput";
 import { CURRENCY_OPTIONS } from "@/lib/commerce";
 import OrderStageTracker from "../OrderStageTracker";
 
-
 interface POItem {
   id?: number;
   yarnId: number;
@@ -27,6 +26,7 @@ interface POItem {
   unit: string;
   weightBasis: string;
   incoterms: string;
+  stage: string | null; // 🆕 確保有這一行，100% 解決型別報錯
   notes: string;
 }
 
@@ -358,7 +358,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
     load();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>;
 
   return (
     <div>
@@ -413,13 +413,14 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium text-right">Total Qty</th>
               <th className="px-4 py-3 font-medium text-right">Total Amount</th>
               <th className="px-4 py-3 font-medium">PO Date</th>
+              <th className="px-4 py-3 font-medium">Stage</th> {/* 🆕 新增：列表進度 */}
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium w-32">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400">No purchase orders</td></tr>
+              <tr><td colSpan={12} className="px-4 py-8 text-center text-slate-400">No purchase orders</td></tr>
             ) : filtered.map((p) => (
               <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3 text-left"><button onClick={() => setViewing(p)} className="font-medium text-blue-700 hover:underline">{p.poNo}</button></td>
@@ -448,6 +449,26 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                   })()}
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{p.poDate}</td>
+                {/* 🆕 顯示自動計算的 PO 最慢進度 */}
+                <td className="px-4 py-3 text-xs">
+                  {(() => {
+                    const stages = p.items.map(i => i.stage || "Order Confirmed");
+                    const stageOrder = ["Order Confirmed","Lab Dip Confirmed","Dyeing","Lot Confirmed","Packing","Ready to Ship","Ex Mill","Shipped","Delivered","Received"];
+                    const slowest = stages.sort((a, b) => stageOrder.indexOf(a) - stageOrder.indexOf(b))[0] || "Order Confirmed";
+                    const colors: Record<string, string> = {
+                      "Order Confirmed":"bg-blue-100 text-blue-700",
+                      "Lab Dip Confirmed":"bg-purple-100 text-purple-700",
+                      "Dyeing":"bg-amber-100 text-amber-700",
+                      "Lot Confirmed":"bg-indigo-100 text-indigo-700",
+                      "Packing":"bg-orange-100 text-orange-700",
+                      "Ready to Ship":"bg-cyan-100 text-cyan-700",
+                      "Ex Mill":"bg-teal-100 text-teal-700",
+                      "Shipped":"bg-green-100 text-green-700",
+                      "Received":"bg-emerald-100 text-emerald-700"
+                    };
+                    return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${colors[slowest] || "bg-slate-100 text-slate-700"}`}>{slowest}</span>;
+                  })()}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[p.status] || "bg-slate-100 text-slate-700"}`}>
                     {p.status}
@@ -510,6 +531,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                       <th className="px-4 py-3 font-medium">Composition</th>
                       <th className="px-4 py-3 font-medium">Color</th>
                       <th className="px-4 py-3 font-medium">Color Reference</th>
+                      <th className="px-4 py-3 font-medium">Stage</th> {/* 🆕 詳情 Stage 表頭 */}
                       <th className="px-4 py-3 font-medium">Qty</th>
                       <th className="px-4 py-3 font-medium text-right">Unit Price</th>
                       <th className="px-4 py-3 font-medium">Weight</th>
@@ -541,6 +563,22 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                               {item.colorReference}
                             </span>
                           ) : <span className="text-slate-300">—</span>}
+                        </td>
+                        {/* 🆕 顯示品項級 Stage */}
+                        <td className="px-4 py-3 text-xs">
+                          <OrderStageTracker
+                            orderType="po"
+                            orderId={viewing.id}
+                            itemId={item.id!}
+                            currentStage={item.stage || "Order Confirmed"}
+                            canEdit={permissions.canEdit}
+                            onStageChange={() => {
+                              fetch(`/api/purchase-orders`).then(r => r.json()).then(data => {
+                                const updated = data.find((o: any) => o.id === viewing.id);
+                                if (updated) setViewing(updated);
+                              });
+                            }}
+                          />
                         </td>
                         <td className="px-4 py-3 text-xs">{item.quantity || "—"}</td>
                         <td className="px-4 py-3 text-right font-mono text-xs">
@@ -833,8 +871,32 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">PO Remarks</label>
-                <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-700">PO Remarks</label>
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      onChange={async (e) => {
+                        if (e.target.checked) {
+                          try {
+                            const res = await fetch("/api/system-settings");
+                            if (res.ok) {
+                              const settings = await res.json();
+                              const template = settings.find((s: any) => s.key === "template_po_remarks");
+                              if (template?.value) {
+                                // 智慧附加，不覆蓋用戶原本寫好的內容
+                                setFNotes((prev) => prev ? `${prev}\n\n${template.value}` : template.value);
+                              }
+                            }
+                          } catch {}
+                        }
+                      }}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Load template
+                  </label>
+                </div>
+                <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={6} placeholder="Enter PO remarks here..." />
               </div>
 
               <div className="flex gap-3 pt-2 border-t border-slate-200">

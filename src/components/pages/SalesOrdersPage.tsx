@@ -576,6 +576,16 @@ export default function SalesOrdersPage({ permissions }: Props) {
                             onStageChange={() => { load(); }}
                           />
                         </td>
+                          <td className="px-4 py-3 text-xs">
+                          <OrderStageTracker
+                            orderType="so"
+                            orderId={viewing.id}
+                            itemId={item.id}
+                            currentStage={item.stage || "Order Confirmed"}
+                            canEdit={permissions.canEdit}
+                            onStageChange={() => { load(); }}
+                          />
+                        </td>
                         <td className="px-4 py-3 text-xs">{item.quantity || "—"}</td>
                         <td className="px-4 py-3 text-right font-mono text-xs">
                           {item.currency} {Number(item.unitPrice).toFixed(2)}
