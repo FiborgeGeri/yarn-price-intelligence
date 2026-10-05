@@ -6,6 +6,7 @@ import AuditInfo from "@/components/AuditInfo";
 import { useYarnDetail, YarnDetailModal } from "@/components/YarnDetailModal";
 import IncotermsInput from "@/components/IncotermsInput";
 import { CURRENCY_OPTIONS } from "@/lib/commerce";
+import OrderStageTracker from "../OrderStageTracker";
 
 interface SOItem {
   id: number;
@@ -25,6 +26,7 @@ interface SOItem {
   unit: string;
   weightBasis: string;
   incoterms: string;
+  stage: string | null; // 🆕 確保具備此欄位型別
   notes: string;
 }
 
@@ -360,7 +362,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
     load();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>;
 
   return (
     <div>
@@ -405,13 +407,14 @@ export default function SalesOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium text-right">Total Amount</th>
               <th className="px-4 py-3 font-medium">SO Date</th>
               <th className="px-4 py-3 font-medium">Delivery Date</th>
+              <th className="px-4 py-3 font-medium">Stage</th>
               <th className="px-4 py-3 font-medium">Status</th>
               {(permissions.canEdit || permissions.canDelete) && <th className="px-4 py-3 font-medium w-24">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={12} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
+              <tr><td colSpan={13} className="px-4 py-8 text-center text-slate-400">No sales orders</td></tr>
             ) : filtered.map((o) => (
               <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3"><button onClick={() => setViewing(o)} className="font-medium text-blue-700 hover:underline">{o.soNo}</button></td>
@@ -451,6 +454,15 @@ export default function SalesOrdersPage({ permissions }: Props) {
                   const days = Math.round((new Date(today).getTime() - new Date(o.deliveryDate).getTime()) / 86400000);
                   return <span className="text-red-600 font-semibold">{o.deliveryDate} <span className="px-1 py-0.5 rounded bg-red-100 text-[10px]">{days}d late</span></span>;
                 })()}</td>
+                <td className="px-4 py-3 text-xs">
+                  {(() => {
+                    const stages = o.items.map(i => i.stage || "Order Confirmed");
+                    const stageOrder = ["Order Confirmed","Lab Dip Confirmed","Dyeing","Lot Confirmed","Packing","Ready to Ship","Ex Mill","Shipped","Delivered"];
+                    const slowest = stages.sort((a, b) => stageOrder.indexOf(a) - stageOrder.indexOf(b))[0] || "Order Confirmed";
+                    const colors: Record<string, string> = {"Order Confirmed":"bg-blue-100 text-blue-700","Lab Dip Confirmed":"bg-purple-100 text-purple-700","Dyeing":"bg-amber-100 text-amber-700","Lot Confirmed":"bg-indigo-100 text-indigo-700","Packing":"bg-orange-100 text-orange-700","Ready to Ship":"bg-cyan-100 text-cyan-700","Ex Mill":"bg-teal-100 text-teal-700","Shipped":"bg-green-100 text-green-700","Delivered":"bg-emerald-100 text-emerald-700"};
+                    return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${colors[slowest] || "bg-slate-100 text-slate-700"}`}>{slowest}</span>;
+                  })()}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[o.status] || "bg-slate-100 text-slate-700"}`}>
                     {o.status}
@@ -521,6 +533,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                       <th className="px-4 py-3 font-medium">Yarn Mill</th>
                       <th className="px-4 py-3 font-medium">Color</th>
                       <th className="px-4 py-3 font-medium">Color Reference</th>
+                      <th className="px-4 py-3 font-medium">Stage</th>
                       <th className="px-4 py-3 font-medium">Qty</th>
                       <th className="px-4 py-3 font-medium text-right">Unit Price</th>
                       <th className="px-4 py-3 font-medium">Weight</th>
@@ -552,6 +565,16 @@ export default function SalesOrdersPage({ permissions }: Props) {
                               {item.colorReference}
                             </span>
                           ) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          <OrderStageTracker
+                            orderType="so"
+                            orderId={viewing.id}
+                            itemId={item.id}
+                            currentStage={item.stage || "Order Confirmed"}
+                            canEdit={permissions.canEdit}
+                            onStageChange={() => { load(); }}
+                          />
                         </td>
                         <td className="px-4 py-3 text-xs">{item.quantity || "—"}</td>
                         <td className="px-4 py-3 text-right font-mono text-xs">
@@ -833,7 +856,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                           type="text"
                           value={item.colorReference}
                           onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, colorReference: e.target.value } : l))}
-                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+                          className="w-full px-2 py-1.5 border border-slate-350 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
                           placeholder="Color Reference (e.g. LD-2024-0312 / Dye Lot / Pantone)"
                         />
                       </div>
