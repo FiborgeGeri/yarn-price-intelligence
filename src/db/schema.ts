@@ -289,22 +289,6 @@ export const salesOrders = pgTable("sales_orders", {
   updatedBy: integer("updated_by"),
 });
 
-export const soItems = pgTable("so_items", {
-  id: serial("id").primaryKey(),
-  soId: integer("so_id").references(() => salesOrders.id, { onDelete: "cascade" }),
-  yarnId: integer("yarn_id").references(() => yarns.id),
-  colorName: varchar("color_name", { length: 200 }),
-  colorCode: varchar("color_code", { length: 100 }),
-  colorReference: varchar("color_reference", { length: 200 }),
-  quantity: varchar("quantity", { length: 100 }),
-  unitPrice: real("unit_price").notNull(),
-  currency: varchar("currency", { length: 10 }).default("USD"),
-  unit: varchar("unit", { length: 50 }).default("per KG"),
-  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
-  incoterms: varchar("incoterms", { length: 100 }),
-  notes: text("notes"),
-});
-
 export const purchaseOrders = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
   poNo: varchar("po_no", { length: 50 }),
@@ -333,6 +317,23 @@ export const purchaseOrders = pgTable("purchase_orders", {
   createdBy: integer("created_by"),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: integer("updated_by"),
+});
+
+export const soItems = pgTable("so_items", {
+  id: serial("id").primaryKey(),
+  soId: integer("so_id").references(() => salesOrders.id, { onDelete: "cascade" }),
+  yarnId: integer("yarn_id").references(() => yarns.id),
+  colorName: varchar("color_name", { length: 200 }),
+  colorCode: varchar("color_code", { length: 100 }),
+  colorReference: varchar("color_reference", { length: 200 }),
+  quantity: varchar("quantity", { length: 100 }),
+  unitPrice: real("unit_price").notNull(),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  unit: varchar("unit", { length: 50 }).default("per KG"),
+  weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
+  incoterms: varchar("incoterms", { length: 100 }),
+  stage: varchar("stage", { length: 50 }).default("Order Confirmed"),
+  notes: text("notes"),
 });
 
 export const poItems = pgTable("po_items", {

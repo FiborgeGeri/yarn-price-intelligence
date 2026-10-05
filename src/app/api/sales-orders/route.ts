@@ -72,6 +72,7 @@ export async function GET() {
         unit: soItems.unit,
         weightBasis: soItems.weightBasis,
         incoterms: soItems.incoterms,
+        stage: soItems.stage,
         notes: soItems.notes,
       })
       .from(soItems)
@@ -132,7 +133,6 @@ export async function POST(req: NextRequest) {
         updatedBy: userId || null,
       }).where(eq(salesOrders.id, id));
 
-      // 同步關聯的 POs
       const soRecord = await db.select({ soNo: salesOrders.soNo }).from(salesOrders).where(eq(salesOrders.id, id));
       const soNo = soRecord[0]?.soNo;
       if (soNo) {
@@ -141,7 +141,6 @@ export async function POST(req: NextRequest) {
           "Shipped": "Shipped", "Delivered": "Delivered", "Cancelled": "Cancelled",
         };
         const poStatus = statusMap[status] || undefined;
-
         const linkedPOs = await db.select({ id: purchaseOrders.id, factoryId: purchaseOrders.factoryId }).from(purchaseOrders).where(eq(purchaseOrders.soNo, soNo));
         for (const po of linkedPOs) {
           await db.update(purchaseOrders).set({
@@ -161,10 +160,8 @@ export async function POST(req: NextRequest) {
             const yarnData = await db.select({ id: yarns.id, factoryId: yarns.factoryId }).from(yarns);
             const yarnFactoryMap: Record<number, number> = {};
             for (const y of yarnData) { if (y.factoryId) yarnFactoryMap[y.id] = y.factoryId; }
-
             const poItemsForFactory = items.filter((item: { yarnId: number }) => yarnFactoryMap[item.yarnId] === po.factoryId);
             if (poItemsForFactory.length > 0) {
-              // 抓取紗線最新成本，絕不用 SO 的售價
               const yarnIds = poItemsForFactory.map((it: { yarnId: number }) => it.yarnId).filter(Boolean);
               const costMap: Record<number, number> = {};
               for (const yid of yarnIds) {
@@ -174,20 +171,20 @@ export async function POST(req: NextRequest) {
                   .limit(1);
                 costMap[yid] = latestCost[0]?.price ?? 0;
               }
-
               await db.delete(poItems).where(eq(poItems.poId, po.id));
-              await db.insert(poItems).values(poItemsForFactory.map((item: { yarnId: number; colorName?: string; colorCode?: string; colorReference?: string; quantity?: string; unitPrice: string; currency?: string; unit?: string; weightBasis?: string; incoterms?: string; notes?: string }) => ({
+              await db.insert(poItems).values(poItemsForFactory.map((item: any) => ({
                 poId: po.id,
                 yarnId: item.yarnId,
                 colorName: item.colorName || null,
                 colorCode: item.colorCode || null,
                 colorReference: item.colorReference || null,
                 quantity: item.quantity || null,
-                unitPrice: costMap[item.yarnId] ?? 0, // 帶入成本價紀錄，若無則為 0
+                unitPrice: costMap[item.yarnId] ?? 0,
                 currency: item.currency || "USD",
                 unit: item.unit || "per KG",
                 weightBasis: item.weightBasis || "condition",
                 incoterms: item.incoterms || null,
+                stage: item.stage || "Order Confirmed",
                 notes: item.notes || null,
               })));
             }
@@ -209,10 +206,10 @@ export async function POST(req: NextRequest) {
           unit: item.unit || "per KG",
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
+          stage: item.stage || "Order Confirmed",
           notes: item.notes || null,
         })));
       }
-
       return NextResponse.json({ success: true, id });
     } else {
       const soNo = createSoNo();
@@ -251,21 +248,15 @@ export async function POST(req: NextRequest) {
           unit: item.unit || "per KG",
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
+          stage: item.stage || "Order Confirmed",
           notes: item.notes || null,
         })));
       }
 
-      if (autoCreatePO && items?.length) {
-        const yarnData = await db.select({
-          id: yarns.id,
-          factoryId: yarns.factoryId,
-        }).from(yarns);
-
+      if (autoCreatePO && items?.length && so) {
+        const yarnData = await db.select({ id: yarns.id, factoryId: yarns.factoryId }).from(yarns);
         const yarnFactoryMap: Record<number, number> = {};
-        for (const y of yarnData) {
-          if (y.factoryId) yarnFactoryMap[y.id] = y.factoryId;
-        }
-
+        for (const y of yarnData) { if (y.factoryId) yarnFactoryMap[y.id] = y.factoryId; }
         const factoryItems: Record<number, any[]> = {};
         for (const item of items) {
           const factoryId = yarnFactoryMap[item.yarnId];
@@ -274,7 +265,6 @@ export async function POST(req: NextRequest) {
             factoryItems[factoryId].push(item);
           }
         }
-
         for (const [factoryId, fItems] of Object.entries(factoryItems)) {
           const poNo = createPoNo();
           const [po] = await db.insert(purchaseOrders).values({
@@ -297,7 +287,6 @@ export async function POST(req: NextRequest) {
             status: "Draft",
             notes: `Auto-created from ${soNo}`,
           }).returning();
-
           if (po) {
             const costPrices: Record<number, number> = {};
             for (const item of fItems) {
@@ -306,30 +295,26 @@ export async function POST(req: NextRequest) {
                 .where(eq(prices.yarnId, item.yarnId))
                 .orderBy(desc(prices.recordDate), desc(prices.createdAt))
                 .limit(1);
-              // 沒有成本價紀錄時預設為 0
               costPrices[item.yarnId] = yarnPrices[0]?.price ?? 0;
             }
-
-            await db.insert(poItems).values(
-              fItems.map((item: any) => ({
-                poId: po.id,
-                yarnId: item.yarnId,
-                colorName: item.colorName || null,
-                colorCode: item.colorCode || null,
-                colorReference: item.colorReference || null,
-                quantity: item.quantity || null,
-                unitPrice: costPrices[item.yarnId] ?? 0, // 帶入成本，不帶售價
-                currency: item.currency || "USD",
-                unit: item.unit || "per KG",
-                weightBasis: item.weightBasis || "condition",
-                incoterms: item.incoterms || null,
-                notes: item.notes || null,
-              }))
-            );
+            await db.insert(poItems).values(fItems.map((item: any) => ({
+              poId: po.id,
+              yarnId: item.yarnId,
+              colorName: item.colorName || null,
+              colorCode: item.colorCode || null,
+              colorReference: item.colorReference || null,
+              quantity: item.quantity || null,
+              unitPrice: costPrices[item.yarnId] ?? 0,
+              currency: item.currency || "USD",
+              unit: item.unit || "per KG",
+              weightBasis: item.weightBasis || "condition",
+              incoterms: item.incoterms || null,
+              stage: item.stage || "Order Confirmed",
+              notes: item.notes || null,
+            })));
           }
         }
       }
-
       return NextResponse.json({ success: true, id: so.id, soNo });
     }
   } catch (err) {
