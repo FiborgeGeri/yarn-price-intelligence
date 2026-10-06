@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { factories, yarns, prices, treatments, customers, quotations, salesOrders, purchaseOrders, goodsReceipts, deliveryNotes, shipToAddresses } from "@/db/schema";
+import { factories, yarns, prices, treatments, customers, quotations, salesOrders, soItems, purchaseOrders, poItems, goodsReceipts, deliveryNotes, shipToAddresses, invoices, supplierInvoices } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 
 export async function GET() {
@@ -28,7 +28,6 @@ export async function GET() {
     const competitorCountries = [...new Set(compFactories.map(f => f.country).filter(Boolean))].length;
     const superGrades = [...new Set(allYarns.filter(y => y.micron && parseFloat(y.micron) <= 18.5).map(y => y.micron))].length;
 
-    // All prices with details, ordered newest first
     const allPrices = await db
       .select({
         id: prices.id,
@@ -51,15 +50,12 @@ export async function GET() {
       .leftJoin(factories, eq(yarns.factoryId, factories.id))
       .orderBy(desc(prices.recordDate), desc(prices.createdAt));
 
-    // Prices this week / last week
     const now = new Date();
     const weekStr = new Date(now.getTime() - 7 * 86400000).toISOString().split("T")[0];
     const twoWeekStr = new Date(now.getTime() - 14 * 86400000).toISOString().split("T")[0];
     const pricesThisWeek = allPrices.filter(p => p.recordDate >= weekStr).length;
     const pricesLastWeek = allPrices.filter(p => p.recordDate >= twoWeekStr && p.recordDate < weekStr).length;
 
-    // --- Price movers: compare latest vs previous for same yarn + currency + unit + incoterms ---
-    // Group by yarnId + currency + unit + incoterms so we only compare like-for-like
     const pricesByYarn: Record<number, typeof allPrices> = {};
     for (const p of allPrices) {
       if (!p.yarnId) continue;
@@ -87,7 +83,6 @@ export async function GET() {
 
     const movers: Mover[] = [];
     for (const [yid, yprices] of Object.entries(pricesByYarn)) {
-      // Sub-group by currency + unit + incoterms
       const subGroups: Record<string, typeof allPrices> = {};
       for (const p of yprices) {
         const key = `${p.currency || "USD"}|${p.unit || "per KG"}|${p.incoterms || ""}`;
@@ -99,7 +94,6 @@ export async function GET() {
         if (prices.length < 2) continue;
         const latest = prices[0];
         const prev = prices[1];
-        // Skip if same date (multiple entries on same day aren't "movement")
         if (latest.recordDate === prev.recordDate) continue;
         const change = latest.price - prev.price;
         if (Math.abs(change) < 0.005) continue;
@@ -125,7 +119,6 @@ export async function GET() {
     }
     movers.sort((a, b) => Math.abs(b.pctChange) - Math.abs(a.pctChange));
 
-    // --- Yarns without any price (need attention) ---
     const yarnIdsWithPrices = new Set(Object.keys(pricesByYarn).map(Number));
     const yarnsNoPriceList = allYarns
       .filter(y => !yarnIdsWithPrices.has(y.id))
@@ -141,7 +134,6 @@ export async function GET() {
         };
       });
 
-    // --- Stale prices: yarns whose latest price is >30 days old ---
     const staleThreshold = new Date(now.getTime() - 30 * 86400000).toISOString().split("T")[0];
     const stalePrices = Object.values(pricesByYarn)
       .filter(yp => yp[0].recordDate < staleThreshold)
@@ -159,12 +151,8 @@ export async function GET() {
         };
       });
 
-    // Recent prices (top 15)
     const recentPrices = allPrices.slice(0, 15);
 
-    // --- Business documents counts ---
-    const cnt = async (tbl: Parameters<typeof db.select>[0] extends never ? never : never) => 0;
-    void cnt;
     const [custCount] = await db.select({ c: sql<number>`count(*)::int` }).from(customers);
     const [shipToCount] = await db.select({ c: sql<number>`count(*)::int` }).from(shipToAddresses);
     const allQuotes = await db.select({ id: quotations.id, quoteNo: quotations.quoteNo, status: quotations.status, validUntil: quotations.validUntil }).from(quotations);
@@ -184,28 +172,24 @@ export async function GET() {
     const grInTransit = countBy(allGRs, ["Shipped from Mill", "In Transit", "Arrived at Port", "Customs Clearance"]);
     const dnPending = countBy(allDNs, ["Draft", "Packed", "Shipped"]);
 
-    // Upcoming deliveries in next 30 days
     const in30 = new Date(now.getTime() + 30 * 86400000).toISOString().split("T")[0];
     const upcomingDeliveries = allSOs
       .filter(s => s.deliveryDate && s.deliveryDate >= todayStr && s.deliveryDate <= in30 && s.status !== "Cancelled" && s.status !== "Delivered")
       .slice(0, 8)
       .map(s => ({ id: s.id, soNo: s.soNo, deliveryDate: s.deliveryDate, status: s.status }));
 
-    // Overdue deliveries with day count
     const dayDiff = (a: string, b: string) => Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
     const overdueDeliveries = allSOs
       .filter(s => s.deliveryDate && s.deliveryDate < todayStr && s.status !== "Cancelled" && s.status !== "Delivered")
       .slice(0, 8)
       .map(s => ({ id: s.id, soNo: s.soNo, deliveryDate: s.deliveryDate, status: s.status, daysOverdue: dayDiff(todayStr, s.deliveryDate as string) }));
 
-    // Newly created sales orders (last 14 days by soDate)
     const d14 = new Date(now.getTime() - 14 * 86400000).toISOString().split("T")[0];
     const newOrders = allSOs
       .filter(s => s.soDate && s.soDate >= d14)
       .slice(0, 8)
       .map(s => ({ id: s.id, soNo: s.soNo, soDate: s.soDate, status: s.status }));
 
-    // Newly added yarns (last 30 days)
     const d30 = new Date(now.getTime() - 30 * 86400000);
     const yarnRows = await db
       .select({ id: yarns.id, yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, createdAt: yarns.createdAt, factoryName: factories.factoryName, relationship: factories.relationship })
@@ -217,6 +201,140 @@ export async function GET() {
       .slice(0, 8)
       .map(y => ({ id: y.id, yarnName: y.yarnName, yarnCount: y.yarnCount || "", factoryName: y.factoryName || "", relationship: y.relationship || "" }));
     const newYarnCount = yarnRows.filter(y => y.createdAt && new Date(y.createdAt) >= d30).length;
+
+    // ======================================================================
+    // 🆕 NEW SECTION 1: 本月營收統計 (Monthly Revenue)
+    // ======================================================================
+    const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
+    const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
+
+    const allInvoices = await db.select({
+      invoiceDate: invoices.invoiceDate,
+      total: invoices.total,
+      currency: invoices.currency,
+      status: invoices.status,
+    }).from(invoices);
+
+    const allSupplierInv = await db.select({
+      invoiceDate: supplierInvoices.invoiceDate,
+      total: supplierInvoices.total,
+      currency: supplierInvoices.currency,
+      status: supplierInvoices.status,
+    }).from(supplierInvoices);
+
+    const revByCurrency = (rows: typeof allInvoices, from: string, to: string) => {
+      const map: Record<string, number> = {};
+      for (const r of rows) {
+        if (!r.invoiceDate || !r.total) continue;
+        if (r.invoiceDate < from || r.invoiceDate > to) continue;
+        if (r.status === "Cancelled" || r.status === "Draft") continue;
+        const c = r.currency || "USD";
+        map[c] = (map[c] || 0) + (r.total || 0);
+      }
+      return map;
+    };
+
+    const revenueThisMonth = revByCurrency(allInvoices, firstDayThisMonth, todayStr);
+    const revenueLastMonth = revByCurrency(allInvoices, firstDayLastMonth, lastDayLastMonth);
+    const costThisMonth = revByCurrency(allSupplierInv, firstDayThisMonth, todayStr);
+
+    // ======================================================================
+    // 🆕 NEW SECTION 2: SO/PO 狀態分佈
+    // ======================================================================
+    const buildStatusDist = (rows: { status: string | null }[]) => {
+      const dist: Record<string, number> = {};
+      for (const r of rows) {
+        const s = r.status || "Unknown";
+        dist[s] = (dist[s] || 0) + 1;
+      }
+      return dist;
+    };
+    const soStatusDist = buildStatusDist(allSOs);
+    const poStatusDist = buildStatusDist(allPOs);
+
+    // ======================================================================
+    // 🆕 NEW SECTION 3: Stage 分佈 + 瓶頸偵測 (核心業務指標)
+    // ======================================================================
+    const STAGE_ORDER = ["Order Confirmed", "Lab Dip Confirmed", "Dyeing", "Lot Confirmed", "Packing", "Ready to Ship", "Ex Mill"];
+
+    // 只統計進行中 (開啟中) 的 SO/PO 的品項 stage
+    const openSoIds = allSOs.filter(s => ["Confirmed", "In Production"].includes(s.status || "")).map(s => s.id);
+    const openPoIds = allPOs.filter(p => ["Draft", "Confirmed", "In Production"].includes(p.status || "")).map(p => p.id);
+
+    const stageDist: Record<string, number> = {};
+    STAGE_ORDER.forEach(s => stageDist[s] = 0);
+
+    if (openSoIds.length > 0) {
+      const soItemStages = await db
+        .select({ stage: soItems.stage })
+        .from(soItems)
+        .where(sql`${soItems.soId} IN (${sql.join(openSoIds.map(id => sql`${id}`), sql`, `)})`);
+      for (const r of soItemStages) {
+        const s = r.stage || "Order Confirmed";
+        if (stageDist[s] !== undefined) stageDist[s]++;
+      }
+    }
+
+    if (openPoIds.length > 0) {
+      const poItemStages = await db
+        .select({ stage: poItems.stage })
+        .from(poItems)
+        .where(sql`${poItems.poId} IN (${sql.join(openPoIds.map(id => sql`${id}`), sql`, `)})`);
+      for (const r of poItemStages) {
+        const s = r.stage || "Order Confirmed";
+        if (stageDist[s] !== undefined) stageDist[s]++;
+      }
+    }
+
+    // 偵測瓶頸 (最大堆積的 Stage)
+    const stageEntries = Object.entries(stageDist);
+    const stageTotal = stageEntries.reduce((sum, [, c]) => sum + c, 0);
+    const bottleneckStage = stageEntries.reduce((max, cur) => cur[1] > max[1] ? cur : max, ["", 0])[0];
+
+    // ======================================================================
+    // 🆕 NEW SECTION 4: Top 5 紗線價格趨勢 (近 12 週)
+    // ======================================================================
+    const twelveWeeksAgo = new Date(now.getTime() - 84 * 86400000).toISOString().split("T")[0];
+    const topYarnTrends: Array<{ yarnId: number; yarnName: string; factoryName: string; currency: string; priceHistory: Array<{ date: string; price: number }>; firstPrice: number; latestPrice: number; changePct: number }> = [];
+
+    for (const [yid, yprices] of Object.entries(pricesByYarn)) {
+      const recentPrices = yprices.filter(p => p.recordDate >= twelveWeeksAgo);
+      if (recentPrices.length < 2) continue;
+
+      // 以同一 currency + unit 做比較
+      const bySpec: Record<string, typeof yprices> = {};
+      for (const p of recentPrices) {
+        const key = `${p.currency || "USD"}|${p.unit || "per KG"}`;
+        if (!bySpec[key]) bySpec[key] = [];
+        bySpec[key].push(p);
+      }
+
+      // 挑選紀錄最多的規格
+      const topSpec = Object.values(bySpec).sort((a, b) => b.length - a.length)[0];
+      if (!topSpec || topSpec.length < 2) continue;
+
+      const sorted = [...topSpec].sort((a, b) => a.recordDate.localeCompare(b.recordDate));
+      const firstPrice = sorted[0].price;
+      const latestPrice = sorted[sorted.length - 1].price;
+      const changePct = firstPrice ? ((latestPrice - firstPrice) / firstPrice) * 100 : 0;
+
+      topYarnTrends.push({
+        yarnId: Number(yid),
+        yarnName: topSpec[0].yarnName || "",
+        factoryName: topSpec[0].factoryName || "",
+        currency: topSpec[0].currency || "USD",
+        priceHistory: sorted.map(p => ({ date: p.recordDate, price: p.price })),
+        firstPrice,
+        latestPrice,
+        changePct,
+      });
+    }
+    // 選出變動最大的 Top 5
+    topYarnTrends.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+    const top5Trends = topYarnTrends.slice(0, 5);
+
+    // ======================================================================
 
     return NextResponse.json({
       kpi: {
@@ -249,6 +367,24 @@ export async function GET() {
         newYarnCount,
         newOrderCount: newOrders.length,
       },
+      // 🆕 新增 4 大區塊
+      revenue: {
+        thisMonth: revenueThisMonth,
+        lastMonth: revenueLastMonth,
+        thisMonthCost: costThisMonth,
+      },
+      statusDistribution: {
+        so: soStatusDist,
+        po: poStatusDist,
+      },
+      stageBoard: {
+        distribution: stageDist,
+        total: stageTotal,
+        bottleneck: bottleneckStage,
+        stageOrder: STAGE_ORDER,
+      },
+      topYarnTrends: top5Trends,
+      // 保留原有
       movers: movers.slice(0, 10),
       yarnsNoPrice: yarnsNoPriceList.slice(0, 8),
       stalePrices: stalePrices.slice(0, 8),
