@@ -1,7 +1,26 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Search, Loader2, ArrowRight } from "lucide-react";
+import { 
+  Search, 
+  Loader2, 
+  ArrowRight, 
+  Camera,
+  FileText,
+  ShoppingBag,
+  ShoppingCart,
+  Truck,
+  Package,
+  Receipt,
+  Layers,
+  Users,
+  Building2,
+  type LucideIcon
+} from "lucide-react";
+import dynamic from "next/dynamic";
+
+// 動態載入 QR 掃描器
+const QRScanner = dynamic(() => import("./QRScanner"), { ssr: false });
 
 interface SearchResult {
   type: string;
@@ -10,17 +29,18 @@ interface SearchResult {
   subtitle: string;
 }
 
-const TYPE_META: Record<string, { label: string; icon: string; color: string; page: string }> = {
-  quotation:         { label: "Quotation",         icon: "📄", color: "text-amber-700 bg-amber-50",   page: "quotations" },
-  so:                { label: "Sales Order",       icon: "🛒", color: "text-blue-700 bg-blue-50",     page: "sales-orders" },
-  po:                { label: "Purchase Order",    icon: "📦", color: "text-indigo-700 bg-indigo-50", page: "purchase-orders" },
-  dn:                { label: "Delivery Note",     icon: "🚚", color: "text-cyan-700 bg-cyan-50",     page: "delivery-notes" },
-  gr:                { label: "Goods Receipt",     icon: "📥", color: "text-teal-700 bg-teal-50",     page: "goods-receipts" },
-  invoice:           { label: "Sales Invoice",     icon: "💰", color: "text-emerald-700 bg-emerald-50", page: "invoices" },
-  "supplier-invoice":{ label: "Supplier Invoice",  icon: "🏭", color: "text-rose-700 bg-rose-50",     page: "supplier-invoices" },
-  yarn:              { label: "Yarn",              icon: "🧵", color: "text-purple-700 bg-purple-50", page: "yarns" },
-  customer:          { label: "Client",            icon: "🏢", color: "text-slate-700 bg-slate-100",  page: "customers" },
-  factory:           { label: "Yarn Mill",         icon: "🏗", color: "text-stone-700 bg-stone-100",  page: "factories" },
+// 🆕 將 Emojis 改為高質感的 Lucide 極簡線條 Icons
+const TYPE_META: Record<string, { label: string; icon: LucideIcon; color: string; page: string }> = {
+  quotation:         { label: "Quotation",         icon: FileText,         color: "text-amber-700 bg-amber-50",   page: "quotations" },
+  so:                { label: "Sales Order",       icon: ShoppingBag,      color: "text-blue-700 bg-blue-50",     page: "sales-orders" },
+  po:                { label: "Purchase Order",    icon: ShoppingCart,     color: "text-indigo-700 bg-indigo-50", page: "purchase-orders" },
+  dn:                { label: "Delivery Note",     icon: Truck,            color: "text-cyan-700 bg-cyan-50",     page: "delivery-notes" },
+  gr:                { label: "Goods Receipt",     icon: Package,          color: "text-teal-700 bg-teal-50",     page: "goods-receipts" },
+  invoice:           { label: "Sales Invoice",     icon: Receipt,          color: "text-emerald-700 bg-emerald-50", page: "invoices" },
+  "supplier-invoice":{ label: "Supplier Invoice",  icon: Receipt,          color: "text-rose-700 bg-rose-50",     page: "supplier-invoices" },
+  yarn:              { label: "Yarn",              icon: Layers,           color: "text-purple-700 bg-purple-50", page: "yarns" },
+  customer:          { label: "Client",            icon: Users,            color: "text-slate-700 bg-slate-100",  page: "customers" },
+  factory:           { label: "Yarn Mill",         icon: Building2,        color: "text-stone-700 bg-stone-100",  page: "factories" },
 };
 
 const TYPE_ORDER = ["quotation", "so", "po", "dn", "gr", "invoice", "supplier-invoice", "yarn", "customer", "factory"];
@@ -30,6 +50,7 @@ export default function GlobalSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,6 +117,28 @@ export default function GlobalSearch() {
     window.dispatchEvent(new CustomEvent("fib-navigate", { detail: { page: meta.page } }));
   };
 
+  const handleQRScan = (type: string, id: number) => {
+    setShowScanner(false);
+
+    const typeToPage: Record<string, string> = {
+      yarn: "yarns",
+      so: "sales-orders",
+      po: "purchase-orders",
+      dn: "delivery-notes",
+      gr: "goods-receipts",
+      invoice: "invoices",
+      "supplier-invoice": "supplier-invoices",
+      quotation: "quotations",
+    };
+
+    const page = typeToPage[type];
+    if (page) {
+      sessionStorage.setItem("scanTargetPage", page);
+      sessionStorage.setItem("scanTargetId", String(id));
+      window.dispatchEvent(new CustomEvent("fib-navigate", { detail: { page } }));
+    }
+  };
+
   // 高亮關鍵字
   const highlight = (text: string, keyword: string) => {
     if (!keyword || !text) return text;
@@ -117,9 +160,11 @@ export default function GlobalSearch() {
           value={query}
           onFocus={() => setFocused(true)}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search everything... (Ctrl+K)"
-          className="w-full bg-[#fcf8f5]/60 hover:bg-white focus:bg-white px-3 py-1.5 pl-10 border border-slate-200 focus:border-[#e5885d] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#f1c6b2]/50 transition-all text-slate-800"
+          placeholder="Search everywhere... (Ctrl+K)"
+          className="w-full bg-[#fcf8f5]/60 hover:bg-white focus:bg-white px-3 py-1.5 pl-10 pr-10 border border-slate-200 focus:border-[#e5885d] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#f1c6b2]/50 transition-all text-slate-800"
         />
+        
+        {/* 左側：放大鏡 / Loading 圖示 */}
         <div className="absolute left-3.5 top-2.5 text-slate-400">
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin text-[#d97449]" />
@@ -127,11 +172,21 @@ export default function GlobalSearch() {
             <Search className="w-4 h-4" />
           )}
         </div>
+
+        {/* 右側：相機掃描按鈕 */}
+        <button
+          type="button"
+          onClick={() => setShowScanner(true)}
+          className="absolute right-2 top-1.5 w-7 h-7 rounded-lg bg-[#fef7f3] hover:bg-[#fdeae2] border border-[#f4d9c9] flex items-center justify-center transition-colors animate-fade-in"
+          title="Scan QR Code"
+        >
+          <Camera className="w-3.5 h-3.5 text-[#d97449]" />
+        </button>
       </div>
 
       {focused && (results.length > 0 || query.trim().length >= 2) && (
         <div
-          className="fixed left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-[70vh] overflow-y-auto p-2 z-[9999]"
+          className="fixed left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-[70vh] overflow-y-auto p-2 z-[9999] animate-fade-in"
           style={{ top: "56px", maxWidth: "32rem", marginLeft: "auto", marginRight: "auto" }}
         >
           {results.length === 0 && !loading && (
@@ -149,12 +204,15 @@ export default function GlobalSearch() {
           {TYPE_ORDER.filter((t) => grouped[t]?.length).map((type) => {
             const meta = TYPE_META[type];
             const items = grouped[type];
+            const Icon = meta.icon; // 取得 Lucide 元件
+
             return (
               <div key={type} className="mb-2">
-                <div className={`flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded ${meta.color}`}>
-                  <span>{meta.icon}</span>
+                <div className={`flex items-center gap-2 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded ${meta.color}`}>
+                  {/* 🆕 渲染精準極簡向量線條 Icon */}
+                  <Icon className="w-3.5 h-3.5 stroke-[1.8]" />
                   <span>{meta.label}</span>
-                  <span className="ml-auto opacity-60">{items.length}</span>
+                  <span className="ml-auto opacity-60 font-mono">{items.length}</span>
                 </div>
                 <div className="space-y-0.5 mt-1">
                   {items.map((item) => (
@@ -162,9 +220,9 @@ export default function GlobalSearch() {
                       key={`${item.type}-${item.id}`}
                       type="button"
                       onClick={() => handleSelect(item)}
-                      className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 text-left transition-colors group"
+                      className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 text-left transition-all group"
                     >
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 pr-2">
                         <div className="text-sm font-semibold text-slate-800 truncate">
                           {highlight(item.title || "(no title)", query)}
                         </div>
@@ -180,6 +238,14 @@ export default function GlobalSearch() {
             );
           })}
         </div>
+      )}
+
+      {/* 掃描相機彈窗 */}
+      {showScanner && (
+        <QRScanner
+          onScan={handleQRScan}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </div>
   );
