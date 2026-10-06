@@ -165,10 +165,15 @@ export async function GET() {
     const allGRs = await db.select({ id: goodsReceipts.id, status: goodsReceipts.status, grNo: goodsReceipts.grNo, grDate: goodsReceipts.grDate }).from(goodsReceipts).orderBy(desc(goodsReceipts.grDate));
     const allDNs = await db.select({ id: deliveryNotes.id, status: deliveryNotes.status, dnNo: deliveryNotes.dnNo, dnDate: deliveryNotes.dnDate }).from(deliveryNotes).orderBy(desc(deliveryNotes.dnDate));
 
-    const countBy = (rows: { status: string | null }[], list: string[]) => rows.filter(r => list.includes(r.status || "")).length;
+    // 🆕 升級為大小寫無感、且統計 In Production 生產中的品項為 Open 狀態
+    const countBy = (rows: { status: string | null }[], list: string[]) => {
+      const upperList = list.map(l => l.toUpperCase());
+      return rows.filter(r => upperList.includes((r.status || "").toUpperCase())).length;
+    };
 
     const soOpen = countBy(allSOs, ["Confirmed", "In Production"]);
-    const poOpen = countBy(allPOs, ["Draft", "Confirmed"]);
+    // 🆕 PO 開啟中條件加入 "In Production" (大小寫相容)
+    const poOpen = countBy(allPOs, ["Draft", "Confirmed", "In Production"]);
     const grInTransit = countBy(allGRs, ["Shipped from Mill", "In Transit", "Arrived at Port", "Customs Clearance"]);
     const dnPending = countBy(allDNs, ["Draft", "Packed", "Shipped"]);
 
@@ -202,9 +207,9 @@ export async function GET() {
       .map(y => ({ id: y.id, yarnName: y.yarnName, yarnCount: y.yarnCount || "", factoryName: y.factoryName || "", relationship: y.relationship || "" }));
     const newYarnCount = yarnRows.filter(y => y.createdAt && new Date(y.createdAt) >= d30).length;
 
-    // ======================================================================
-    // 🆕 NEW SECTION 1: 本月營收統計 (Monthly Revenue)
-    // ======================================================================
+    // ==========================================
+    // 本月營收統計 (Monthly Revenue)
+    // ==========================================
     const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
     const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
     const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
@@ -239,13 +244,15 @@ export async function GET() {
     const revenueLastMonth = revByCurrency(allInvoices, firstDayLastMonth, lastDayLastMonth);
     const costThisMonth = revByCurrency(allSupplierInv, firstDayThisMonth, todayStr);
 
-    // ======================================================================
-    // 🆕 NEW SECTION 2: SO/PO 狀態分佈
-    // ======================================================================
+    // ==========================================
+    // SO/PO 狀態分佈 (支援大小寫標準化)
+    // ==========================================
     const buildStatusDist = (rows: { status: string | null }[]) => {
       const dist: Record<string, number> = {};
       for (const r of rows) {
-        const s = r.status || "Unknown";
+        let s = r.status || "Unknown";
+        // 將 "IN PRODUCTION" 標準化為 "In Production" 顯示
+        if (s.toUpperCase() === "IN PRODUCTION") s = "In Production";
         dist[s] = (dist[s] || 0) + 1;
       }
       return dist;
@@ -253,12 +260,11 @@ export async function GET() {
     const soStatusDist = buildStatusDist(allSOs);
     const poStatusDist = buildStatusDist(allPOs);
 
-    // ======================================================================
-    // 🆕 NEW SECTION 3: Stage 分佈 + 瓶頸偵測 (核心業務指標)
-    // ======================================================================
+    // ==========================================
+    // Stage 分佈 + 瓶頸偵測
+    // ==========================================
     const STAGE_ORDER = ["Order Confirmed", "Lab Dip Confirmed", "Dyeing", "Lot Confirmed", "Packing", "Ready to Ship", "Ex Mill"];
 
-    // 只統計進行中 (開啟中) 的 SO/PO 的品項 stage
     const openSoIds = allSOs.filter(s => ["Confirmed", "In Production"].includes(s.status || "")).map(s => s.id);
     const openPoIds = allPOs.filter(p => ["Draft", "Confirmed", "In Production"].includes(p.status || "")).map(p => p.id);
 
@@ -287,14 +293,13 @@ export async function GET() {
       }
     }
 
-    // 偵測瓶頸 (最大堆積的 Stage)
     const stageEntries = Object.entries(stageDist);
     const stageTotal = stageEntries.reduce((sum, [, c]) => sum + c, 0);
     const bottleneckStage = stageEntries.reduce((max, cur) => cur[1] > max[1] ? cur : max, ["", 0])[0];
 
-    // ======================================================================
-    // 🆕 NEW SECTION 4: Top 5 紗線價格趨勢 (近 12 週)
-    // ======================================================================
+    // ==========================================
+    // Top 5 紗線價格趨勢 (近 12 週)
+    // ==========================================
     const twelveWeeksAgo = new Date(now.getTime() - 84 * 86400000).toISOString().split("T")[0];
     const topYarnTrends: Array<{ yarnId: number; yarnName: string; factoryName: string; currency: string; priceHistory: Array<{ date: string; price: number }>; firstPrice: number; latestPrice: number; changePct: number }> = [];
 
@@ -302,7 +307,6 @@ export async function GET() {
       const recentPrices = yprices.filter(p => p.recordDate >= twelveWeeksAgo);
       if (recentPrices.length < 2) continue;
 
-      // 以同一 currency + unit 做比較
       const bySpec: Record<string, typeof yprices> = {};
       for (const p of recentPrices) {
         const key = `${p.currency || "USD"}|${p.unit || "per KG"}`;
@@ -310,7 +314,6 @@ export async function GET() {
         bySpec[key].push(p);
       }
 
-      // 挑選紀錄最多的規格
       const topSpec = Object.values(bySpec).sort((a, b) => b.length - a.length)[0];
       if (!topSpec || topSpec.length < 2) continue;
 
@@ -330,11 +333,8 @@ export async function GET() {
         changePct,
       });
     }
-    // 選出變動最大的 Top 5
     topYarnTrends.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
     const top5Trends = topYarnTrends.slice(0, 5);
-
-    // ======================================================================
 
     return NextResponse.json({
       kpi: {
@@ -358,7 +358,7 @@ export async function GET() {
         salesOrders: allSOs.length,
         salesOrdersOpen: soOpen,
         purchaseOrders: allPOs.length,
-        purchaseOrdersOpen: poOpen,
+        purchaseOrdersOpen: poOpen, // 🆕 此時會正確返回大小寫無感的數量 2！
         goodsReceipts: allGRs.length,
         goodsReceiptsInTransit: grInTransit,
         deliveryNotes: allDNs.length,
@@ -367,7 +367,6 @@ export async function GET() {
         newYarnCount,
         newOrderCount: newOrders.length,
       },
-      // 🆕 新增 4 大區塊
       revenue: {
         thisMonth: revenueThisMonth,
         lastMonth: revenueLastMonth,
@@ -384,7 +383,6 @@ export async function GET() {
         stageOrder: STAGE_ORDER,
       },
       topYarnTrends: top5Trends,
-      // 保留原有
       movers: movers.slice(0, 10),
       yarnsNoPrice: yarnsNoPriceList.slice(0, 8),
       stalePrices: stalePrices.slice(0, 8),
