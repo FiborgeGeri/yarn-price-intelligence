@@ -26,7 +26,8 @@ interface SOItem {
   unit: string;
   weightBasis: string;
   incoterms: string;
-  stage: string | null; // 🆕 確保具備此欄位型別
+  stage: string | null;
+  stageNote?: string | null; // 🆕 確保備註的型別宣告
   notes: string;
 }
 
@@ -566,24 +567,24 @@ export default function SalesOrdersPage({ permissions }: Props) {
                             </span>
                           ) : <span className="text-slate-300">—</span>}
                         </td>
+                        {/* 🆕 整合了新版的 OrderStageTracker，只保留單一對齊欄位 */}
                         <td className="px-4 py-3 text-xs">
                           <OrderStageTracker
                             orderType="so"
                             orderId={viewing.id}
                             itemId={item.id}
                             currentStage={item.stage || "Order Confirmed"}
+                            currentNote={item.stageNote || ""}
                             canEdit={permissions.canEdit}
-                            onStageChange={() => { load(); }}
-                          />
-                        </td>
-                          <td className="px-4 py-3 text-xs">
-                          <OrderStageTracker
-                            orderType="so"
-                            orderId={viewing.id}
-                            itemId={item.id}
-                            currentStage={item.stage || "Order Confirmed"}
-                            canEdit={permissions.canEdit}
-                            onStageChange={() => { load(); }}
+                            onStageChange={() => {
+                              load();
+                              fetch(`/api/sales-orders`)
+                                .then((r) => r.json())
+                                .then((data) => {
+                                  const updated = data.find((o: any) => o.id === viewing.id);
+                                  if (updated) setViewing(updated);
+                                });
+                            }}
                           />
                         </td>
                         <td className="px-4 py-3 text-xs">{item.quantity || "—"}</td>
@@ -700,24 +701,24 @@ export default function SalesOrdersPage({ permissions }: Props) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Payment Term (Customer → Us)</label>
                     <div className="grid grid-cols-3 gap-2">
-                      <select value={fPaymentMethod} onChange={(e) => setFPaymentMethod(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs">
+                      <select value={fPaymentMethod} onChange={(e) => setFPaymentMethod(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs font-medium">
                         <option value="">— None —</option>
-                        <option value="OA">OA (Open Account)</option>
-                        <option value="TT">TT (Bank Transfer)</option>
-                        <option value="LC">LC (Letter of Credit)</option>
-                        <option value="DP">DP (Doc. against Payment)</option>
-                        <option value="DA">DA (Doc. against Accept.)</option>
-                        <option value="CAD">CAD (Cash against Doc.)</option>
-                        <option value="Advance">Advance Payment</option>
+                        <option value="OA">OA</option>
+                        <option value="TT">TT</option>
+                        <option value="LC">LC</option>
+                        <option value="DP">DP</option>
+                        <option value="DA">DA</option>
+                        <option value="CAD">CAD</option>
+                        <option value="Advance">Advance</option>
                       </select>
                       <input type="number" value={fPaymentDays} onChange={(e) => setFPaymentDays(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs" placeholder="Days" min="0" />
-                      <select value={fPaymentRef} onChange={(e) => setFPaymentRef(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs">
+                      <select value={fPaymentRef} onChange={(e) => setFPaymentRef(e.target.value)} className="px-2 py-2 border border-slate-300 rounded-lg text-xs font-medium">
                         <option value="">From...</option>
                         <option value="Invoice Date">Invoice Date</option>
                         <option value="BL Date">BL Date</option>
-                        <option value="Shipment Date">Shipment Date</option>
-                        <option value="Delivery Date">Delivery Date</option>
-                        <option value="Before Shipment">Before Shipment</option>
+                        <option value="Shipment Date">Shipment</option>
+                        <option value="Delivery Date">Delivery</option>
+                        <option value="Before Shipment">Before Ship.</option>
                         <option value="At Sight">At Sight</option>
                       </select>
                     </div>
@@ -866,7 +867,7 @@ export default function SalesOrdersPage({ permissions }: Props) {
                           type="text"
                           value={item.colorReference}
                           onChange={(e) => setFItems((p) => p.map((l, i) => i === idx ? { ...l, colorReference: e.target.value } : l))}
-                          className="w-full px-2 py-1.5 border border-slate-350 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
                           placeholder="Color Reference (e.g. LD-2024-0312 / Dye Lot / Pantone)"
                         />
                       </div>
