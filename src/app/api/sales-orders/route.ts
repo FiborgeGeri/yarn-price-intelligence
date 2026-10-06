@@ -40,6 +40,8 @@ export async function GET() {
         soDate: salesOrders.soDate,
         deliveryDate: salesOrders.deliveryDate,
         status: salesOrders.status,
+        stage: soItems.stage,
+        stageNote: soItems.stageNote, 
         notes: salesOrders.notes,
         createdAt: salesOrders.createdAt,
         createdBy: salesOrders.createdBy,

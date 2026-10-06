@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUserId } from "@/lib/getUserId";
 
 const STAGES = [
@@ -42,27 +42,33 @@ export default function OrderStageTracker({
   canEdit,
   onStageChange,
 }: Props) {
-  const [saving, setSaving] = useState(false);
+  const [savingStage, setSavingStage] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [localStage, setLocalStage] = useState(currentStage || "Order Confirmed");
   const [localNote, setLocalNote] = useState(currentNote || "");
+  const noteRef = useRef(currentNote || "");
 
-  // 當外部資料更新時同步 localState
+  // 當外部資料更新時同步（只在真正改變時才更新）
   useEffect(() => {
     setLocalStage(currentStage || "Order Confirmed");
   }, [currentStage]);
 
   useEffect(() => {
-    setLocalNote(currentNote || "");
+    const incoming = currentNote || "";
+    if (incoming !== noteRef.current) {
+      setLocalNote(incoming);
+      noteRef.current = incoming;
+    }
   }, [currentNote]);
 
   const currentIdx = STAGES.indexOf(localStage);
   const pct = currentIdx >= 0 ? Math.round(((currentIdx + 1) / STAGES.length) * 100) : 0;
 
   const handleStageChange = async (newStage: string) => {
-    if (saving) return;
+    if (savingStage) return;
     const prev = localStage;
-    setLocalStage(newStage); // 先立即變更 UI 提高流暢感
-    setSaving(true);
+    setLocalStage(newStage);
+    setSavingStage(true);
 
     try {
       const res = await fetch("/api/order-stages", {
@@ -83,21 +89,26 @@ export default function OrderStageTracker({
       } else {
         const err = await res.json().catch(() => ({}));
         alert(`Failed to update stage: ${err.error || "Unknown error"}`);
-        setLocalStage(prev); // 失敗時復原
+        setLocalStage(prev);
       }
-    } catch (e) {
+    } catch {
       alert("Network error while updating stage.");
       setLocalStage(prev);
     } finally {
-      setSaving(false);
+      setSavingStage(false);
     }
   };
 
   const handleNoteBlur = async () => {
-    if (localNote === currentNote || saving) return;
-    setSaving(true);
+    const trimmed = localNote.trim();
+    // 如果 note 沒變，就不需要存
+    if (trimmed === (currentNote || "").trim()) return;
+
+    setSavingNote(true);
+    noteRef.current = trimmed;
+
     try {
-      await fetch("/api/order-stages", {
+      const res = await fetch("/api/order-stages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -105,13 +116,19 @@ export default function OrderStageTracker({
           orderId,
           itemId,
           stage: localStage,
-          stageNote: localNote,
+          stageNote: trimmed,
           userId: getUserId(),
         }),
       });
-      if (onStageChange) onStageChange();
-    } catch {}
-    setSaving(false);
+
+      if (res.ok) {
+        if (onStageChange) onStageChange();
+      }
+    } catch {
+      // 靜默失敗，不中斷用戶操作
+    } finally {
+      setSavingNote(false);
+    }
   };
 
   if (!canEdit) {
@@ -137,7 +154,7 @@ export default function OrderStageTracker({
       <select
         value={localStage}
         onChange={(e) => handleStageChange(e.target.value)}
-        disabled={saving}
+        disabled={savingStage}
         className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-[11px] font-semibold bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50 cursor-pointer"
       >
         {STAGES.map((s) => (
@@ -150,9 +167,17 @@ export default function OrderStageTracker({
         value={localNote}
         onChange={(e) => setLocalNote(e.target.value)}
         onBlur={handleNoteBlur}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
         placeholder="Add stage note..."
-        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] text-slate-600 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-slate-300"
+        disabled={savingNote}
+        className={`w-full px-1.5 py-0.5 border rounded text-[10px] text-slate-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-slate-300 ${
+          savingNote ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50"
+        }`}
       />
     </div>
   );

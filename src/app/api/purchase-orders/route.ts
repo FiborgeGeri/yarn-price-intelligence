@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
         deliveryDate: purchaseOrders.deliveryDate,
         incoterms: purchaseOrders.incoterms,
         status: purchaseOrders.status,
+        stage: poItems.stage,
+        stageNote: poItems.stageNote,
         notes: purchaseOrders.notes,
         createdAt: purchaseOrders.createdAt,
         createdBy: purchaseOrders.createdBy,
