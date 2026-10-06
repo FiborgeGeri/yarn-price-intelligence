@@ -333,6 +333,7 @@ export const soItems = pgTable("so_items", {
   weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
   incoterms: varchar("incoterms", { length: 100 }),
   stage: varchar("stage", { length: 50 }).default("Order Confirmed"),
+  stageNote: text("stage_note"), 
   notes: text("notes"),
 });
 
@@ -349,6 +350,8 @@ export const poItems = pgTable("po_items", {
   unit: varchar("unit", { length: 50 }).default("per KG"),
   weightBasis: varchar("weight_basis", { length: 20 }).default("condition"),
   incoterms: varchar("incoterms", { length: 100 }),
+  stage: varchar("stage", { length: 64 }).default("Order Confirmed"),
+  stageNote: text("stage_note"), 
   notes: text("notes"),
 });
 
