@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Search, Loader2, ArrowRight } from "lucide-react";
 
 interface SearchResult {
@@ -10,25 +10,20 @@ interface SearchResult {
   subtitle: string;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  so: "Sales Order",
-  po: "Purchase Order",
-  invoice: "Invoice",
-  quotation: "Quotation",
-  yarn: "Yarn",
-  customer: "Client",
-  factory: "Yarn Mill",
+const TYPE_META: Record<string, { label: string; icon: string; color: string; page: string }> = {
+  quotation:         { label: "Quotation",         icon: "📄", color: "text-amber-700 bg-amber-50",   page: "quotations" },
+  so:                { label: "Sales Order",       icon: "🛒", color: "text-blue-700 bg-blue-50",     page: "sales-orders" },
+  po:                { label: "Purchase Order",    icon: "📦", color: "text-indigo-700 bg-indigo-50", page: "purchase-orders" },
+  dn:                { label: "Delivery Note",     icon: "🚚", color: "text-cyan-700 bg-cyan-50",     page: "delivery-notes" },
+  gr:                { label: "Goods Receipt",     icon: "📥", color: "text-teal-700 bg-teal-50",     page: "goods-receipts" },
+  invoice:           { label: "Sales Invoice",     icon: "💰", color: "text-emerald-700 bg-emerald-50", page: "invoices" },
+  "supplier-invoice":{ label: "Supplier Invoice",  icon: "🏭", color: "text-rose-700 bg-rose-50",     page: "supplier-invoices" },
+  yarn:              { label: "Yarn",              icon: "🧵", color: "text-purple-700 bg-purple-50", page: "yarns" },
+  customer:          { label: "Client",            icon: "🏢", color: "text-slate-700 bg-slate-100",  page: "customers" },
+  factory:           { label: "Yarn Mill",         icon: "🏗", color: "text-stone-700 bg-stone-100",  page: "factories" },
 };
 
-const PAGE_MAP: Record<string, string> = {
-  yarn: "yarns",
-  so: "sales-orders",
-  po: "purchase-orders",
-  invoice: "invoices",
-  quotation: "quotations",
-  customer: "customers",
-  factory: "factories",
-};
+const TYPE_ORDER = ["quotation", "so", "po", "dn", "gr", "invoice", "supplier-invoice", "yarn", "customer", "factory"];
 
 export default function GlobalSearch() {
   const [query, setQ] = useState("");
@@ -75,33 +70,54 @@ export default function GlobalSearch() {
         setLoading(false);
       }
     }, 300);
-
     return () => clearTimeout(timer);
   }, [query]);
 
-  const handleSelect = (item: SearchResult) => {
-    const page = PAGE_MAP[item.type];
-    if (!page) return;
+  // 將結果按類型分組
+  const grouped = useMemo(() => {
+    const groups: Record<string, SearchResult[]> = {};
+    for (const r of results) {
+      if (!groups[r.type]) groups[r.type] = [];
+      groups[r.type].push(r);
+    }
+    return groups;
+  }, [results]);
 
-    sessionStorage.setItem("scanTargetPage", page);
+  const handleSelect = (item: SearchResult) => {
+    const meta = TYPE_META[item.type];
+    if (!meta) return;
+
+    sessionStorage.setItem("scanTargetPage", meta.page);
     sessionStorage.setItem("scanTargetId", String(item.id));
 
     setFocused(false);
     setQ("");
 
-    // 使用自定義事件通知 page.tsx 切換頁面（不需要 reload）
-    window.dispatchEvent(new CustomEvent("fib-navigate", { detail: { page } }));
+    window.dispatchEvent(new CustomEvent("fib-navigate", { detail: { page: meta.page } }));
+  };
+
+  // 高亮關鍵字
+  const highlight = (text: string, keyword: string) => {
+    if (!keyword || !text) return text;
+    const parts = text.split(new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+    return parts.map((p, i) =>
+      p.toLowerCase() === keyword.toLowerCase() ? (
+        <mark key={i} className="bg-yellow-200 text-slate-900 px-0.5 rounded">{p}</mark>
+      ) : (
+        <span key={i}>{p}</span>
+      )
+    );
   };
 
   return (
-     <div ref={containerRef} className="relative w-full max-w-md z-[100]">
+    <div ref={containerRef} className="relative w-full max-w-md z-[100]">
       <div className="relative">
         <input
           type="text"
           value={query}
           onFocus={() => setFocused(true)}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search everywhere... (Ctrl+K)"
+          placeholder="Search everything... (Ctrl+K)"
           className="w-full bg-[#fcf8f5]/60 hover:bg-white focus:bg-white px-3 py-1.5 pl-10 border border-slate-200 focus:border-[#e5885d] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#f1c6b2]/50 transition-all text-slate-800"
         />
         <div className="absolute left-3.5 top-2.5 text-slate-400">
@@ -114,35 +130,55 @@ export default function GlobalSearch() {
       </div>
 
       {focused && (results.length > 0 || query.trim().length >= 2) && (
-<div className="fixed left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-80 overflow-y-auto p-2 z-[9999]" style={{ top: '56px', maxWidth: '28rem', marginLeft: 'auto', marginRight: 'auto' }}>          {results.length === 0 && !loading && (
+        <div
+          className="fixed left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-[70vh] overflow-y-auto p-2 z-[9999]"
+          style={{ top: "56px", maxWidth: "32rem", marginLeft: "auto", marginRight: "auto" }}
+        >
+          {results.length === 0 && !loading && (
             <div className="text-center py-6 text-xs text-slate-400">
               No matching records found.
             </div>
           )}
 
-          <div className="space-y-0.5">
-            {results.map((item) => (
-              <button
-                key={`${item.type}-${item.id}`}
-                type="button"
-                onClick={() => handleSelect(item)}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 text-left transition-colors"
-              >
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    {TYPE_LABELS[item.type]}
-                  </div>
-                  <div className="text-sm font-bold text-slate-800 truncate mt-0.5">
-                    {item.title}
-                  </div>
-                  <div className="text-xs text-slate-500 truncate">
-                    {item.subtitle}
-                  </div>
+          {results.length > 0 && (
+            <div className="px-2 pt-1 pb-2 text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              {results.length} result{results.length > 1 ? "s" : ""} found
+            </div>
+          )}
+
+          {TYPE_ORDER.filter((t) => grouped[t]?.length).map((type) => {
+            const meta = TYPE_META[type];
+            const items = grouped[type];
+            return (
+              <div key={type} className="mb-2">
+                <div className={`flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded ${meta.color}`}>
+                  <span>{meta.icon}</span>
+                  <span>{meta.label}</span>
+                  <span className="ml-auto opacity-60">{items.length}</span>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-300 shrink-0" />
-              </button>
-            ))}
-          </div>
+                <div className="space-y-0.5 mt-1">
+                  {items.map((item) => (
+                    <button
+                      key={`${item.type}-${item.id}`}
+                      type="button"
+                      onClick={() => handleSelect(item)}
+                      className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 text-left transition-colors group"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-slate-800 truncate">
+                          {highlight(item.title || "(no title)", query)}
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          {highlight(item.subtitle || "", query)}
+                        </div>
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 shrink-0 group-hover:text-[#d97449] group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

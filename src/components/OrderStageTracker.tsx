@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { getUserId } from "@/lib/getUserId";
+import { useState, useEffect } from "react";
 
 const STAGES = [
   "Order Confirmed",
@@ -24,111 +23,41 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 interface Props {
-  orderType: "so" | "po";
-  orderId: number;
-  itemId: number;
   currentStage: string;
   currentNote?: string;
   canEdit: boolean;
-  onStageChange?: () => void;
+  onLocalChange?: (stage: string, note: string) => void; // 🆕 僅通知外層，不呼叫API
 }
 
 export default function OrderStageTracker({
-  orderType,
-  orderId,
-  itemId,
   currentStage,
   currentNote = "",
   canEdit,
-  onStageChange,
+  onLocalChange,
 }: Props) {
-  const [savingStage, setSavingStage] = useState(false);
-  const [savingNote, setSavingNote] = useState(false);
   const [localStage, setLocalStage] = useState(currentStage || "Order Confirmed");
   const [localNote, setLocalNote] = useState(currentNote || "");
-  const noteRef = useRef(currentNote || "");
 
-  // 當外部資料更新時同步（只在真正改變時才更新）
+  // 外部資料更新時同步
   useEffect(() => {
     setLocalStage(currentStage || "Order Confirmed");
   }, [currentStage]);
 
   useEffect(() => {
-    const incoming = currentNote || "";
-    if (incoming !== noteRef.current) {
-      setLocalNote(incoming);
-      noteRef.current = incoming;
-    }
+    setLocalNote(currentNote || "");
   }, [currentNote]);
 
   const currentIdx = STAGES.indexOf(localStage);
   const pct = currentIdx >= 0 ? Math.round(((currentIdx + 1) / STAGES.length) * 100) : 0;
 
-  const handleStageChange = async (newStage: string) => {
-    if (savingStage) return;
-    const prev = localStage;
+  const handleStageChange = (newStage: string) => {
     setLocalStage(newStage);
-    setSavingStage(true);
-
-    try {
-      const res = await fetch("/api/order-stages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderType,
-          orderId,
-          itemId,
-          stage: newStage,
-          stageNote: localNote,
-          userId: getUserId(),
-        }),
-      });
-
-      if (res.ok) {
-        if (onStageChange) onStageChange();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(`Failed to update stage: ${err.error || "Unknown error"}`);
-        setLocalStage(prev);
-      }
-    } catch {
-      alert("Network error while updating stage.");
-      setLocalStage(prev);
-    } finally {
-      setSavingStage(false);
-    }
+    if (onLocalChange) onLocalChange(newStage, localNote);
   };
 
-  const handleNoteBlur = async () => {
-    const trimmed = localNote.trim();
-    // 如果 note 沒變，就不需要存
-    if (trimmed === (currentNote || "").trim()) return;
-
-    setSavingNote(true);
-    noteRef.current = trimmed;
-
-    try {
-      const res = await fetch("/api/order-stages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderType,
-          orderId,
-          itemId,
-          stage: localStage,
-          stageNote: trimmed,
-          userId: getUserId(),
-        }),
-      });
-
-      if (res.ok) {
-        if (onStageChange) onStageChange();
-      }
-    } catch {
-      // 靜默失敗，不中斷用戶操作
-    } finally {
-      setSavingNote(false);
-    }
+  const handleNoteChange = (newNote: string) => {
+    setLocalNote(newNote);
+    if (onLocalChange) onLocalChange(localStage, newNote);
   };
 
   if (!canEdit) {
@@ -154,8 +83,7 @@ export default function OrderStageTracker({
       <select
         value={localStage}
         onChange={(e) => handleStageChange(e.target.value)}
-        disabled={savingStage}
-        className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-[11px] font-semibold bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50 cursor-pointer"
+        className="w-full px-1.5 py-0.5 border border-slate-300 rounded text-[11px] font-semibold bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
       >
         {STAGES.map((s) => (
           <option key={s} value={s}>{s}</option>
@@ -165,19 +93,9 @@ export default function OrderStageTracker({
       <input
         type="text"
         value={localNote}
-        onChange={(e) => setLocalNote(e.target.value)}
-        onBlur={handleNoteBlur}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
+        onChange={(e) => handleNoteChange(e.target.value)}
         placeholder="Add stage note..."
-        disabled={savingNote}
-        className={`w-full px-1.5 py-0.5 border rounded text-[10px] text-slate-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-slate-300 ${
-          savingNote ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50"
-        }`}
+        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] text-slate-600 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-slate-300"
       />
     </div>
   );

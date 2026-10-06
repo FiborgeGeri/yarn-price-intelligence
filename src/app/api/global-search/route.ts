@@ -1,147 +1,261 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { salesOrders, purchaseOrders, invoices, quotations, yarns, customers, factories } from "@/db/schema";
-import { ilike, or } from "drizzle-orm";
-import { getUserMap } from "@/lib/auditHelpers";
+import {
+  yarns, factories, customers,
+  salesOrders, soItems,
+  purchaseOrders, poItems,
+  quotations,
+  deliveryNotes, dnItems,
+  goodsReceipts, grItems,
+  invoices, invoiceItems,
+  supplierInvoices, supplierInvoiceItems,
+} from "@/db/schema";
+import { sql, eq, or } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const q = searchParams.get("q");
-
-    if (!q || q.trim().length < 2) {
+    const q = req.nextUrl.searchParams.get("q")?.trim();
+    if (!q || q.length < 2) {
       return NextResponse.json([]);
     }
 
-    const query = q.trim();
-    const likeQuery = `%${query}%`;
+    const pattern = `%${q}%`;
+    const results: any[] = [];
 
-    const results: Array<{
-      type: string;
-      id: number;
-      title: string;
-      subtitle: string;
-      meta?: string | null;
-    }> = [];
-
-    // 1. Search Sales Orders
-    const soList = await db
-      .select({ id: salesOrders.id, soNo: salesOrders.soNo, customerPoNo: salesOrders.customerPoNo })
-      .from(salesOrders)
-      .where(or(ilike(salesOrders.soNo, likeQuery), ilike(salesOrders.customerPoNo, likeQuery)))
-      .limit(5);
-    
-    soList.forEach((so) => {
-      results.push({
-        type: "so",
-        id: so.id,
-        title: so.soNo || `SO #${so.id}`,
-        subtitle: `Sales Order - PO No: ${so.customerPoNo || "N/A"}`,
-      });
-    });
-
-    // 2. Search Purchase Orders
-    const poList = await db
-      .select({ id: purchaseOrders.id, poNo: purchaseOrders.poNo, soNo: purchaseOrders.soNo })
-      .from(purchaseOrders)
-      .where(or(ilike(purchaseOrders.poNo, likeQuery), ilike(purchaseOrders.soNo, likeQuery)))
-      .limit(5);
-    
-    poList.forEach((po) => {
-      results.push({
-        type: "po",
-        id: po.id,
-        title: po.poNo || `PO #${po.id}`,
-        subtitle: `Purchase Order - SO Ref: ${po.soNo || "N/A"}`,
-      });
-    });
-
-    // 3. Search Invoices
-    const invList = await db
-      .select({ id: invoices.id, invoiceNo: invoices.invoiceNo, invoiceType: invoices.invoiceType })
-      .from(invoices)
-      .where(ilike(invoices.invoiceNo, likeQuery))
-      .limit(5);
-    
-    invList.forEach((inv) => {
-      results.push({
-        type: "invoice",
-        id: inv.id,
-        title: inv.invoiceNo || `Invoice #${inv.id}`,
-        subtitle: `${inv.invoiceType || "Invoice"}`,
-      });
-    });
-
-    // 4. Search Quotations
-    const qList = await db
-      .select({ id: quotations.id, quoteNo: quotations.quoteNo })
+    // ==================== 1. Quotations ====================
+    const quoteList = await db
+      .selectDistinct({
+        id: quotations.id,
+        title: quotations.quoteNo,
+        subtitle: sql<string>`concat(COALESCE(${customers.name}, '—'), ' · ', COALESCE(${yarns.yarnName}, '—'))`,
+      })
       .from(quotations)
-      .where(ilike(quotations.quoteNo, likeQuery))
-      .groupBy(quotations.id, quotations.quoteNo)
-      .limit(3);
-    
-    qList.forEach((qt) => {
-      if (qt.quoteNo) {
-        results.push({
-          type: "quotation",
-          id: qt.id,
-          title: qt.quoteNo,
-          subtitle: "Quotation Record",
-        });
-      }
-    });
-
-    // 5. Search Yarns
-    const yList = await db
-      .select({ id: yarns.id, yarnName: yarns.yarnName, yarnCount: yarns.yarnCount })
-      .from(yarns)
-      .where(or(ilike(yarns.yarnName, likeQuery), ilike(yarns.yarnCount, likeQuery)))
+      .leftJoin(customers, eq(quotations.customerId, customers.id))
+      .leftJoin(yarns, eq(quotations.yarnId, yarns.id))
+      .where(
+        or(
+          sql`${quotations.quoteNo} ILIKE ${pattern}`,
+          sql`${customers.name} ILIKE ${pattern}`,
+          sql`${yarns.yarnName} ILIKE ${pattern}`,
+          sql`${quotations.notes} ILIKE ${pattern}`
+        )
+      )
       .limit(5);
-    
-    yList.forEach((y) => {
-      results.push({
-        type: "yarn",
-        id: y.id,
-        title: y.yarnName,
-        subtitle: `Yarn Product - ${y.yarnCount || "N/A"}`,
-      });
-    });
+    quoteList.forEach((r) => results.push({ type: "quotation", ...r }));
 
-    // 6. Search Customers
-    const cList = await db
-      .select({ id: customers.id, name: customers.name, officialName: customers.officialName })
+    // ==================== 2. Sales Orders ====================
+    const soList = await db
+      .selectDistinct({
+        id: salesOrders.id,
+        title: salesOrders.soNo,
+        subtitle: sql<string>`concat(COALESCE(${customers.name}, '—'), ' · Client PO: ', COALESCE(${salesOrders.customerPoNo}, '—'))`,
+      })
+      .from(salesOrders)
+      .leftJoin(customers, eq(salesOrders.customerId, customers.id))
+      .leftJoin(soItems, eq(soItems.soId, salesOrders.id))
+      .where(
+        or(
+          sql`${salesOrders.soNo} ILIKE ${pattern}`,
+          sql`${salesOrders.customerPoNo} ILIKE ${pattern}`,
+          sql`${salesOrders.quoteNo} ILIKE ${pattern}`,
+          sql`${salesOrders.notes} ILIKE ${pattern}`,
+          sql`${customers.name} ILIKE ${pattern}`,
+          sql`${soItems.colorName} ILIKE ${pattern}`,
+          sql`${soItems.colorCode} ILIKE ${pattern}`,
+          sql`${soItems.colorReference} ILIKE ${pattern}`,
+          sql`${soItems.notes} ILIKE ${pattern}`
+        )
+      )
+      .limit(5);
+    soList.forEach((r) => results.push({ type: "so", ...r }));
+
+    // ==================== 3. Purchase Orders ====================
+    const poList = await db
+      .selectDistinct({
+        id: purchaseOrders.id,
+        title: purchaseOrders.poNo,
+        subtitle: sql<string>`concat(COALESCE(${factories.factoryName}, '—'), ' · SO Ref: ', COALESCE(${purchaseOrders.soNo}, '—'))`,
+      })
+      .from(purchaseOrders)
+      .leftJoin(factories, eq(purchaseOrders.factoryId, factories.id))
+      .leftJoin(poItems, eq(poItems.poId, purchaseOrders.id))
+      .where(
+        or(
+          sql`${purchaseOrders.poNo} ILIKE ${pattern}`,
+          sql`${purchaseOrders.soNo} ILIKE ${pattern}`,
+          sql`${purchaseOrders.customerPoNo} ILIKE ${pattern}`,
+          sql`${purchaseOrders.quoteNo} ILIKE ${pattern}`,
+          sql`${purchaseOrders.notes} ILIKE ${pattern}`,
+          sql`${factories.factoryName} ILIKE ${pattern}`,
+          sql`${poItems.colorName} ILIKE ${pattern}`,
+          sql`${poItems.colorCode} ILIKE ${pattern}`,
+          sql`${poItems.colorReference} ILIKE ${pattern}`,
+          sql`${poItems.notes} ILIKE ${pattern}`
+        )
+      )
+      .limit(5);
+    poList.forEach((r) => results.push({ type: "po", ...r }));
+
+    // ==================== 4. Delivery Notes ====================
+    const dnList = await db
+      .selectDistinct({
+        id: deliveryNotes.id,
+        title: deliveryNotes.dnNo,
+        subtitle: sql<string>`concat(COALESCE(${customers.name}, '—'), ' · SO: ', COALESCE(${deliveryNotes.soNo}, '—'))`,
+      })
+      .from(deliveryNotes)
+      .leftJoin(customers, eq(deliveryNotes.customerId, customers.id))
+      .leftJoin(dnItems, eq(dnItems.dnId, deliveryNotes.id))
+      .where(
+        or(
+          sql`${deliveryNotes.dnNo} ILIKE ${pattern}`,
+          sql`${deliveryNotes.soNo} ILIKE ${pattern}`,
+          sql`${deliveryNotes.customerPoNo} ILIKE ${pattern}`,
+          sql`${deliveryNotes.trackingNo} ILIKE ${pattern}`,
+          sql`${deliveryNotes.notes} ILIKE ${pattern}`,
+          sql`${dnItems.lotNo} ILIKE ${pattern}`,
+          sql`${dnItems.colorName} ILIKE ${pattern}`,
+          sql`${dnItems.colorCode} ILIKE ${pattern}`,
+          sql`${dnItems.notes} ILIKE ${pattern}`
+        )
+      )
+      .limit(5);
+    dnList.forEach((r) => results.push({ type: "dn", ...r }));
+
+    // ==================== 5. Goods Receipts ====================
+    const grList = await db
+      .selectDistinct({
+        id: goodsReceipts.id,
+        title: goodsReceipts.grNo,
+        subtitle: sql<string>`concat(COALESCE(${factories.factoryName}, '—'), ' · PO: ', COALESCE(${goodsReceipts.poNo}, '—'))`,
+      })
+      .from(goodsReceipts)
+      .leftJoin(factories, eq(goodsReceipts.factoryId, factories.id))
+      .leftJoin(grItems, eq(grItems.grId, goodsReceipts.id))
+      .where(
+        or(
+          sql`${goodsReceipts.grNo} ILIKE ${pattern}`,
+          sql`${goodsReceipts.poNo} ILIKE ${pattern}`,
+          sql`${goodsReceipts.trackingNo} ILIKE ${pattern}`,
+          sql`${goodsReceipts.notes} ILIKE ${pattern}`,
+          sql`${grItems.lotNo} ILIKE ${pattern}`,
+          sql`${grItems.colorName} ILIKE ${pattern}`,
+          sql`${grItems.colorCode} ILIKE ${pattern}`,
+          sql`${grItems.notes} ILIKE ${pattern}`
+        )
+      )
+      .limit(5);
+    grList.forEach((r) => results.push({ type: "gr", ...r }));
+
+    // ==================== 6. Sales Invoices ====================
+    const invList = await db
+      .selectDistinct({
+        id: invoices.id,
+        title: invoices.invoiceNo,
+        subtitle: sql<string>`concat(COALESCE(${customers.name}, '—'), ' · SO: ', COALESCE(${invoices.soNo}, '—'))`,
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.customerId, customers.id))
+      .leftJoin(invoiceItems, eq(invoiceItems.invoiceId, invoices.id))
+      .where(
+        or(
+          sql`${invoices.invoiceNo} ILIKE ${pattern}`,
+          sql`${invoices.soNo} ILIKE ${pattern}`,
+          sql`${invoices.customerPoNo} ILIKE ${pattern}`,
+          sql`${invoices.notes} ILIKE ${pattern}`,
+          sql`${customers.name} ILIKE ${pattern}`,
+          sql`${invoiceItems.colorName} ILIKE ${pattern}`,
+          sql`${invoiceItems.colorCode} ILIKE ${pattern}`,
+          sql`${invoiceItems.description} ILIKE ${pattern}`
+        )
+      )
+      .limit(5);
+    invList.forEach((r) => results.push({ type: "invoice", ...r }));
+
+    // ==================== 7. Supplier Invoices ====================
+    const supInvList = await db
+      .selectDistinct({
+        id: supplierInvoices.id,
+        title: sql<string>`COALESCE(${supplierInvoices.supplierInvoiceNo}, ${supplierInvoices.internalNo})`,
+        subtitle: sql<string>`concat(COALESCE(${factories.factoryName}, '—'), ' · PO: ', COALESCE(${supplierInvoices.poNo}, '—'))`,
+      })
+      .from(supplierInvoices)
+      .leftJoin(factories, eq(supplierInvoices.factoryId, factories.id))
+      .leftJoin(supplierInvoiceItems, eq(supplierInvoiceItems.supplierInvoiceId, supplierInvoices.id))
+      .where(
+        or(
+          sql`${supplierInvoices.supplierInvoiceNo} ILIKE ${pattern}`,
+          sql`${supplierInvoices.internalNo} ILIKE ${pattern}`,
+          sql`${supplierInvoices.poNo} ILIKE ${pattern}`,
+          sql`${supplierInvoices.notes} ILIKE ${pattern}`,
+          sql`${factories.factoryName} ILIKE ${pattern}`,
+          sql`${supplierInvoiceItems.colorName} ILIKE ${pattern}`,
+          sql`${supplierInvoiceItems.colorCode} ILIKE ${pattern}`,
+          sql`${supplierInvoiceItems.description} ILIKE ${pattern}`
+        )
+      )
+      .limit(5);
+    supInvList.forEach((r) => results.push({ type: "supplier-invoice", ...r }));
+
+    // ==================== 8. Yarns ====================
+    const yarnList = await db
+      .select({
+        id: yarns.id,
+        title: yarns.yarnName,
+        subtitle: sql<string>`concat(COALESCE(${yarns.yarnCount}, '—'), ' · ', COALESCE(${factories.factoryName}, '—'), ' · ', COALESCE(${yarns.composition}, '—'))`,
+      })
+      .from(yarns)
+      .leftJoin(factories, eq(yarns.factoryId, factories.id))
+      .where(
+        or(
+          sql`${yarns.yarnName} ILIKE ${pattern}`,
+          sql`${yarns.yarnCount} ILIKE ${pattern}`,
+          sql`${yarns.micron} ILIKE ${pattern}`,
+          sql`${yarns.composition} ILIKE ${pattern}`
+        )
+      )
+      .limit(5);
+    yarnList.forEach((r) => results.push({ type: "yarn", ...r }));
+
+    // ==================== 9. Customers ====================
+    const custList = await db
+      .select({
+        id: customers.id,
+        title: customers.name,
+        subtitle: sql<string>`concat('Client · ', COALESCE(${customers.officialName}, ''), ' ', COALESCE(${customers.country}, ''))`,
+      })
       .from(customers)
-      .where(or(ilike(customers.name, likeQuery), ilike(customers.officialName, likeQuery)))
+      .where(
+        or(
+          sql`${customers.name} ILIKE ${pattern}`,
+          sql`${customers.officialName} ILIKE ${pattern}`,
+          sql`${customers.country} ILIKE ${pattern}`
+        )
+      )
       .limit(3);
-    
-    cList.forEach((c) => {
-      results.push({
-        type: "customer",
-        id: c.id,
-        title: c.name,
-        subtitle: `Client - ${c.officialName || "N/A"}`,
-      });
-    });
+    custList.forEach((r) => results.push({ type: "customer", ...r }));
 
-    // 7. Search Factories
-    const fList = await db
-      .select({ id: factories.id, factoryName: factories.factoryName, officialName: factories.officialName })
+    // ==================== 10. Factories ====================
+    const facList = await db
+      .select({
+        id: factories.id,
+        title: factories.factoryName,
+        subtitle: sql<string>`concat('Yarn Mill · ', COALESCE(${factories.officialName}, ''), ' ', COALESCE(${factories.country}, ''))`,
+      })
       .from(factories)
-      .where(or(ilike(factories.factoryName, likeQuery), ilike(factories.officialName, likeQuery)))
+      .where(
+        or(
+          sql`${factories.factoryName} ILIKE ${pattern}`,
+          sql`${factories.officialName} ILIKE ${pattern}`,
+          sql`${factories.country} ILIKE ${pattern}`
+        )
+      )
       .limit(3);
-    
-    fList.forEach((f) => {
-      results.push({
-        type: "factory",
-        id: f.id,
-        title: f.factoryName,
-        subtitle: `Yarn Mill - ${f.officialName || "N/A"}`,
-      });
-    });
+    facList.forEach((r) => results.push({ type: "factory", ...r }));
 
     return NextResponse.json(results);
   } catch (err) {
     console.error("Global search error:", err);
-    return NextResponse.json({ error: "Failed to search" }, { status: 500 });
+    return NextResponse.json([], { status: 500 });
   }
 }

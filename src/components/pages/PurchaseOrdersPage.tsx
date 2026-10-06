@@ -26,7 +26,8 @@ interface POItem {
   unit: string;
   weightBasis: string;
   incoterms: string;
-  stage: string | null; // 🆕 確保有這一行，100% 解決型別報錯
+  stage: string | null;
+  stageNote?: string | null; // 🆕
   notes: string;
 }
 
@@ -95,9 +96,12 @@ interface FormItem {
   weightBasis: string;
   incoterms: string;
   notes: string;
+  stage?: string;       
+  stageNote?: string;  
 }
 
-const STATUS_COLORS: Record<string, string> = { "In Production": "bg-amber-100 text-amber-800",
+const STATUS_COLORS: Record<string, string> = {
+  "In Production": "bg-amber-100 text-amber-800",
   Draft: "bg-slate-100 text-slate-700",
   Confirmed: "bg-blue-100 text-blue-800",
   Shipped: "bg-amber-100 text-amber-800",
@@ -118,6 +122,8 @@ const EMPTY_ITEM: FormItem = {
   weightBasis: "condition",
   incoterms: "",
   notes: "",
+  stage: "Order Confirmed",
+  stageNote: "",
 };
 
 export default function PurchaseOrdersPage({ permissions }: Props) {
@@ -130,6 +136,8 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editingPO, setEditingPO] = useState<PO | null>(null);
   const [viewing, setViewing] = useState<PO | null>(null);
+  const [pendingStages, setPendingStages] = useState<Record<number, { stage: string; stageNote: string }>>({});
+  const [savingStages, setSavingStages] = useState(false);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -180,7 +188,21 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
   };
 
   useEffect(() => { load(); }, []);
-
+useEffect(() => {
+  const handleAutoOpen = () => {
+    const targetPage = sessionStorage.getItem("scanTargetPage");
+    const targetId = sessionStorage.getItem("scanTargetId");
+    if (targetPage === "purchase-orders" && targetId && pos.length > 0) {
+      const match = pos.find((p) => p.id === Number(targetId));
+      if (match) setViewing(match);
+      sessionStorage.removeItem("scanTargetPage");
+      sessionStorage.removeItem("scanTargetId");
+    }
+  };
+  window.addEventListener("fib-navigate", handleAutoOpen);
+  handleAutoOpen();
+  return () => window.removeEventListener("fib-navigate", handleAutoOpen);
+}, [pos]);
   const loadFactoryContacts = async (factoryId: number) => {
     if (!factoryId) { setFactoryContactList([]); return; }
     try {
@@ -248,6 +270,8 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
           weightBasis: i.weightBasis || "condition",
           incoterms: i.incoterms || "",
           notes: i.notes || "",
+          stage: i.stage || "Order Confirmed",       // 🆕 保留 stage
+          stageNote: i.stageNote || "",              // 🆕 保留 stageNote
         }))
       );
     } else {
@@ -358,6 +382,45 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
     load();
   };
 
+  const closeViewing = () => {
+    if (Object.keys(pendingStages).length > 0) {
+      if (!confirm("You have unsaved stage changes. Discard them?")) return;
+    }
+    setPendingStages({});
+    setViewing(null);
+  };
+
+  const handleSaveStages = async () => {
+    if (!viewing || Object.keys(pendingStages).length === 0) return;
+    setSavingStages(true);
+    try {
+      for (const [itemId, change] of Object.entries(pendingStages)) {
+        await fetch("/api/order-stages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderType: "po",
+            orderId: viewing.id,
+            itemId: Number(itemId),
+            stage: change.stage,
+            stageNote: change.stageNote,
+            userId: getUserId(),
+          }),
+        });
+      }
+      setToast({ type: "success", text: `Saved ${Object.keys(pendingStages).length} stage change(s)` });
+      setPendingStages({});
+      const data = await fetch(`/api/purchase-orders`).then((r) => r.json());
+      const updated = data.find((o: any) => o.id === viewing.id);
+      if (updated) setViewing(updated);
+      load();
+    } catch {
+      setToast({ type: "error", text: "Failed to save stages" });
+    }
+    setSavingStages(false);
+    setTimeout(() => setToast(null), 3000);
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>;
 
   return (
@@ -413,7 +476,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
               <th className="px-4 py-3 font-medium text-right">Total Qty</th>
               <th className="px-4 py-3 font-medium text-right">Total Amount</th>
               <th className="px-4 py-3 font-medium">PO Date</th>
-              <th className="px-4 py-3 font-medium">Stage</th> {/* 🆕 新增：列表進度 */}
+              <th className="px-4 py-3 font-medium">Stage</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium w-32">Actions</th>
             </tr>
@@ -449,26 +512,41 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                   })()}
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{p.poDate}</td>
-                {/* 🆕 顯示自動計算的 PO 最慢進度 */}
-                <td className="px-4 py-3 text-xs">
-                  {(() => {
-                    const stages = p.items.map(i => i.stage || "Order Confirmed");
-                    const stageOrder = ["Order Confirmed","Lab Dip Confirmed","Dyeing","Lot Confirmed","Packing","Ready to Ship","Ex Mill","Shipped","Delivered","Received"];
-                    const slowest = stages.sort((a, b) => stageOrder.indexOf(a) - stageOrder.indexOf(b))[0] || "Order Confirmed";
-                    const colors: Record<string, string> = {
-                      "Order Confirmed":"bg-blue-100 text-blue-700",
-                      "Lab Dip Confirmed":"bg-purple-100 text-purple-700",
-                      "Dyeing":"bg-amber-100 text-amber-700",
-                      "Lot Confirmed":"bg-indigo-100 text-indigo-700",
-                      "Packing":"bg-orange-100 text-orange-700",
-                      "Ready to Ship":"bg-cyan-100 text-cyan-700",
-                      "Ex Mill":"bg-teal-100 text-teal-700",
-                      "Shipped":"bg-green-100 text-green-700",
-                      "Received":"bg-emerald-100 text-emerald-700"
-                    };
-                    return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${colors[slowest] || "bg-slate-100 text-slate-700"}`}>{slowest}</span>;
-                  })()}
-                </td>
+                <td className="px-4 py-3">
+  {(() => {
+    const STAGE_ORDER = ["Order Confirmed","Lab Dip Confirmed","Dyeing","Lot Confirmed","Packing","Ready to Ship","Ex Mill"];
+    const stages = p.items.map(i => i.stage || "Order Confirmed");
+    if (stages.length === 0) return <span className="text-slate-400 text-xs">—</span>;
+    
+    const totalPct = stages.reduce((sum, s) => {
+      const idx = STAGE_ORDER.indexOf(s);
+      return sum + (idx >= 0 ? ((idx + 1) / STAGE_ORDER.length) * 100 : 0);
+    }, 0);
+    const avgPct = Math.round(totalPct / stages.length);
+    
+    const barColor = avgPct >= 100 ? "bg-emerald-500" 
+                   : avgPct >= 70 ? "bg-cyan-500"
+                   : avgPct >= 40 ? "bg-amber-500"
+                   : "bg-blue-500";
+    
+    const slowest = [...stages].sort((a, b) => STAGE_ORDER.indexOf(a) - STAGE_ORDER.indexOf(b))[0] || "Order Confirmed";
+    
+    return (
+      <div className="min-w-[110px]">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-semibold text-slate-700">{avgPct}%</span>
+          <span className="text-[9px] text-slate-500">{stages.length} item{stages.length > 1 ? "s" : ""}</span>
+        </div>
+        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${avgPct}%` }} />
+        </div>
+        <div className="text-[9px] text-slate-500 mt-0.5 truncate" title={`Slowest: ${slowest}`}>
+          {slowest}
+        </div>
+      </div>
+    );
+  })()}
+</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[p.status] || "bg-slate-100 text-slate-700"}`}>
                     {p.status}
@@ -490,14 +568,14 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
       </div>
 
       {viewing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewing(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeViewing}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold">Purchase Order Detail</h2>
                 <p className="text-xs text-slate-500 mt-0.5">{viewing.poNo}</p>
               </div>
-              <button onClick={() => setViewing(null)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+              <button onClick={closeViewing} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
 
             <div className="p-4 space-y-4">
@@ -531,7 +609,7 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                       <th className="px-4 py-3 font-medium">Composition</th>
                       <th className="px-4 py-3 font-medium">Color</th>
                       <th className="px-4 py-3 font-medium">Color Reference</th>
-                      <th className="px-4 py-3 font-medium">Stage</th> {/* 🆕 詳情 Stage 表頭 */}
+                      <th className="px-4 py-3 font-medium">Stage</th>
                       <th className="px-4 py-3 font-medium">Qty</th>
                       <th className="px-4 py-3 font-medium text-right">Unit Price</th>
                       <th className="px-4 py-3 font-medium">Weight</th>
@@ -564,19 +642,16 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                             </span>
                           ) : <span className="text-slate-300">—</span>}
                         </td>
-                        {/* 🆕 顯示品項級 Stage */}
                         <td className="px-4 py-3 text-xs">
                           <OrderStageTracker
-                            orderType="po"
-                            orderId={viewing.id}
-                            itemId={item.id!}
-                            currentStage={item.stage || "Order Confirmed"}
+                            currentStage={pendingStages[item.id!]?.stage ?? item.stage ?? "Order Confirmed"}
+                            currentNote={pendingStages[item.id!]?.stageNote ?? item.stageNote ?? ""}
                             canEdit={permissions.canEdit}
-                            onStageChange={() => {
-                              fetch(`/api/purchase-orders`).then(r => r.json()).then(data => {
-                                const updated = data.find((o: any) => o.id === viewing.id);
-                                if (updated) setViewing(updated);
-                              });
+                            onLocalChange={(stage, stageNote) => {
+                              setPendingStages((prev) => ({
+                                ...prev,
+                                [item.id!]: { stage, stageNote },
+                              }));
                             }}
                           />
                         </td>
@@ -609,11 +684,20 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
 
               <AuditInfo createdByName={viewing.createdByName} updatedByName={viewing.updatedByName} className="border-t border-slate-200 pt-3" />
               <div className="pt-2 flex gap-2 flex-wrap">
+                {permissions.canEdit && Object.keys(pendingStages).length > 0 && (
+                  <button
+                    disabled={savingStages}
+                    onClick={handleSaveStages}
+                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {savingStages ? "Saving..." : `💾 Save ${Object.keys(pendingStages).length} Stage Change(s)`}
+                  </button>
+                )}
                 {permissions.canEdit && viewing.status === "Confirmed" && (
                   <button onClick={async () => {
                     const res = await fetch("/api/purchase-orders", {
                       method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ id: viewing.id, status: "In Production", factoryId: viewing.factoryId, poDate: viewing.poDate, poNo: viewing.poNo, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, colorReference: i.colorReference, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes })), userId: getUserId() }),
+                      body: JSON.stringify({ id: viewing.id, status: "In Production", factoryId: viewing.factoryId, poDate: viewing.poDate, poNo: viewing.poNo, items: viewing.items.map(i => ({ yarnId: i.yarnId, colorName: i.colorName, colorCode: i.colorCode, colorReference: i.colorReference, quantity: i.quantity, unitPrice: String(i.unitPrice), currency: i.currency, unit: i.unit, weightBasis: i.weightBasis, incoterms: i.incoterms, notes: i.notes, stage: i.stage, stageNote: i.stageNote })), userId: getUserId() }),
                     });
                     if (res.ok) { setToast({ type: "success", text: "PO set to In Production (SO synced)" }); setViewing(null); load(); }
                     else setToast({ type: "error", text: "Failed" });
@@ -884,7 +968,6 @@ export default function PurchaseOrdersPage({ permissions }: Props) {
                               const settings = await res.json();
                               const template = settings.find((s: any) => s.key === "template_po_remarks");
                               if (template?.value) {
-                                // 智慧附加，不覆蓋用戶原本寫好的內容
                                 setFNotes((prev) => prev ? `${prev}\n\n${template.value}` : template.value);
                               }
                             }
