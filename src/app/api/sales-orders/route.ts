@@ -40,8 +40,6 @@ export async function GET() {
         soDate: salesOrders.soDate,
         deliveryDate: salesOrders.deliveryDate,
         status: salesOrders.status,
-        stage: soItems.stage,
-        stageNote: soItems.stageNote, 
         notes: salesOrders.notes,
         createdAt: salesOrders.createdAt,
         createdBy: salesOrders.createdBy,
@@ -75,6 +73,7 @@ export async function GET() {
         weightBasis: soItems.weightBasis,
         incoterms: soItems.incoterms,
         stage: soItems.stage,
+        stageNote: soItems.stageNote, // 🆕 GET 正確返回 Stage Note 欄位
         notes: soItems.notes,
       })
       .from(soItems)
@@ -187,6 +186,7 @@ export async function POST(req: NextRequest) {
                 weightBasis: item.weightBasis || "condition",
                 incoterms: item.incoterms || null,
                 stage: item.stage || "Order Confirmed",
+                stageNote: item.stageNote || null, // 🆕 同步寫入 PO 的 Stage Note
                 notes: item.notes || null,
               })));
             }
@@ -209,6 +209,7 @@ export async function POST(req: NextRequest) {
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
           stage: item.stage || "Order Confirmed",
+          stageNote: item.stageNote || null, // 🆕 同步寫入 SO 的 Stage Note
           notes: item.notes || null,
         })));
       }
@@ -251,6 +252,7 @@ export async function POST(req: NextRequest) {
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
           stage: item.stage || "Order Confirmed",
+          stageNote: item.stageNote || null, // 🆕 同步寫入 Stage Note
           notes: item.notes || null,
         })));
       }
@@ -312,6 +314,7 @@ export async function POST(req: NextRequest) {
               weightBasis: item.weightBasis || "condition",
               incoterms: item.incoterms || null,
               stage: item.stage || "Order Confirmed",
+              stageNote: item.stageNote || null, // 🆕 同步寫入 PO 的 Stage Note
               notes: item.notes || null,
             })));
           }
