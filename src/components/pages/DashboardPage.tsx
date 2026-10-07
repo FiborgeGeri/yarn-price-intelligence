@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Permissions } from "@/lib/permissions";
 import {
   ScrollText, ShoppingBag, ShoppingCart, PackageCheck, Truck,
@@ -125,6 +125,9 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
   const [data, setData] = useState<DashData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeStagePopover, setActiveStagePopover] = useState<string | null>(null);
+  const [pinnedStage, setPinnedStage] = useState<string | null>(null);
+  const [showAllInStage, setShowAllInStage] = useState<string | null>(null);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetch(`/api/dashboard?ts=${Date.now()}`)
@@ -132,6 +135,22 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
       .then((d) => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  // 點擊外部自動解除鎖定
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-stage-popover]") && !target.closest("[data-stage-card]")) {
+        setPinnedStage(null);
+        setActiveStagePopover(null);
+        setShowAllInStage(null);
+      }
+    };
+    if (pinnedStage) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [pinnedStage]);
 
   if (loading) return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
   if (!data?.kpi) return <div className="text-center py-20 text-slate-400">Unable to load dashboard</div>;
@@ -224,7 +243,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
       )}
 
       {canOrders && data.stageBoard && (
-  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm relative z-20">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm relative z-20">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-1">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-800">Production Stage Pipeline</h3>
@@ -244,15 +263,41 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
               const theme = STAGE_COLORS[stage] || STAGE_COLORS["Order Confirmed"];
               const pct = data.stageBoard?.total ? Math.round((count / data.stageBoard.total) * 100) : 0;
               const details = data.stageBoard?.details?.[stage] || [];
-              const isOpen = activeStagePopover === stage;
+              const isOpen = activeStagePopover === stage || pinnedStage === stage;
+              const isPinned = pinnedStage === stage;
+              const showAll = showAllInStage === stage;
+              const displayDetails = showAll ? details : details.slice(0, 10);
 
               return (
                 <div key={stage} className="relative">
                   <div
-                    onClick={() => setActiveStagePopover(isOpen ? null : stage)}
-                    onMouseEnter={() => count > 0 && setActiveStagePopover(stage)}
-                    onMouseLeave={() => setActiveStagePopover(null)}
-                    className={`p-2.5 rounded-xl border transition-all ${count > 0 ? "cursor-pointer hover:shadow-md" : "cursor-default"} ${isBottleneck ? "border-[#d4a030] bg-[#fef5e7]/40 ring-2 ring-[#f0d9a8]" : `${theme.border} ${theme.bg}`}`}
+                    data-stage-card
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (count === 0) return;
+                      if (pinnedStage === stage) {
+                        setPinnedStage(null);
+                        setActiveStagePopover(null);
+                        setShowAllInStage(null);
+                      } else {
+                        setPinnedStage(stage);
+                        setActiveStagePopover(stage);
+                      }
+                    }}
+                    onMouseEnter={() => {
+                      if (count === 0) return;
+                      if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+                      setActiveStagePopover(stage);
+                    }}
+                    onMouseLeave={() => {
+                      if (pinnedStage) return;
+                      hoverTimerRef.current = setTimeout(() => { setActiveStagePopover(null); }, 300);
+                    }}
+                    className={`p-2.5 rounded-xl border transition-all ${count > 0 ? "cursor-pointer hover:shadow-md" : "cursor-default"} ${
+                      isPinned ? "ring-2 ring-[#d97449] border-[#d97449]" :
+                      isBottleneck ? "border-[#d4a030] bg-[#fef5e7]/40 ring-2 ring-[#f0d9a8]" :
+                      `${theme.border} ${theme.bg}`
+                    }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className={`text-[9px] font-bold uppercase truncate ${theme.text}`} title={stage}>{stage}</span>
@@ -266,29 +311,97 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
 
                   {isOpen && count > 0 && (
                     <div
-                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-80 bg-white rounded-xl border border-slate-200 shadow-2xl z-50 overflow-hidden"
-                      onMouseEnter={() => setActiveStagePopover(stage)}
-                      onMouseLeave={() => setActiveStagePopover(null)}
+                      data-stage-popover
+                      className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 ${showAll ? "w-96" : "w-80"} bg-white rounded-xl border border-slate-200 shadow-2xl z-50 overflow-hidden`}
+                      onMouseEnter={() => {
+                        if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+                        setActiveStagePopover(stage);
+                      }}
+                      onMouseLeave={() => {
+                        if (pinnedStage) return;
+                        hoverTimerRef.current = setTimeout(() => { setActiveStagePopover(null); }, 300);
+                      }}
                     >
-                      <div className={`px-3 py-2 border-b border-slate-100 ${theme.bg}`}>
-                        <div className="flex items-center justify-between">
+                      <div className={`px-3 py-2 border-b border-slate-100 ${theme.bg} flex items-center justify-between`}>
+                        <div className="flex items-center gap-2">
                           <span className={`text-xs font-bold ${theme.text}`}>{stage}</span>
                           <span className="text-[10px] text-slate-500 font-mono">{count} item{count > 1 ? "s" : ""}</span>
+                          {isPinned && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#d97449] text-white font-bold">PINNED</span>
+                          )}
                         </div>
+                        {isPinned && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPinnedStage(null);
+                              setActiveStagePopover(null);
+                              setShowAllInStage(null);
+                            }}
+                            className="w-5 h-5 rounded-full bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 text-xs font-bold transition-colors"
+                            title="Close"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
-                      <div className="max-h-60 overflow-y-auto p-2 space-y-1.5">
-                        {details.slice(0, 10).map((d: StageDetail, idx: number) => (
-                          <div key={`${d.orderType}-${d.orderId}-${idx}`} className="flex items-start gap-2 p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                      <div className={`${showAll ? "max-h-96" : "max-h-60"} overflow-y-auto p-2 space-y-1.5`}>
+                        {displayDetails.map((d: StageDetail, idx: number) => (
+                          <button
+                            key={`${d.orderType}-${d.orderId}-${idx}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const page = d.orderType === "SO" ? "sales-orders" : "purchase-orders";
+                              sessionStorage.setItem("scanTargetPage", page);
+                              sessionStorage.setItem("scanTargetId", String(d.orderId));
+                              setPinnedStage(null);
+                              setActiveStagePopover(null);
+                              window.dispatchEvent(new CustomEvent("fib-navigate", { detail: { page } }));
+                            }}
+                            className="w-full flex items-start gap-2 p-1.5 rounded-lg hover:bg-slate-50 transition-colors text-left group"
+                          >
                             <span className={`shrink-0 mt-0.5 px-1 py-0.5 rounded text-[8px] font-bold uppercase ${d.orderType === "SO" ? "bg-[#fef7f3] text-[#a75334] border border-[#f4d9c9]" : "bg-[#fef3ee] text-[#a0522d] border border-[#f0c9b0]"}`}>{d.orderType}</span>
                             <div className="min-w-0 flex-1">
-                              <div className="text-[11px] font-semibold text-slate-800 truncate">{d.orderNo}</div>
+                              <div className="text-[11px] font-semibold text-slate-800 truncate group-hover:text-[#d97449] transition-colors">{d.orderNo}</div>
                               <div className="text-[10px] text-slate-500 truncate">{d.yarnName} · {d.colorName || "—"}{d.colorCode ? ` (${d.colorCode})` : ""} · {d.quantity}</div>
                               <div className="text-[9px] text-slate-400 truncate">{d.orderType === "SO" ? d.customerName : d.factoryName}</div>
                             </div>
-                          </div>
+                            <ArrowRight className="w-3 h-3 text-slate-300 shrink-0 mt-1 group-hover:text-[#d97449] transition-colors" />
+                          </button>
                         ))}
-                        {details.length > 10 && <div className="text-[10px] text-slate-400 text-center py-1">+{details.length - 10} more items</div>}
+
+                        {details.length > 10 && !showAll && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAllInStage(stage);
+                              setPinnedStage(stage);
+                            }}
+                            className="w-full py-1.5 text-[10px] text-[#d97449] hover:text-[#a75334] font-semibold bg-[#fef7f3] hover:bg-[#fdeae2] border border-[#f4d9c9] rounded-lg transition-colors flex items-center justify-center gap-1"
+                          >
+                            <span>Show all {details.length} items</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        )}
+
+                        {showAll && details.length > 10 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAllInStage(null);
+                            }}
+                            className="w-full py-1.5 text-[10px] text-slate-500 hover:text-slate-700 font-medium bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+                          >
+                            Collapse
+                          </button>
+                        )}
                       </div>
+
+                      {!isPinned && (
+                        <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 text-[9px] text-slate-400 text-center">
+                          Click to pin this view
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -298,7 +411,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
         </div>
       )}
 
-     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 relative z-10">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 relative z-10">
         {canOrders && (
           <SectionCard title="Order Status Breakdown" action="Sales Orders" onAction={() => onNavigate("sales-orders")}>
             <div className="space-y-3">
