@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
-  quotations,
-  purchaseOrders, poItems,
-  deliveryNotes, dnItems,
-  invoices, invoiceItems,
-  supplierInvoices, supplierInvoiceItems,
-  customers, customerContacts, factories, companies, yarns,
-  shipToAddresses, shipToContacts, bankAccounts, systemSettings,
-  payments,
-  users,
+  quotations, purchaseOrders, poItems, deliveryNotes, dnItems,
+  invoices, invoiceItems, supplierInvoices, supplierInvoiceItems,
+  customers, customerContacts, factories, factoryContacts, companies, yarns,
+  shipToAddresses, shipToContacts, bankAccounts, systemSettings, payments, users,
 } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { generateExcel, ExportData, ExportItem } from "@/lib/excelExport";
@@ -59,23 +54,14 @@ export async function GET(req: NextRequest) {
 
     if (!type || !id) return NextResponse.json({ error: "type and id required" }, { status: 400 });
 
-    // 🆕 讀取當前登入用戶的 Display Name (修正了 getSession(req) 與 session.id 錯誤)
     let currentUserName = "System";
     try {
       const session = await getSession(req);
       if (session?.id) {
-        const [u] = await db
-          .select({ 
-            displayName: users.displayName, 
-            username: users.username 
-          })
-          .from(users)
-          .where(eq(users.id, session.id));
+        const [u] = await db.select({ displayName: users.displayName, username: users.username }).from(users).where(eq(users.id, session.id));
         if (u) currentUserName = u.displayName || u.username || "User";
       }
-    } catch (err) {
-      console.warn("Could not fetch user session:", err);
-    }
+    } catch (err) {}
 
     let data: ExportData;
 
@@ -85,73 +71,40 @@ export async function GET(req: NextRequest) {
       if (!refQuote) return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
 
       const quoteNo = refQuote.quoteNo;
-      const quoteRows = quoteNo
-        ? await db.select().from(quotations).where(eq(quotations.quoteNo, quoteNo))
-        : [refQuote];
+      const quoteRows = quoteNo ? await db.select().from(quotations).where(eq(quotations.quoteNo, quoteNo)) : [refQuote];
 
-      const [customer] = refQuote.customerId
-        ? await db.select().from(customers).where(eq(customers.id, refQuote.customerId))
-        : [];
-      const [company] = refQuote.companyId
-        ? await db.select().from(companies).where(eq(companies.id, refQuote.companyId))
-        : [];
-      const [contact] = refQuote.contactId
-        ? await db.select().from(customerContacts).where(eq(customerContacts.id, refQuote.contactId))
-        : [];
+      const [customer] = refQuote.customerId ? await db.select().from(customers).where(eq(customers.id, refQuote.customerId)) : [];
+      const [company] = refQuote.companyId ? await db.select().from(companies).where(eq(companies.id, refQuote.companyId)) : [];
+      const [contact] = refQuote.contactId ? await db.select().from(customerContacts).where(eq(customerContacts.id, refQuote.contactId)) : [];
 
       const items: ExportItem[] = [];
       for (const q of quoteRows) {
         const [yarn] = q.yarnId ? await db.select().from(yarns).where(eq(yarns.id, q.yarnId)) : [];
         items.push({
-          yarnName: yarn?.yarnName,
-          yarnCount: yarn?.yarnCount ?? undefined,
-          composition: yarn?.composition ?? undefined,
-          micron: yarn?.micron ?? undefined,
-          quantity: "",
-          unitPrice: q.quotedPrice,
-          currency: q.currency ?? "USD",
-          unit: q.unit ?? "per KG",
-          weightBasis: q.weightBasis ?? undefined,
-          incoterms: q.incoterms ?? undefined,
-          notes: q.notes ?? undefined,
+          yarnName: yarn?.yarnName, yarnCount: yarn?.yarnCount ?? undefined, composition: yarn?.composition ?? undefined, micron: yarn?.micron ?? undefined,
+          quantity: "", unitPrice: q.quotedPrice, currency: q.currency ?? "USD", unit: q.unit ?? "per KG",
+          weightBasis: q.weightBasis ?? undefined, incoterms: q.incoterms ?? undefined, notes: q.notes ?? undefined,
         });
       }
 
       const lang = langOverride || detectDocumentLanguage(customer?.country);
-      const templateKey = getRemarksTemplateKey("quotation", lang);
-      const defaultRemarks = await fetchTemplateRemarks(templateKey);
-      const finalRemarks = refQuote.notes
-        ? `${refQuote.notes}\n\n${defaultRemarks}`
-        : defaultRemarks;
+      const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("quotation", lang));
 
       data = {
         docType: "Quotation",
         docNo: quoteNo || `Q-${id}`,
         date: refQuote.quoteDate,
-        company: company
-          ? {
-              name: company.name,
-              officialName: company.officialName ?? undefined,
-              address: company.addressEnglish ?? undefined,
-              telephone: company.telephone ?? undefined,
-              logoPath: company.logoPath ?? undefined,
-            }
-          : undefined,
-        party: customer
-          ? {
-              name: customer.name,
-              officialName: customer.officialName ?? undefined,
-              address: customer.addressEnglish ?? customer.addressLocal ?? undefined,
-              telephone: customer.telephone ?? undefined,
-              attn: contact?.contactName ?? undefined,
-            }
-          : undefined,
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: customer ? { 
+          name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined,
+          attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined,
+        } : undefined,
         currency: refQuote.currency ?? undefined,
         incoterms: refQuote.incoterms ?? undefined,
         status: refQuote.status ?? undefined,
         validUntil: refQuote.validUntil ?? undefined,
         items,
-        notes: finalRemarks || undefined,
+        notes: refQuote.notes ? `${refQuote.notes}\n\n${defaultRemarks}` : defaultRemarks,
         exportedBy: currentUserName,
       };
 
@@ -161,52 +114,26 @@ export async function GET(req: NextRequest) {
       if (!po) return NextResponse.json({ error: "PO not found" }, { status: 404 });
 
       const items = await db.select({
-        yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
-        micron: yarns.micron,
+        yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition, micron: yarns.micron,
         colorName: poItems.colorName, colorCode: poItems.colorCode, colorReference: poItems.colorReference,
-        quantity: poItems.quantity, unitPrice: poItems.unitPrice, currency: poItems.currency,
-        unit: poItems.unit, weightBasis: poItems.weightBasis, incoterms: poItems.incoterms, notes: poItems.notes,
+        quantity: poItems.quantity, unitPrice: poItems.unitPrice, currency: poItems.currency, unit: poItems.unit, weightBasis: poItems.weightBasis, incoterms: poItems.incoterms, notes: poItems.notes,
       }).from(poItems).leftJoin(yarns, eq(poItems.yarnId, yarns.id)).where(eq(poItems.poId, id));
 
-      // 🆕 採用最安全的直接查詢，避免 destructuring ternary 出錯
-      let factory = null;
-      if (po.factoryId) {
-        const rows = await db.select().from(factories).where(eq(factories.id, po.factoryId));
-        if (rows.length > 0) factory = rows[0];
+      const [factory] = po.factoryId ? await db.select().from(factories).where(eq(factories.id, po.factoryId)) : [];
+      let factoryContact = null;
+      if (po.contactPerson && po.factoryId) {
+        const rows = await db.select().from(factoryContacts).where(eq(factoryContacts.factoryId, po.factoryId));
+        factoryContact = rows.find(r => (r.contactName || "").trim().toLowerCase() === po.contactPerson!.trim().toLowerCase());
       }
-
-      let company = null;
-      if (po.companyId) {
-        const rows = await db.select().from(companies).where(eq(companies.id, po.companyId));
-        if (rows.length > 0) company = rows[0];
-      } else {
-        const rows = await db.select().from(companies).limit(1);
-        if (rows.length > 0) company = rows[0];
-      }
-
-      let shipTo = null;
-      if (po.shipToId) {
-        const rows = await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, po.shipToId));
-        if (rows.length > 0) shipTo = rows[0];
-      }
-
-      let shipToContact = null;
-      if (po.shipToContactId) {
-        const rows = await db.select().from(shipToContacts).where(eq(shipToContacts.id, po.shipToContactId));
-        if (rows.length > 0) shipToContact = rows[0];
-      }
+      const [company] = po.companyId ? await db.select().from(companies).where(eq(companies.id, po.companyId)) : (await db.select().from(companies).limit(1));
+      const [shipTo] = po.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, po.shipToId)) : [];
+      const [shipToContact] = po.shipToContactId ? await db.select().from(shipToContacts).where(eq(shipToContacts.id, po.shipToContactId)) : [];
 
       const exportItems = toExportItems(items);
-      exportItems.forEach(it => {
-        const qty = parseFloat(it.quantity || "0") || 0;
-        it.amount = qty * (it.unitPrice || 0);
-      });
-      const subtotal = exportItems.reduce((s, it) => s + (it.amount || 0), 0);
+      exportItems.forEach(it => { it.amount = (parseFloat(it.quantity || "0") || 0) * (it.unitPrice || 0); });
 
       const lang = langOverride || detectDocumentLanguage(factory?.country);
-      const templateKey = getRemarksTemplateKey("po", lang);
-      const defaultRemarks = await fetchTemplateRemarks(templateKey);
-      const finalRemarks = po.notes ? `${po.notes}\n\n${defaultRemarks}` : defaultRemarks;
+      const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("po", lang));
 
       data = {
         docType: "Purchase Order",
@@ -214,32 +141,18 @@ export async function GET(req: NextRequest) {
         date: po.poDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: factory ? { 
-          name: factory.factoryName, 
-          officialName: factory.officialName ?? undefined, 
-          address: factory.addressEnglish ?? factory.addressLocal ?? undefined, 
-          telephone: factory.telephone ?? undefined, 
-          attn: po.contactPerson ?? undefined 
+          name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined,
+          attn: po.contactPerson ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined,
         } : undefined,
         shipTo: shipTo ? { 
-          name: shipTo.name, 
-          officialName: shipTo.officialName ?? undefined, 
-          address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined,
-          attn: shipToContact?.contactName ?? undefined,
-          telephone: shipToContact?.phone ?? shipTo.telephone ?? undefined,
+          name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined,
+          attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined,
         } : undefined,
-        reference: po.soNo ?? undefined,
-        customerPoNo: po.customerPoNo ?? undefined,
-        deliveryDate: po.deliveryDate ?? undefined,
+        reference: po.soNo ?? undefined, customerPoNo: po.customerPoNo ?? undefined, deliveryDate: po.deliveryDate ?? undefined,
         paymentTerms: po.paymentMethod ? `${po.paymentMethod}${po.paymentDays ? ` ${po.paymentDays} Days` : ""}` : undefined,
-        currency: po.currency ?? undefined,
-        incoterms: po.incoterms ?? undefined,
-        status: po.status ?? undefined,
-        orderCategory: po.orderCategory ?? undefined,
-        quantityUnit: po.quantityUnit ?? undefined,
-        items: exportItems,
-        subtotal,
-        total: subtotal,
-        notes: finalRemarks || undefined,
+        currency: po.currency ?? undefined, incoterms: po.incoterms ?? undefined, orderCategory: po.orderCategory ?? undefined, quantityUnit: po.quantityUnit ?? undefined,
+        items: exportItems, subtotal: exportItems.reduce((s, it) => s + (it.amount || 0), 0), total: exportItems.reduce((s, it) => s + (it.amount || 0), 0),
+        notes: po.notes ? `${po.notes}\n\n${defaultRemarks}` : defaultRemarks,
         exportedBy: currentUserName,
       };
 
@@ -255,55 +168,31 @@ export async function GET(req: NextRequest) {
         packages: dnItems.packages, grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight, notes: dnItems.notes,
       }).from(dnItems).leftJoin(yarns, eq(dnItems.yarnId, yarns.id)).where(eq(dnItems.dnId, id));
 
-      let customer = null;
-      if (dn.customerId) {
-        const rows = await db.select().from(customers).where(eq(customers.id, dn.customerId));
-        if (rows.length > 0) customer = rows[0];
-      }
-
-      let company = null;
-      if (dn.companyId) {
-        const rows = await db.select().from(companies).where(eq(companies.id, dn.companyId));
-        if (rows.length > 0) company = rows[0];
-      }
-
-      let shipTo = null;
-      if (dn.shipToId) {
-        const rows = await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, dn.shipToId));
-        if (rows.length > 0) shipTo = rows[0];
-      }
-
-      let shipToContact = null;
-      if (dn.shipToContactId) {
-        const rows = await db.select().from(shipToContacts).where(eq(shipToContacts.id, dn.shipToContactId));
-        if (rows.length > 0) shipToContact = rows[0];
-      }
+      const [customer] = dn.customerId ? await db.select().from(customers).where(eq(customers.id, dn.customerId)) : [];
+      const [contact] = dn.contactId ? await db.select().from(customerContacts).where(eq(customerContacts.id, dn.contactId)) : [];
+      const [company] = dn.companyId ? await db.select().from(companies).where(eq(companies.id, dn.companyId)) : [];
+      const [shipTo] = dn.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, dn.shipToId)) : [];
+      const [shipToContact] = dn.shipToContactId ? await db.select().from(shipToContacts).where(eq(shipToContacts.id, dn.shipToContactId)) : [];
 
       const lang = langOverride || detectDocumentLanguage(customer?.country);
-      const templateKey = getRemarksTemplateKey("dn", lang);
-      const defaultRemarks = await fetchTemplateRemarks(templateKey);
-      const finalRemarks = dn.notes ? `${dn.notes}\n\n${defaultRemarks}` : defaultRemarks;
+      const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("dn", lang));
 
       data = {
         docType: "Delivery Note",
         docNo: dn.dnNo || `DN-${id}`,
         date: dn.dnDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined } : undefined,
-        shipTo: shipTo ? { 
-          name: shipTo.name, 
-          officialName: shipTo.officialName ?? undefined, 
-          address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined,
-          attn: shipToContact?.contactName ?? undefined,
-          telephone: shipToContact?.phone ?? shipTo.telephone ?? undefined,
+        party: customer ? { 
+          name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined,
+          attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined,
         } : undefined,
-        customerPoNo: dn.customerPoNo ?? undefined,
-        reference: dn.soNo ?? undefined,
-        status: dn.status ?? undefined,
-        orderCategory: dn.orderCategory ?? undefined,
-        quantityUnit: dn.quantityUnit ?? undefined,
+        shipTo: shipTo ? { 
+          name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined,
+          attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined,
+        } : undefined,
+        customerPoNo: dn.customerPoNo ?? undefined, reference: dn.soNo ?? undefined, orderCategory: dn.orderCategory ?? undefined, quantityUnit: dn.quantityUnit ?? undefined,
         items: toExportItems(items),
-        notes: finalRemarks || undefined,
+        notes: dn.notes ? `${dn.notes}\n\n${defaultRemarks}` : defaultRemarks,
         exportedBy: currentUserName,
       };
 
@@ -313,17 +202,12 @@ export async function GET(req: NextRequest) {
       if (!inv) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
       const items = await db.select({
-        yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
-        micron: yarns.micron,
+        yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition, micron: yarns.micron,
         description: invoiceItems.description, colorName: invoiceItems.colorName, colorCode: invoiceItems.colorCode,
-        quantity: invoiceItems.quantity, unitPrice: invoiceItems.unitPrice,
-        currency: invoices.currency,
+        quantity: invoiceItems.quantity, unitPrice: invoiceItems.unitPrice, currency: invoices.currency,
         unit: invoiceItems.unit, weightBasis: invoiceItems.weightBasis, incoterms: invoiceItems.incoterms,
         amount: invoiceItems.amount, notes: invoiceItems.notes,
-      }).from(invoiceItems)
-        .leftJoin(yarns, eq(invoiceItems.yarnId, yarns.id))
-        .leftJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
-        .where(eq(invoiceItems.invoiceId, id));
+      }).from(invoiceItems).leftJoin(yarns, eq(invoiceItems.yarnId, yarns.id)).leftJoin(invoices, eq(invoiceItems.invoiceId, invoices.id)).where(eq(invoiceItems.invoiceId, id));
 
       const [company] = inv.companyId ? await db.select().from(companies).where(eq(companies.id, inv.companyId)) : [];
       const [customer] = inv.customerId ? await db.select().from(customers).where(eq(customers.id, inv.customerId)) : [];
@@ -335,79 +219,20 @@ export async function GET(req: NextRequest) {
       }
 
       const lang = langOverride || detectDocumentLanguage(customer?.country);
-      const templateKey = getRemarksTemplateKey("invoice", lang);
-      const defaultRemarks = await fetchTemplateRemarks(templateKey);
-      const finalRemarks = inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks;
+      const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("invoice", lang));
 
       data = {
         docType: "Sales Invoice",
         docNo: inv.invoiceNo || `INV-${id}`,
         date: inv.invoiceDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined } : undefined,
-        reference: inv.soNo ?? undefined,
-        customerPoNo: inv.customerPoNo ?? undefined,
-        deliveryDate: inv.dueDate ?? undefined,
-        currency: inv.currency ?? undefined,
-        status: inv.status ?? undefined,
-        items: toExportItems(items),
-        subtotal: inv.subtotal ?? undefined,
-        vatRate: inv.vatRate ?? undefined,
-        vatAmount: inv.vatAmount ?? undefined,
-        total: inv.total ?? undefined,
-        bankInfo,
-        notes: finalRemarks || undefined,
-        exportedBy: currentUserName,
-      };
-
-    // ============== SUPPLIER INVOICE ==============
-    } else if (type === "supplier-invoice") {
-      const [inv] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, id));
-      if (!inv) return NextResponse.json({ error: "Supplier Invoice not found" }, { status: 404 });
-
-      const items = await db.select({
-        yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
-        micron: yarns.micron,
-        description: supplierInvoiceItems.description, colorName: supplierInvoiceItems.colorName, colorCode: supplierInvoiceItems.colorCode,
-        quantity: supplierInvoiceItems.quantity, unitPrice: supplierInvoiceItems.unitPrice,
-        currency: supplierInvoices.currency,
-        unit: supplierInvoiceItems.unit, weightBasis: supplierInvoiceItems.weightBasis, incoterms: supplierInvoiceItems.incoterms,
-        amount: supplierInvoiceItems.amount, notes: supplierInvoiceItems.notes,
-      }).from(supplierInvoiceItems)
-        .leftJoin(yarns, eq(supplierInvoiceItems.yarnId, yarns.id))
-        .leftJoin(supplierInvoices, eq(supplierInvoiceItems.supplierInvoiceId, supplierInvoices.id))
-        .where(eq(supplierInvoiceItems.supplierInvoiceId, id));
-
-      const [company] = inv.companyId ? await db.select().from(companies).where(eq(companies.id, inv.companyId)) : [];
-      const [factory] = inv.factoryId ? await db.select().from(factories).where(eq(factories.id, inv.factoryId)) : [];
-      let bankInfo: any;
-      if (inv.bankAccountId) {
-        const [b] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, inv.bankAccountId));
-        if (b) bankInfo = b;
-      }
-
-      const lang = langOverride || detectDocumentLanguage(factory?.country);
-      const templateKey = getRemarksTemplateKey("supplier-invoice", lang);
-      const defaultRemarks = await fetchTemplateRemarks(templateKey);
-      const finalRemarks = inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks;
-
-      data = {
-        docType: "Supplier Invoice",
-        docNo: inv.supplierInvoiceNo || inv.internalNo || `SI-${id}`,
-        date: inv.invoiceDate,
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined } : undefined,
-        reference: inv.poNo ?? undefined,
-        deliveryDate: inv.dueDate ?? undefined,
-        currency: inv.currency ?? undefined,
-        status: inv.status ?? undefined,
-        items: toExportItems(items),
-        subtotal: inv.subtotal ?? undefined,
-        vatRate: inv.vatRate ?? undefined,
-        vatAmount: inv.vatAmount ?? undefined,
-        total: inv.total ?? undefined,
-        bankInfo,
-        notes: finalRemarks || undefined,
+        party: customer ? { 
+          name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, 
+          attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined,
+        } : undefined,
+        reference: inv.soNo ?? undefined, customerPoNo: inv.customerPoNo ?? undefined, deliveryDate: inv.dueDate ?? undefined, currency: inv.currency ?? undefined,
+        items: toExportItems(items), subtotal: inv.subtotal ?? undefined, vatRate: inv.vatRate ?? undefined, vatAmount: inv.vatAmount ?? undefined, total: inv.total ?? undefined, bankInfo,
+        notes: inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks,
         exportedBy: currentUserName,
       };
 
@@ -421,61 +246,28 @@ export async function GET(req: NextRequest) {
       const custInvoices = await db.select().from(invoices).where(eq(invoices.customerId, customerId)).orderBy(desc(invoices.invoiceDate));
 
       const items: ExportItem[] = [];
-      let balance = 0;
-      let totalDebit = 0;
-      let totalCredit = 0;
-
+      let balance = 0; let totalDebit = 0; let totalCredit = 0;
       for (const inv of custInvoices) {
         if (inv.status === "Cancelled") continue;
-        const debit = inv.total || 0;
-        balance += debit;
-        totalDebit += debit;
-        items.push({
-          docNo: inv.invoiceNo || `INV-${inv.id}`,
-          docDate: inv.invoiceDate,
-          docType: "Invoice",
-          description: `SO: ${inv.soNo || "-"} / PO: ${inv.customerPoNo || "-"}`,
-          debit,
-          credit: 0,
-          balance,
-          currency: inv.currency || "USD",
-        });
-
+        balance += inv.total || 0; totalDebit += inv.total || 0;
+        items.push({ docNo: inv.invoiceNo || `INV-${inv.id}`, docDate: inv.invoiceDate, docType: "Invoice", description: `SO: ${inv.soNo || "-"} / PO: ${inv.customerPoNo || "-"}`, debit: inv.total || 0, credit: 0, balance, currency: inv.currency || "USD" });
         const invPayments = await db.select().from(payments).where(eq(payments.invoiceId, inv.id)).orderBy(payments.paymentDate);
         for (const pay of invPayments) {
-          const credit = pay.amount;
-          balance -= credit;
-          totalCredit += credit;
-          items.push({
-            docNo: pay.reference || `PAY-${pay.id}`,
-            docDate: pay.paymentDate,
-            docType: "Payment",
-            description: `${pay.method || "Payment"} received against ${inv.invoiceNo || `INV-${inv.id}`}`,
-            debit: 0,
-            credit,
-            balance,
-            currency: pay.currency || "USD",
-          });
+          balance -= pay.amount; totalCredit += pay.amount;
+          items.push({ docNo: pay.reference || `PAY-${pay.id}`, docDate: pay.paymentDate, docType: "Payment", description: `${pay.method || "Payment"} received against ${inv.invoiceNo || `INV-${inv.id}`}`, debit: 0, credit: pay.amount, balance, currency: pay.currency || "USD" });
         }
       }
 
       const lang = langOverride || detectDocumentLanguage(customer.country);
-      const templateKey = getRemarksTemplateKey("reconciliation", lang);
-      const defaultRemarks = await fetchTemplateRemarks(templateKey);
-      const mainCurrency = items[0]?.currency || "USD";
+      const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("reconciliation", lang));
 
       data = {
         docType: "Reconciliation",
         docNo: `REC-${customerId}-${new Date().toISOString().slice(0, 10)}`,
         date: new Date().toISOString().slice(0, 10),
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined },
-        currency: mainCurrency,
-        items,
-        openingBalance: 0,
-        closingBalance: balance,
-        subtotal: totalDebit,
-        total: balance,
+        party: { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, telephone: customer.telephone ?? undefined },
+        currency: items[0]?.currency || "USD", items, openingBalance: 0, closingBalance: balance, subtotal: totalDebit, total: balance,
         notes: defaultRemarks || undefined,
         exportedBy: currentUserName,
       };
@@ -486,32 +278,18 @@ export async function GET(req: NextRequest) {
 
     const buffer = await generateExcel(data);
 
-    // 智能檔案命名
-    const prefixMap: Record<string, string> = {
-      "Quotation": "Q",
-      "Purchase Order": "PO",
-      "Delivery Note": "DN",
-      "Sales Invoice": "INV",
-      "Supplier Invoice": "SINV",
-      "Reconciliation": "REC",
-    };
+    const prefixMap: Record<string, string> = { "Quotation": "Q", "Purchase Order": "PO", "Delivery Note": "DN", "Sales Invoice": "INV", "Supplier Invoice": "SINV", "Reconciliation": "REC" };
     const prefix = prefixMap[data.docType] || data.docType;
-
     const sanitize = (s: string) => s.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_");
     const parts: string[] = [prefix];
-
-    if (data.customerPoNo) {
-      parts.push(sanitize(data.customerPoNo));
-    }
+    if (data.customerPoNo) parts.push(sanitize(data.customerPoNo));
     parts.push(sanitize(data.docNo));
     parts.push(data.date);
-
-    const fileName = `${parts.join("_")}.xlsx`;
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": `attachment; filename="${parts.join("_")}.xlsx"`,
       },
     });
   } catch (err) {
