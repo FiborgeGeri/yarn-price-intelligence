@@ -66,7 +66,7 @@ export interface ExportData {
   date: string;
   company?: { name: string; officialName?: string; address?: string; telephone?: string; logoPath?: string };
   party?: { name: string; officialName?: string; address?: string; telephone?: string; attn?: string };
-  shipTo?: { name: string; officialName?: string; address?: string; attn?: string; telephone?: string };
+  shipTo?: { name: string; officialName?: string; address?: string; attn?: string; telephone?: string }; // 🆕 加回 telephone
   reference?: string;
   customerPoNo?: string;
   deliveryDate?: string;
@@ -123,44 +123,43 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   const isReconciliation = data.docType === "Reconciliation";
   const showMicron = !isDN && !isReconciliation && needsMicronColumn(data.items);
 
-  // 統一幣別和單位
+  // 統一幣別和單位 (對齊系統紀錄)
   const mainCurrency = data.currency || data.items[0]?.currency || "USD";
   const mainUnit = data.quantityUnit || "KGS";
-  // 單位簡寫（去掉結尾的S，例如 KGS -> KG, LBS -> LB）
   const unitShort = mainUnit.replace(/S$/i, "");
 
-  // 動態設定欄寬（根據是否有 Micron 欄）
-    if (showMicron) {
+  // ===================== 🔧 優化 2: Description 欄窄，Spec 欄闊 =====================
+  if (showMicron) {
     ws.columns = [
       { width: 4 },   // A: #
-      { width: 15 },  // B: Description (縮窄)
-      { width: 24 },  // C: Spec (加闊)
-      { width: 8 },   // D: Micron
+      { width: 14 },  // B: Description (窄)
+      { width: 28 },  // C: Spec (闊)
+      { width: 8 },   // D: Micron (動物纖維自動新增此欄)
       { width: 12 },  // E: Color
       { width: 12 },  // F: Reference
       { width: 10 },  // G: Qty
       { width: 12 },  // H: Unit Price
       { width: 12 },  // I: Amount
-      { width: 7 },   // J: Weight
+      { width: 7 },   // J: Weight Basis
       { width: 14 },  // K: Remarks
     ];
   } else if (isDN) {
     ws.columns = [
-      { width: 4 }, { width: 20 }, { width: 14 }, { width: 14 },
+      { width: 4 }, { width: 18 }, { width: 16 }, { width: 14 },
       { width: 12 }, { width: 10 }, { width: 10 }, { width: 10 },
       { width: 10 }, { width: 16 },
     ];
   } else {
     ws.columns = [
       { width: 4 },   // A: #
-      { width: 15 },  // B: Description (縮窄)
-      { width: 26 },  // C: Spec (加闊)
+      { width: 14 },  // B: Description (窄)
+      { width: 28 },  // C: Spec (闊)
       { width: 12 },  // D: Color
       { width: 12 },  // E: Reference
       { width: 10 },  // F: Qty
       { width: 12 },  // G: Unit Price
       { width: 12 },  // H: Amount
-      { width: 7 },   // I: Weight
+      { width: 7 },   // I: Weight Basis
       { width: 14 },  // J: Remarks
     ];
   }
@@ -191,8 +190,8 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: 110, height: 36 } });
   }
 
-  // ===================== 公司名稱 + 地址 =====================
-  ws.getRow(3).height = 22;
+  // ===================== 🔧 優化 1: 公司名稱更大更顯眼 =====================
+  ws.getRow(3).height = 24;
   ws.getCell("A3").value = data.company?.officialName || data.company?.name || "FIBORGE COMPANY LIMITED";
   ws.getCell("A3").font = { size: 14, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
   ws.mergeCells(`A3:E3`);
@@ -213,7 +212,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     compRow++;
   }
 
-  // ===================== 右上角：文件標題 + 編號 =====================
+  // ===================== 右上角：文件標題 + 關鍵資訊 =====================
   const rightStartCol = showMicron ? "H" : "G";
   const rightEndCol = showMicron ? "K" : "J";
 
@@ -231,6 +230,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     rightRow++;
   };
 
+  // 🔧 Client PO（加粗大字，極為醒目）
   if (data.customerPoNo) setRight(`Client PO: ${data.customerPoNo}`, { bold: true, size: 11 });
 
   const internalLabel = { "Purchase Order": "PO No", "Quotation": "Quote No", "Delivery Note": "DN No", "Sales Invoice": "Invoice No", "Supplier Invoice": "Supplier Inv No", "Reconciliation": "Rec No" }[data.docType] || "Doc No";
@@ -248,19 +248,19 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   for (let c = 1; c <= totalCols; c++) { ws.getCell(row, c).border = BORDER_BOTTOM; }
   row++;
 
-  // ===================== TO + SHIP TO (左右並排) =====================
+  // ===================== 🔧 優化 1 & 2: TO (Supplier/Client) & SHIP TO (只用全名，加回聯絡人、地址與電話) =====================
   const infoStart = row;
 
   // 左側：TO (Supplier / Client)
   const toLabel = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "TO (SUPPLIER)" : "TO (CLIENT)";
   const partyFullName = data.party?.officialName || data.party?.name || "";
 
-   if (data.party) {
+  if (data.party) {
     ws.getCell(`A${row}`).value = toLabel;
     ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
     ws.mergeCells(`A${row}:E${row}`);
     row++;
-    // 🔧 只用公司全名 (officialName 優先，若無則用 name)
+    // 🔧 僅使用公司完整官方名稱，不再顯示簡稱
     ws.getCell(`A${row}`).value = partyFullName;
     ws.getCell(`A${row}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     ws.mergeCells(`A${row}:E${row}`);
@@ -273,14 +273,14 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       ws.getRow(row).height = 28;
       row++;
     }
-    // 🔧 聯絡人（Attn）
+    // 🔧 加回聯絡人 (Attn)
     if (data.party.attn) {
       ws.getCell(`A${row}`).value = `Attn: ${data.party.attn}`;
       ws.getCell(`A${row}`).font = { size: 9, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
       ws.mergeCells(`A${row}:E${row}`);
       row++;
     }
-    // 🔧 電話
+    // 🔧 加回電話 (Tel)
     if (data.party.telephone) {
       ws.getCell(`A${row}`).value = `Tel: ${data.party.telephone}`;
       ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -289,20 +289,20 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     }
   }
 
-  // 右側：SHIP TO
-    if (data.shipTo) {
+  // 右側：SHIP TO (加回地址、聯絡人、電話)
+  if (data.shipTo) {
     let shipRow = infoStart;
     ws.getCell(`${rightStartCol}${shipRow}`).value = "SHIP TO";
     ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
     ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
     shipRow++;
-    // 🔧 只用公司全名
+    // 🔧 僅使用公司完整官方名稱
     const shipToFullName = data.shipTo.officialName || data.shipTo.name;
     ws.getCell(`${rightStartCol}${shipRow}`).value = shipToFullName;
     ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
     shipRow++;
-    // 🔧 地址（確保有顯示）
+    // 🔧 確保有顯示地址
     if (data.shipTo.address) {
       ws.getCell(`${rightStartCol}${shipRow}`).value = data.shipTo.address;
       ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -311,14 +311,14 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       ws.getRow(shipRow).height = 28;
       shipRow++;
     }
-    // 🔧 聯絡人
+    // 🔧 確保有顯示聯絡人
     if (data.shipTo.attn) {
       ws.getCell(`${rightStartCol}${shipRow}`).value = `Attn: ${data.shipTo.attn}`;
       ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
       ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
       shipRow++;
     }
-    // 🔧 電話
+    // 🔧 確保有顯示電話
     if (data.shipTo.telephone) {
       ws.getCell(`${rightStartCol}${shipRow}`).value = `Tel: ${data.shipTo.telephone}`;
       ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -330,13 +330,13 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
   row += 1;
 
-  // ===================== 🔧 優化 3: Reference Bar (加 Order Category) =====================
+  // ===================== 🔧 優化 3: Reference Info Bar (加 Category，拿掉 Status) =====================
   const refItems: string[] = [];
   if (data.reference) refItems.push(`Ref: ${data.reference}`);
   if (data.paymentTerms) refItems.push(`Payment: ${data.paymentTerms}`);
   if (data.incoterms) refItems.push(`Incoterms: ${data.incoterms}`);
-  if (data.orderCategory) refItems.push(`Category: ${data.orderCategory}`);
-  if (data.status) refItems.push(`Status: ${data.status}`);
+  if (data.orderCategory) refItems.push(`Category: ${data.orderCategory}`); // 🔧 顯示 Order Category
+  if (data.currency) refItems.push(`Currency: ${data.currency}`);
 
   if (refItems.length > 0) {
     ws.getCell(`A${row}`).value = refItems.join("   |   ");
@@ -349,12 +349,11 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   }
 
   // ===================== ITEMS TABLE =====================
-  let headers: string[];
-  // 🔧 根據系統資料動態顯示單位
   const qtyHeader = `Qty (${mainUnit})`;
   const priceHeader = `Unit Price (${mainCurrency}/${unitShort})`;
   const amountHeader = `Amount (${mainCurrency})`;
 
+  let headers: string[];
   if (isReconciliation) {
     headers = ["#", "Doc No", "Date", "Type", "Description", "", "Debit", "Credit", "", "Balance"];
   } else if (isDN) {
@@ -375,13 +374,11 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   });
   headerRowExcel.height = 26;
 
-  // 記錄 Qty 和 Amount 的欄位索引（用於 Total 對齊）
   const qtyColIdx = isDN ? 6 : isReconciliation ? 7 : (showMicron ? 7 : 6);
   const amountColIdx = isDN ? 0 : isReconciliation ? 0 : (showMicron ? 9 : 8);
   const balanceColIdx = isReconciliation ? 10 : 0;
 
   let totalQty = 0;
-  let totalAmount = 0;
 
   data.items.forEach((item, i) => {
     const dataRow = ws.getRow(row++);
@@ -389,9 +386,9 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     const qty = parseFloat(item.quantity || "0") || 0;
     totalQty += qty;
     const amount = item.amount || (qty * (item.unitPrice || 0));
-    totalAmount += amount;
 
     const colorDisplay = [item.colorName, item.colorCode].filter(Boolean).join("\n");
+    // 🔧 Weight 簡寫為 Cond.
     const weightDisplay = item.weightBasis === "condition" ? "Cond." : item.weightBasis === "net" ? "Net" : (item.weightBasis || "");
 
     let vals: any[];
@@ -428,12 +425,12 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     dataRow.height = spec.includes("\n") || colorDisplay.includes("\n") ? 28 : 20;
   });
 
-  // ===================== 🔧 優化 4: TOTALS (Qty 在 Qty 欄下, Amount 在 Amount 欄下) =====================
+  // ===================== 🔧 優化 4: TOTALS (重量總計在 Qty 欄，金額在 Amount 欄，拿掉 Subtotal) =====================
   if (!isDN && !isReconciliation && data.total !== undefined) {
     row++;
     const totalRow = ws.getRow(row++);
 
-    // Total Qty 放在 Qty 欄下方
+    // 1. 重量總計在 Qty 欄下
     if (totalQty > 0) {
       totalRow.getCell(qtyColIdx).value = `${totalQty.toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
       totalRow.getCell(qtyColIdx).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
@@ -442,12 +439,12 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       totalRow.getCell(qtyColIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
     }
 
-    // TOTAL 標籤
+    // 2. TOTAL 標籤在 Amount 欄左邊
     totalRow.getCell(amountColIdx - 1).value = "TOTAL:";
     totalRow.getCell(amountColIdx - 1).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     totalRow.getCell(amountColIdx - 1).alignment = { horizontal: "right", vertical: "middle" };
 
-    // Total Amount 放在 Amount 欄下方
+    // 3. 金額在 Amount 欄下 (已拿掉 Subtotal 直接顯示這個)
     totalRow.getCell(amountColIdx).value = `${mainCurrency} ${data.total.toFixed(2)}`;
     totalRow.getCell(amountColIdx).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     totalRow.getCell(amountColIdx).alignment = { horizontal: "right", vertical: "middle" };
@@ -456,7 +453,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
     totalRow.height = 24;
 
-    // VAT（如果有）
+    // VAT (如果有)
     if (data.vatRate && data.vatAmount) {
       const vatRow = ws.getRow(row++);
       vatRow.getCell(amountColIdx - 1).value = `VAT (${data.vatRate}%):`;
@@ -467,7 +464,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       vatRow.getCell(amountColIdx).alignment = { horizontal: "right" };
       vatRow.height = 20;
 
-      // Grand Total (含 VAT)
+      // GRAND TOTAL (含 VAT)
       const grandTotal = data.total + data.vatAmount;
       const grandRow = ws.getRow(row++);
       grandRow.getCell(amountColIdx - 1).value = "GRAND TOTAL:";
@@ -504,14 +501,17 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
     ws.mergeCells(`A${row}:${String.fromCharCode(64 + totalCols)}${row}`);
     row++;
-    [
+
+    const bankLines = [
       `Beneficiary: ${data.bankInfo.accountName || data.company?.name || ""}`,
       `Bank: ${data.bankInfo.bankName}${data.bankInfo.branch ? ` - ${data.bankInfo.branch}` : ""}`,
       `A/C No: ${data.bankInfo.accountNumber || ""}`,
       data.bankInfo.swiftCode ? `SWIFT: ${data.bankInfo.swiftCode}` : "",
       data.bankInfo.iban ? `IBAN: ${data.bankInfo.iban}` : "",
       data.bankInfo.bankCode ? `Bank Code: ${data.bankInfo.bankCode}` : "",
-    ].filter(Boolean).forEach((line) => {
+    ].filter(Boolean);
+
+    bankLines.forEach((line) => {
       ws.getCell(`A${row}`).value = line;
       ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.black }, name: "Calibri" };
       ws.mergeCells(`A${row}:${String.fromCharCode(64 + totalCols)}${row}`);
@@ -530,7 +530,8 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.black }, name: "Calibri" };
     ws.getCell(`A${row}`).alignment = { wrapText: true, vertical: "top" };
     ws.mergeCells(`A${row}:${String.fromCharCode(64 + totalCols)}${row}`);
-    ws.getRow(row).height = Math.max(40, data.notes.split("\n").length * 14);
+    const noteLines = data.notes.split("\n").length;
+    ws.getRow(row).height = Math.max(40, noteLines * 14);
     row++;
   }
 
@@ -552,7 +553,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   ws.getCell(row, sigEndCol).font = { size: 8, color: { argb: COLORS.mediumGray }, name: "Calibri" };
   ws.getCell(row, sigEndCol).alignment = { horizontal: "center" };
   row++;
-  // 公司全名
+  // 帶出公司全名
   ws.getCell(`B${row}`).value = myFullName;
   ws.getCell(`B${row}`).font = { size: 8, bold: true, color: { argb: COLORS.darkGray }, name: "Calibri" };
   ws.getCell(`B${row}`).alignment = { horizontal: "center" };
@@ -560,8 +561,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   ws.getCell(row, sigEndCol).font = { size: 8, bold: true, color: { argb: COLORS.darkGray }, name: "Calibri" };
   ws.getCell(row, sigEndCol).alignment = { horizontal: "center" };
 
-  // ===================== 🔧 優
-  // 化 7: FOOTER (User + 精確到秒) =====================
+  // ===================== 🔧 優化 7: FOOTER (時間精確到秒，BY 登入用戶 Display Name) =====================
   row += 3;
   const nowFormatted = new Date().toISOString().replace("T", " ").slice(0, 19);
   const byUser = data.exportedBy ? ` by ${data.exportedBy}` : "";

@@ -11,10 +11,10 @@ import {
   payments,
   users,
 } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { generateExcel, ExportData, ExportItem } from "@/lib/excelExport";
 import { detectDocumentLanguage, getRemarksTemplateKey } from "@/lib/exportHelpers";
-import { getSession } from "@/lib/auth"; // 🆕 正確引入
+import { getSession } from "@/lib/auth";
 
 async function fetchTemplateRemarks(key: string): Promise<string> {
   try {
@@ -59,10 +59,10 @@ export async function GET(req: NextRequest) {
 
     if (!type || !id) return NextResponse.json({ error: "type and id required" }, { status: 400 });
 
-    // 讀取當前登入用戶的 Display Name
+    // 🆕 讀取當前登入用戶的 Display Name (修正了 getSession(req) 與 session.id 錯誤)
     let currentUserName = "System";
     try {
-      const session = getSession(req); // 修正為直接同步呼叫
+      const session = await getSession(req);
       if (session?.id) {
         const [u] = await db
           .select({ 
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
           ? {
               name: customer.name,
               officialName: customer.officialName ?? undefined,
-              address: customer.addressEnglish ?? undefined,
+              address: customer.addressEnglish ?? customer.addressLocal ?? undefined,
               telephone: customer.telephone ?? undefined,
               attn: contact?.contactName ?? undefined,
             }
@@ -168,12 +168,33 @@ export async function GET(req: NextRequest) {
         unit: poItems.unit, weightBasis: poItems.weightBasis, incoterms: poItems.incoterms, notes: poItems.notes,
       }).from(poItems).leftJoin(yarns, eq(poItems.yarnId, yarns.id)).where(eq(poItems.poId, id));
 
-      const [factory] = po.factoryId ? await db.select().from(factories).where(eq(factories.id, po.factoryId)) : [];
-      const [company] = po.companyId ? await db.select().from(companies).where(eq(companies.id, po.companyId)) : [];
-      const [shipTo] = po.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, po.shipToId)) : [];
-      const [shipToContact] = po.shipToContactId 
-        ? await db.select().from(shipToContacts).where(eq(shipToContacts.id, po.shipToContactId)) 
-        : [];
+      // 🆕 採用最安全的直接查詢，避免 destructuring ternary 出錯
+      let factory = null;
+      if (po.factoryId) {
+        const rows = await db.select().from(factories).where(eq(factories.id, po.factoryId));
+        if (rows.length > 0) factory = rows[0];
+      }
+
+      let company = null;
+      if (po.companyId) {
+        const rows = await db.select().from(companies).where(eq(companies.id, po.companyId));
+        if (rows.length > 0) company = rows[0];
+      } else {
+        const rows = await db.select().from(companies).limit(1);
+        if (rows.length > 0) company = rows[0];
+      }
+
+      let shipTo = null;
+      if (po.shipToId) {
+        const rows = await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, po.shipToId));
+        if (rows.length > 0) shipTo = rows[0];
+      }
+
+      let shipToContact = null;
+      if (po.shipToContactId) {
+        const rows = await db.select().from(shipToContacts).where(eq(shipToContacts.id, po.shipToContactId));
+        if (rows.length > 0) shipToContact = rows[0];
+      }
 
       const exportItems = toExportItems(items);
       exportItems.forEach(it => {
@@ -191,12 +212,18 @@ export async function GET(req: NextRequest) {
         docType: "Purchase Order",
         docNo: po.poNo || `PO-${id}`,
         date: po.poDate,
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? undefined, telephone: factory.telephone ?? undefined, attn: po.contactPerson ?? undefined } : undefined,
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: factory ? { 
+          name: factory.factoryName, 
+          officialName: factory.officialName ?? undefined, 
+          address: factory.addressEnglish ?? factory.addressLocal ?? undefined, 
+          telephone: factory.telephone ?? undefined, 
+          attn: po.contactPerson ?? undefined 
+        } : undefined,
         shipTo: shipTo ? { 
           name: shipTo.name, 
           officialName: shipTo.officialName ?? undefined, 
-          address: shipTo.addressEnglish ?? undefined,
+          address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined,
           attn: shipToContact?.contactName ?? undefined,
           telephone: shipToContact?.phone ?? shipTo.telephone ?? undefined,
         } : undefined,
@@ -228,12 +255,29 @@ export async function GET(req: NextRequest) {
         packages: dnItems.packages, grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight, notes: dnItems.notes,
       }).from(dnItems).leftJoin(yarns, eq(dnItems.yarnId, yarns.id)).where(eq(dnItems.dnId, id));
 
-      const [customer] = dn.customerId ? await db.select().from(customers).where(eq(customers.id, dn.customerId)) : [];
-      const [company] = dn.companyId ? await db.select().from(companies).where(eq(companies.id, dn.companyId)) : [];
-      const [shipTo] = dn.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, dn.shipToId)) : [];
-      const [shipToContact] = dn.shipToContactId 
-        ? await db.select().from(shipToContacts).where(eq(shipToContacts.id, dn.shipToContactId)) 
-        : [];
+      let customer = null;
+      if (dn.customerId) {
+        const rows = await db.select().from(customers).where(eq(customers.id, dn.customerId));
+        if (rows.length > 0) customer = rows[0];
+      }
+
+      let company = null;
+      if (dn.companyId) {
+        const rows = await db.select().from(companies).where(eq(companies.id, dn.companyId));
+        if (rows.length > 0) company = rows[0];
+      }
+
+      let shipTo = null;
+      if (dn.shipToId) {
+        const rows = await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, dn.shipToId));
+        if (rows.length > 0) shipTo = rows[0];
+      }
+
+      let shipToContact = null;
+      if (dn.shipToContactId) {
+        const rows = await db.select().from(shipToContacts).where(eq(shipToContacts.id, dn.shipToContactId));
+        if (rows.length > 0) shipToContact = rows[0];
+      }
 
       const lang = langOverride || detectDocumentLanguage(customer?.country);
       const templateKey = getRemarksTemplateKey("dn", lang);
@@ -244,12 +288,12 @@ export async function GET(req: NextRequest) {
         docType: "Delivery Note",
         docNo: dn.dnNo || `DN-${id}`,
         date: dn.dnDate,
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? undefined } : undefined,
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined } : undefined,
         shipTo: shipTo ? { 
           name: shipTo.name, 
           officialName: shipTo.officialName ?? undefined, 
-          address: shipTo.addressEnglish ?? undefined,
+          address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined,
           attn: shipToContact?.contactName ?? undefined,
           telephone: shipToContact?.phone ?? shipTo.telephone ?? undefined,
         } : undefined,
@@ -299,8 +343,8 @@ export async function GET(req: NextRequest) {
         docType: "Sales Invoice",
         docNo: inv.invoiceNo || `INV-${id}`,
         date: inv.invoiceDate,
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? undefined, attn: contact?.contactName ?? undefined } : undefined,
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined } : undefined,
         reference: inv.soNo ?? undefined,
         customerPoNo: inv.customerPoNo ?? undefined,
         deliveryDate: inv.dueDate ?? undefined,
@@ -351,8 +395,8 @@ export async function GET(req: NextRequest) {
         docType: "Supplier Invoice",
         docNo: inv.supplierInvoiceNo || inv.internalNo || `SI-${id}`,
         date: inv.invoiceDate,
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? undefined } : undefined,
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined } : undefined,
         reference: inv.poNo ?? undefined,
         deliveryDate: inv.dueDate ?? undefined,
         currency: inv.currency ?? undefined,
@@ -424,8 +468,8 @@ export async function GET(req: NextRequest) {
         docType: "Reconciliation",
         docNo: `REC-${customerId}-${new Date().toISOString().slice(0, 10)}`,
         date: new Date().toISOString().slice(0, 10),
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? undefined },
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined },
         currency: mainCurrency,
         items,
         openingBalance: 0,
