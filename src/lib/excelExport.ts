@@ -64,9 +64,9 @@ export interface ExportData {
   docType: "Quotation" | "Purchase Order" | "Delivery Note" | "Sales Invoice" | "Supplier Invoice" | "Reconciliation";
   docNo: string;
   date: string;
-  company?: { name: string; officialName?: string; address?: string; telephone?: string; logoPath?: string };
-  party?: { name: string; officialName?: string; address?: string; telephone?: string; attn?: string };
-  shipTo?: { name: string; officialName?: string; address?: string; attn?: string; telephone?: string };
+  company?: { name: string; officialName?: string; officialNameAlt?: string; address?: string; telephone?: string; logoPath?: string };
+  party?: { name: string; officialName?: string; officialNameAlt?: string; address?: string; telephone?: string; attn?: string };
+  shipTo?: { name: string; officialName?: string; officialNameAlt?: string; address?: string; attn?: string; telephone?: string };
   reference?: string;
   customerPoNo?: string;
   deliveryDate?: string;
@@ -149,6 +149,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   const totalCols = showMicron ? 11 : 10;
   let row = 1;
 
+  // LOGO
   let logoImageId: number | null = null;
   if (data.company?.logoPath) {
     try {
@@ -159,16 +160,25 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
         const ext = logoUrl.includes(".png") ? "png" : "jpeg";
         logoImageId = wb.addImage({ buffer: logoBuffer as unknown as ExcelJS.Buffer, extension: ext as "png" | "jpeg" });
       }
-    } catch (err) {}
+    } catch {}
   }
-  if (logoImageId !== null) ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: 110, height: 36 } });
+  if (logoImageId !== null) {
+    ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: 110, height: 36 } });
+  }
 
+  // Company header
   ws.getRow(3).height = 24;
   ws.getCell("A3").value = data.company?.officialName || data.company?.name || "FIBORGE COMPANY LIMITED";
   ws.getCell("A3").font = { size: 14, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
-  ws.mergeCells(`A3:E3`);
+  ws.mergeCells("A3:E3");
 
   let compRow = 4;
+  if (data.company?.officialNameAlt) {
+    ws.getCell(`A${compRow}`).value = data.company.officialNameAlt;
+    ws.getCell(`A${compRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+    ws.mergeCells(`A${compRow}:E${compRow}`);
+    compRow++;
+  }
   if (data.company?.address) {
     ws.getCell(`A${compRow}`).value = data.company.address;
     ws.getCell(`A${compRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -184,6 +194,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     compRow++;
   }
 
+  // Right header
   const rightStartCol = showMicron ? "H" : "G";
   const rightEndCol = showMicron ? "K" : "J";
 
@@ -195,7 +206,12 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   let rightRow = 3;
   const setRight = (val: string, opts?: { bold?: boolean; size?: number }) => {
     ws.getCell(`${rightStartCol}${rightRow}`).value = val;
-    ws.getCell(`${rightStartCol}${rightRow}`).font = { size: opts?.size || 10, bold: opts?.bold || false, color: { argb: COLORS.darkGray }, name: "Calibri" };
+    ws.getCell(`${rightStartCol}${rightRow}`).font = {
+      size: opts?.size || 10,
+      bold: opts?.bold || false,
+      color: { argb: COLORS.darkGray },
+      name: "Calibri",
+    };
     ws.getCell(`${rightStartCol}${rightRow}`).alignment = { horizontal: "right" };
     ws.mergeCells(`${rightStartCol}${rightRow}:${rightEndCol}${rightRow}`);
     rightRow++;
@@ -203,10 +219,26 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
   if (data.customerPoNo) setRight(`Client PO: ${data.customerPoNo}`, { bold: true, size: 11 });
 
-  const internalLabel = { "Purchase Order": "PO No", "Quotation": "Quote No", "Delivery Note": "DN No", "Sales Invoice": "Invoice No", "Supplier Invoice": "Supplier Inv No", "Reconciliation": "Rec No" }[data.docType] || "Doc No";
+  const internalLabel =
+    {
+      "Purchase Order": "PO No",
+      Quotation: "Quote No",
+      "Delivery Note": "DN No",
+      "Sales Invoice": "Invoice No",
+      "Supplier Invoice": "Supplier Inv No",
+      Reconciliation: "Rec No",
+    }[data.docType] || "Doc No";
   setRight(`${internalLabel}: ${data.docNo}`);
 
-  const dateLabel = { "Purchase Order": "PO Date", "Quotation": "Quote Date", "Delivery Note": "DN Date", "Sales Invoice": "Invoice Date", "Supplier Invoice": "Invoice Date", "Reconciliation": "Date" }[data.docType] || "Date";
+  const dateLabel =
+    {
+      "Purchase Order": "PO Date",
+      Quotation: "Quote Date",
+      "Delivery Note": "DN Date",
+      "Sales Invoice": "Invoice Date",
+      "Supplier Invoice": "Invoice Date",
+      Reconciliation: "Date",
+    }[data.docType] || "Date";
   setRight(`${dateLabel}: ${data.date}`);
 
   if (data.deliveryDate) setRight(`Delivery Date: ${data.deliveryDate}`);
@@ -218,18 +250,28 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
   const infoStart = row;
 
-  // TO
-  const toLabel = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "TO (SUPPLIER)" : "TO (CLIENT)";
-  const partyFullName = data.party?.officialName || data.party?.name || "";
+  // TO (Supplier / Client)
+  const toLabel =
+    data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "TO (SUPPLIER)" : "TO (CLIENT)";
+
   if (data.party) {
     ws.getCell(`A${row}`).value = toLabel;
     ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
     ws.mergeCells(`A${row}:E${row}`);
     row++;
-    ws.getCell(`A${row}`).value = partyFullName;
+
+    ws.getCell(`A${row}`).value = data.party.officialName || data.party.name || "";
     ws.getCell(`A${row}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     ws.mergeCells(`A${row}:E${row}`);
     row++;
+
+    if (data.party.officialNameAlt) {
+      ws.getCell(`A${row}`).value = data.party.officialNameAlt;
+      ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+      ws.mergeCells(`A${row}:E${row}`);
+      row++;
+    }
+
     if (data.party.address) {
       ws.getCell(`A${row}`).value = data.party.address;
       ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -259,11 +301,19 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
     ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
     shipRow++;
-    const shipToFullName = data.shipTo.officialName || data.shipTo.name;
-    ws.getCell(`${rightStartCol}${shipRow}`).value = shipToFullName;
+
+    ws.getCell(`${rightStartCol}${shipRow}`).value = data.shipTo.officialName || data.shipTo.name;
     ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
     shipRow++;
+
+    if (data.shipTo.officialNameAlt) {
+      ws.getCell(`${rightStartCol}${shipRow}`).value = data.shipTo.officialNameAlt;
+      ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+      ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
+      shipRow++;
+    }
+
     if (data.shipTo.address) {
       ws.getCell(`${rightStartCol}${shipRow}`).value = data.shipTo.address;
       ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -289,7 +339,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
   row += 1;
 
-  // ===================== 🔧 優化 1: Reference Info Bar (全新排序) =====================
+  // Reference bar: Ref | Category | Currency | Incoterms | Payment
   const refItems: string[] = [];
   if (data.reference) refItems.push(`Ref: ${data.reference}`);
   if (data.orderCategory) refItems.push(`Category: ${data.orderCategory}`);
@@ -307,7 +357,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     row += 2;
   }
 
-  // ===================== ITEMS TABLE =====================
+  // Items table
   const qtyHeader = `Qty (${mainUnit})`;
   const priceHeader = `Unit Price (${mainCurrency}/${unitShort})`;
   const amountHeader = `Amount (${mainCurrency})`;
@@ -333,8 +383,8 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   });
   headerRowExcel.height = 26;
 
-  const qtyColIdx = isDN ? 6 : isReconciliation ? 7 : (showMicron ? 7 : 6);
-  const amountColIdx = isDN ? 0 : isReconciliation ? 0 : (showMicron ? 9 : 8);
+  const qtyColIdx = isDN ? 6 : isReconciliation ? 7 : showMicron ? 7 : 6;
+  const amountColIdx = isDN ? 0 : isReconciliation ? 0 : showMicron ? 9 : 8;
   const balanceColIdx = isReconciliation ? 10 : 0;
 
   let totalQty = 0;
@@ -344,23 +394,65 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     const spec = [item.yarnCount, item.composition].filter(Boolean).join("\n");
     const qty = parseFloat(item.quantity || "0") || 0;
     totalQty += qty;
-    const amount = item.amount || (qty * (item.unitPrice || 0));
-
+    const amount = item.amount || qty * (item.unitPrice || 0);
     const colorDisplay = [item.colorName, item.colorCode].filter(Boolean).join("\n");
-    const weightDisplay = item.weightBasis === "condition" ? "Cond." : item.weightBasis === "net" ? "Net" : (item.weightBasis || "");
+    const weightDisplay =
+      item.weightBasis === "condition" ? "Cond." : item.weightBasis === "net" ? "Net" : item.weightBasis || "";
 
     let vals: any[];
     if (isReconciliation) {
-      vals = [i + 1, item.docNo || "", item.docDate || "", item.docType || "", item.description || "", "",
-        item.debit && item.debit > 0 ? item.debit.toFixed(2) : "", item.credit && item.credit > 0 ? item.credit.toFixed(2) : "", "", item.balance !== undefined ? item.balance.toFixed(2) : ""];
+      vals = [
+        i + 1,
+        item.docNo || "",
+        item.docDate || "",
+        item.docType || "",
+        item.description || "",
+        "",
+        item.debit && item.debit > 0 ? item.debit.toFixed(2) : "",
+        item.credit && item.credit > 0 ? item.credit.toFixed(2) : "",
+        "",
+        item.balance !== undefined ? item.balance.toFixed(2) : "",
+      ];
     } else if (isDN) {
-      vals = [i + 1, item.yarnName || item.description || "", item.yarnCount || "", item.colorName || "", item.lotNo || "", item.quantity || "", item.packages || "", item.grossWeight || "", item.netWeight || "", item.notes || ""];
+      vals = [
+        i + 1,
+        item.yarnName || item.description || "",
+        item.yarnCount || "",
+        item.colorName || "",
+        item.lotNo || "",
+        item.quantity || "",
+        item.packages || "",
+        item.grossWeight || "",
+        item.netWeight || "",
+        item.notes || "",
+      ];
     } else if (showMicron) {
-      vals = [i + 1, item.yarnName || item.description || "", spec, item.micron || "", colorDisplay, item.colorReference || "",
-        qty > 0 ? qty.toLocaleString(undefined, { minimumFractionDigits: 0 }) : "", item.unitPrice ? item.unitPrice.toFixed(2) : "", amount > 0 ? amount.toFixed(2) : "", weightDisplay, item.notes || ""];
+      vals = [
+        i + 1,
+        item.yarnName || item.description || "",
+        spec,
+        item.micron || "",
+        colorDisplay,
+        item.colorReference || "",
+        qty > 0 ? qty.toLocaleString(undefined, { minimumFractionDigits: 0 }) : "",
+        item.unitPrice ? item.unitPrice.toFixed(2) : "",
+        amount > 0 ? amount.toFixed(2) : "",
+        weightDisplay,
+        item.notes || "",
+      ];
     } else {
-      vals = [i + 1, item.yarnName || item.description || "", spec, colorDisplay, item.colorReference || "",
-        qty > 0 ? qty.toLocaleString(undefined, { minimumFractionDigits: 0 }) : "", item.unitPrice ? item.unitPrice.toFixed(2) : "", amount > 0 ? amount.toFixed(2) : "", weightDisplay, item.notes || ""];
+      vals = [
+        i + 1,
+        item.yarnName || item.description || "",
+        spec,
+        colorDisplay,
+        item.colorReference || "",
+        qty > 0 ? qty.toLocaleString(undefined, { minimumFractionDigits: 0 }) : "",
+        item.unitPrice ? item.unitPrice.toFixed(2) : "",
+        amount > 0 ? amount.toFixed(2) : "",
+        weightDisplay,
+        item.notes || "",
+      ];
     }
 
     dataRow.values = vals;
@@ -384,7 +476,10 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       totalRow.getCell(qtyColIdx).value = `${totalQty.toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
       totalRow.getCell(qtyColIdx).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
       totalRow.getCell(qtyColIdx).alignment = { horizontal: "right", vertical: "middle" };
-      totalRow.getCell(qtyColIdx).border = { top: { style: "medium", color: { argb: COLORS.black } }, bottom: { style: "double", color: { argb: COLORS.black } } };
+      totalRow.getCell(qtyColIdx).border = {
+        top: { style: "medium", color: { argb: COLORS.black } },
+        bottom: { style: "double", color: { argb: COLORS.black } },
+      };
       totalRow.getCell(qtyColIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
     }
     totalRow.getCell(amountColIdx - 1).value = "TOTAL:";
@@ -393,7 +488,10 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     totalRow.getCell(amountColIdx).value = `${mainCurrency} ${data.total.toFixed(2)}`;
     totalRow.getCell(amountColIdx).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     totalRow.getCell(amountColIdx).alignment = { horizontal: "right", vertical: "middle" };
-    totalRow.getCell(amountColIdx).border = { top: { style: "medium", color: { argb: COLORS.black } }, bottom: { style: "double", color: { argb: COLORS.black } } };
+    totalRow.getCell(amountColIdx).border = {
+      top: { style: "medium", color: { argb: COLORS.black } },
+      bottom: { style: "double", color: { argb: COLORS.black } },
+    };
     totalRow.getCell(amountColIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
     totalRow.height = 24;
 
@@ -406,6 +504,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       vatRow.getCell(amountColIdx).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
       vatRow.getCell(amountColIdx).alignment = { horizontal: "right" };
       vatRow.height = 20;
+
       const grandTotal = data.total + data.vatAmount;
       const grandRow = ws.getRow(row++);
       grandRow.getCell(amountColIdx - 1).value = "GRAND TOTAL:";
@@ -414,13 +513,15 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       grandRow.getCell(amountColIdx).value = `${mainCurrency} ${grandTotal.toFixed(2)}`;
       grandRow.getCell(amountColIdx).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
       grandRow.getCell(amountColIdx).alignment = { horizontal: "right" };
-      grandRow.getCell(amountColIdx).border = { top: { style: "medium", color: { argb: COLORS.black } }, bottom: { style: "double", color: { argb: COLORS.black } } };
+      grandRow.getCell(amountColIdx).border = {
+        top: { style: "medium", color: { argb: COLORS.black } },
+        bottom: { style: "double", color: { argb: COLORS.black } },
+      };
       grandRow.getCell(amountColIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
       grandRow.height = 24;
     }
   }
 
-  // Reconciliation closing balance
   if (isReconciliation && data.closingBalance !== undefined) {
     row++;
     const balRow = ws.getRow(row++);
@@ -430,12 +531,15 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     balRow.getCell(balanceColIdx).font = { size: 11, bold: true, name: "Calibri" };
     balRow.getCell(balanceColIdx - 1).alignment = { horizontal: "right" };
     balRow.getCell(balanceColIdx).alignment = { horizontal: "right" };
-    balRow.getCell(balanceColIdx).border = { top: { style: "medium", color: { argb: COLORS.black } }, bottom: { style: "double", color: { argb: COLORS.black } } };
+    balRow.getCell(balanceColIdx).border = {
+      top: { style: "medium", color: { argb: COLORS.black } },
+      bottom: { style: "double", color: { argb: COLORS.black } },
+    };
     balRow.getCell(balanceColIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
     balRow.height = 24;
   }
 
-  // BANK INFO
+  // BANK
   if (data.bankInfo) {
     row += 2;
     ws.getCell(`A${row}`).value = "BANK DETAILS";

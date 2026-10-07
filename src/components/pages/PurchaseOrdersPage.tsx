@@ -554,7 +554,10 @@ useEffect(() => {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2 flex-wrap">
-                    <a href={`/api/export/excel?type=po&id=${p.id}`} className="text-slate-600 hover:text-slate-900 text-xs inline-flex items-center gap-1">
+                   <a 
+                      href={`/api/export/excel?type=po&id=${p.id}`} 
+                      className="text-slate-600 hover:text-slate-900 text-xs inline-flex items-center gap-1"
+                    >
                       <IconDownload className="w-3 h-3" />Export
                     </a>
                     {permissions.canEdit && <button onClick={() => openForm(p)} className="text-blue-600 hover:text-blue-800 text-xs">Edit</button>}
