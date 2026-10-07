@@ -23,11 +23,13 @@ async function fetchTemplateRemarks(key: string): Promise<string> {
   }
 }
 
+// 🆕 確保 toExportItems 正確對齊並處理了 micron 屬性
 function toExportItems(rows: any[]): ExportItem[] {
   return rows.map((it) => ({
     yarnName: it.yarnName ?? undefined,
     yarnCount: it.yarnCount ?? undefined,
     composition: it.composition ?? undefined,
+    micron: it.micron ?? undefined, // 🆕 正確對齊明細 Micron
     description: it.description ?? undefined,
     colorName: it.colorName ?? undefined,
     colorCode: it.colorCode ?? undefined,
@@ -60,7 +62,6 @@ export async function GET(req: NextRequest) {
 
     // ============== QUOTATION ==============
     if (type === "quotation") {
-      // 查詢同 quoteNo 的所有報價行
       const [refQuote] = await db.select().from(quotations).where(eq(quotations.id, id));
       if (!refQuote) return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
 
@@ -79,7 +80,6 @@ export async function GET(req: NextRequest) {
         ? await db.select().from(customerContacts).where(eq(customerContacts.id, refQuote.contactId))
         : [];
 
-      // 撈取每一行報價對應的 yarn
       const items: ExportItem[] = [];
       for (const q of quoteRows) {
         const [yarn] = q.yarnId ? await db.select().from(yarns).where(eq(yarns.id, q.yarnId)) : [];
@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
           yarnName: yarn?.yarnName,
           yarnCount: yarn?.yarnCount ?? undefined,
           composition: yarn?.composition ?? undefined,
+          micron: yarn?.micron ?? undefined, // 🆕 帶入報價單的 Micron
           quantity: "",
           unitPrice: q.quotedPrice,
           currency: q.currency ?? "USD",
@@ -132,6 +133,7 @@ export async function GET(req: NextRequest) {
         validUntil: refQuote.validUntil ?? undefined,
         items,
         notes: finalRemarks || undefined,
+        exportedBy: "Admin",
       };
 
     // ============== PURCHASE ORDER ==============
@@ -139,8 +141,10 @@ export async function GET(req: NextRequest) {
       const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
       if (!po) return NextResponse.json({ error: "PO not found" }, { status: 404 });
 
+      // 🆕 查詢中加入 micron 欄位
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
+        micron: yarns.micron, // 🆕 從 yarns 撈取 micron
         colorName: poItems.colorName, colorCode: poItems.colorCode, colorReference: poItems.colorReference,
         quantity: poItems.quantity, unitPrice: poItems.unitPrice, currency: poItems.currency,
         unit: poItems.unit, weightBasis: poItems.weightBasis, incoterms: poItems.incoterms, notes: poItems.notes,
@@ -148,9 +152,9 @@ export async function GET(req: NextRequest) {
 
       const [factory] = po.factoryId ? await db.select().from(factories).where(eq(factories.id, po.factoryId)) : [];
       const [company] = po.companyId ? await db.select().from(companies).where(eq(companies.id, po.companyId)) : [];
+      const [shipTo] = po.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, po.shipToId)) : [];
 
       const exportItems = toExportItems(items);
-      // 計算每行 amount
       exportItems.forEach(it => {
         const qty = parseFloat(it.quantity || "0") || 0;
         it.amount = qty * (it.unitPrice || 0);
@@ -168,6 +172,7 @@ export async function GET(req: NextRequest) {
         date: po.poDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? undefined, telephone: factory.telephone ?? undefined, attn: po.contactPerson ?? undefined } : undefined,
+        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? undefined } : undefined, // 🆕 新增正確的 Ship To 欄位
         reference: po.soNo ?? undefined,
         customerPoNo: po.customerPoNo ?? undefined,
         deliveryDate: po.deliveryDate ?? undefined,
@@ -175,10 +180,13 @@ export async function GET(req: NextRequest) {
         currency: po.currency ?? undefined,
         incoterms: po.incoterms ?? undefined,
         status: po.status ?? undefined,
+        orderCategory: po.orderCategory ?? undefined, // 🆕 加回 Order Category
+        quantityUnit: po.quantityUnit ?? undefined, // 🆕 自動帶入重量單位
         items: exportItems,
         subtotal,
         total: subtotal,
         notes: finalRemarks || undefined,
+        exportedBy: "Admin",
       };
 
     // ============== DELIVERY NOTE ==============
@@ -208,12 +216,15 @@ export async function GET(req: NextRequest) {
         date: dn.dnDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? undefined } : undefined,
-        shipTo: shipTo ? { name: shipTo.name, address: shipTo.addressEnglish ?? undefined } : undefined,
+        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? undefined } : undefined,
         customerPoNo: dn.customerPoNo ?? undefined,
         reference: dn.soNo ?? undefined,
         status: dn.status ?? undefined,
+        orderCategory: dn.orderCategory ?? undefined,
+        quantityUnit: dn.quantityUnit ?? undefined,
         items: toExportItems(items),
         notes: finalRemarks || undefined,
+        exportedBy: "Admin",
       };
 
     // ============== SALES INVOICE ==============
@@ -223,6 +234,7 @@ export async function GET(req: NextRequest) {
 
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
+        micron: yarns.micron, // 🆕 從 yarns 撈取 micron
         description: invoiceItems.description, colorName: invoiceItems.colorName, colorCode: invoiceItems.colorCode,
         quantity: invoiceItems.quantity, unitPrice: invoiceItems.unitPrice,
         currency: invoices.currency,
@@ -265,6 +277,7 @@ export async function GET(req: NextRequest) {
         total: inv.total ?? undefined,
         bankInfo,
         notes: finalRemarks || undefined,
+        exportedBy: "Admin",
       };
 
     // ============== SUPPLIER INVOICE ==============
@@ -274,6 +287,7 @@ export async function GET(req: NextRequest) {
 
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
+        micron: yarns.micron, // 🆕 從 yarns 撈取 micron
         description: supplierInvoiceItems.description, colorName: supplierInvoiceItems.colorName, colorCode: supplierInvoiceItems.colorCode,
         quantity: supplierInvoiceItems.quantity, unitPrice: supplierInvoiceItems.unitPrice,
         currency: supplierInvoices.currency,
@@ -314,22 +328,18 @@ export async function GET(req: NextRequest) {
         total: inv.total ?? undefined,
         bankInfo,
         notes: finalRemarks || undefined,
+        exportedBy: "Admin",
       };
 
     // ============== RECONCILIATION ==============
     } else if (type === "reconciliation") {
-      // 對帳單：id = customerId
       const customerId = id;
       const [customer] = await db.select().from(customers).where(eq(customers.id, customerId));
       if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
 
-      // 預設公司（第一個 default）
       const [company] = await db.select().from(companies).limit(1);
-
-      // 查該客戶所有發票 + 收款
       const custInvoices = await db.select().from(invoices).where(eq(invoices.customerId, customerId)).orderBy(desc(invoices.invoiceDate));
 
-      // 計算每筆發票的收款
       const items: ExportItem[] = [];
       let balance = 0;
       let totalDebit = 0;
@@ -351,7 +361,6 @@ export async function GET(req: NextRequest) {
           currency: inv.currency || "USD",
         });
 
-        // 查該發票的收款
         const invPayments = await db.select().from(payments).where(eq(payments.invoiceId, inv.id)).orderBy(payments.paymentDate);
         for (const pay of invPayments) {
           const credit = pay.amount;
@@ -388,15 +397,16 @@ export async function GET(req: NextRequest) {
         subtotal: totalDebit,
         total: balance,
         notes: defaultRemarks || undefined,
+        exportedBy: "Admin",
       };
 
     } else {
       return NextResponse.json({ error: `Unknown type: ${type}` }, { status: 400 });
     }
 
-        const buffer = await generateExcel(data);
+    const buffer = await generateExcel(data);
 
-    // 🆕 智能檔案命名：Type_ClientPO_InternalPO_Date
+    // 🆕 智能檔案命名
     const prefixMap: Record<string, string> = {
       "Quotation": "Q",
       "Purchase Order": "PO",
@@ -407,20 +417,13 @@ export async function GET(req: NextRequest) {
     };
     const prefix = prefixMap[data.docType] || data.docType;
 
-    // 清理檔名中的非法字元
     const sanitize = (s: string) => s.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_");
-
     const parts: string[] = [prefix];
 
-    // Client PO（如果有）
     if (data.customerPoNo) {
       parts.push(sanitize(data.customerPoNo));
     }
-
-    // 內部單號
     parts.push(sanitize(data.docNo));
-
-    // 日期
     parts.push(data.date);
 
     const fileName = `${parts.join("_")}.xlsx`;
