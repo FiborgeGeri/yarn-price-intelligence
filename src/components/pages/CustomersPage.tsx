@@ -11,6 +11,7 @@ interface Client {
   id: number;
   name: string;
   officialName: string;
+  officialNameAlt?: string | null; // 🆕 次要官方全名
   country: string;
   addressLocal: string;
   addressEnglish: string;
@@ -56,6 +57,7 @@ export default function ClientsPage({ permissions }: Props) {
 
   const [name, setName] = useState("");
   const [officialName, setOfficialName] = useState("");
+  const [officialNameAlt, setOfficialNameAlt] = useState(""); // 🆕 次要名稱
   const [country, setCountry] = useState("");
   const [addressLocal, setAddressLocal] = useState("");
   const [addressEnglish, setAddressEnglish] = useState("");
@@ -110,6 +112,7 @@ export default function ClientsPage({ permissions }: Props) {
       result = result.filter((client) =>
         client.name?.toLowerCase().includes(query) ||
         client.officialName?.toLowerCase().includes(query) ||
+        client.officialNameAlt?.toLowerCase().includes(query) ||
         client.country?.toLowerCase().includes(query) ||
         client.addressEnglish?.toLowerCase().includes(query) ||
         client.addressLocal?.toLowerCase().includes(query) ||
@@ -124,6 +127,7 @@ export default function ClientsPage({ permissions }: Props) {
     setEditing(client || null);
     setName(client?.name || "");
     setOfficialName(client?.officialName || "");
+    setOfficialNameAlt(client?.officialNameAlt || ""); // 🆕 回填次要名稱
     setCountry(client?.country || "");
     setAddressLocal(client?.addressLocal || "");
     setAddressEnglish(client?.addressEnglish || "");
@@ -154,6 +158,7 @@ export default function ClientsPage({ permissions }: Props) {
           id: editing?.id,
           name: name.trim(),
           officialName,
+          officialNameAlt, // 🆕 送出次要名稱
           country,
           addressLocal,
           addressEnglish,
@@ -182,7 +187,7 @@ export default function ClientsPage({ permissions }: Props) {
     if (response.ok) load();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#d97449] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div>
@@ -191,7 +196,7 @@ export default function ClientsPage({ permissions }: Props) {
           <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
           <p className="text-sm text-slate-500">{filtered.length} client{filtered.length === 1 ? "" : "s"}</p>
         </div>
-        {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ Add Client</button>}
+        {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-semibold transition-colors">+ Add Client</button>}
       </div>
 
       {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.text}</div>}
@@ -200,7 +205,7 @@ export default function ClientsPage({ permissions }: Props) {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-[#f1c6b2]"
           placeholder="Search company, address, country, telephone or contact..."
         />
         <select value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white min-w-[170px]">
@@ -239,34 +244,98 @@ export default function ClientsPage({ permissions }: Props) {
 
       {showForm && permissions.canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editing ? "Edit Client" : "Add Client"}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={save} className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Client Name (Display) *</label><input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Official Name</label><input value={officialName} onChange={(e) => setOfficialName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Registered company name" /></div>
+              {/* 1. Display Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Name (Display / System) *
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  placeholder="System display name (e.g. Client A)"
+                  required
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+
+              {/* 2. Official Name Primary & Secondary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Official Name (Primary)
+                  </label>
+                  <input
+                    value={officialName}
+                    onChange={(e) => setOfficialName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="請輸入主要官方全名 / Primary official name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Official Name (Secondary / Optional)
+                  </label>
+                  <input
+                    value={officialNameAlt}
+                    onChange={(e) => setOfficialNameAlt(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="請輸入次要官方全名 / Alternative official name (optional)"
+                  />
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (Local Language)</label><textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} placeholder="Full address in local language" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (English)</label><textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} placeholder="Full address in English" /></div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Company main switchboard" /></div>
+              </div>
+
+              {/* 3. Address Primary & Secondary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  <div>
+    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+      Address (Primary / Local)
+    </label>
+    <textarea
+      value={addressLocal}
+      onChange={(e) => setAddressLocal(e.target.value)}
+      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+      rows={2}
+      placeholder="請輸入主要/本地語言詳細地址, Primary or local language detail address"
+    />
+  </div>
+  <div>
+    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+      Address (Secondary / English)
+    </label>
+    <textarea
+      value={addressEnglish}
+      onChange={(e) => setAddressEnglish(e.target.value)}
+      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+      rows={2}
+      placeholder="請輸入次要語言詳細地址, Please enter alternative detailed English address (optional)"
+    />
+  </div>
+</div>
               
-                 <FapiaoInfoSection
+              <FapiaoInfoSection
                 country={country}
                 values={fapiao}
                 defaultCompanyName={officialName}
                 defaultAddress={addressLocal}
                 onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
               />
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
-              <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editing ? "Update" : "Create"}</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm">Cancel</button>
+              
+              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
+              
+              <div className="flex gap-3 pt-2 border-t border-slate-200">
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors">{saving ? "Saving..." : editing ? "Update Client" : "Create Client"}</button>
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Cancel</button>
               </div>
             </form>
           </div>

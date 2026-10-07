@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       await db.update(factories).set({
         factoryName,
         officialName: officialName || null,
+        officialNameAlt: body.officialNameAlt || null,
         addressLocal: addressLocal || null,
         addressEnglish: addressEnglish || null,
         country: country || null,
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
       const [f] = await db.insert(factories).values({
         factoryName,
         officialName: officialName || null,
+        officialNameAlt: body.officialNameAlt || null,
         addressLocal: addressLocal || null,
         addressEnglish: addressEnglish || null,
         country: country || null,

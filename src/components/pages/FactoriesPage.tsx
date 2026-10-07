@@ -11,6 +11,7 @@ interface Factory {
   id: number;
   factoryName: string;
   officialName: string;
+  officialNameAlt?: string | null; // 🆕 次要/英文官方全名
   country: string;
   addressLocal: string;
   addressEnglish: string;
@@ -53,8 +54,10 @@ export default function FactoriesPage({ permissions }: Props) {
   const [relationshipFilter, setRelationshipFilter] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // 表單 State
   const [name, setName] = useState("");
   const [officialName, setOfficialName] = useState("");
+  const [officialNameAlt, setOfficialNameAlt] = useState(""); // 🆕 次要官方名稱
   const [country, setCountry] = useState("");
   const [addressLocal, setAddressLocal] = useState("");
   const [addressEnglish, setAddressEnglish] = useState("");
@@ -94,6 +97,7 @@ export default function FactoriesPage({ permissions }: Props) {
       result = result.filter((factory) =>
         factory.factoryName?.toLowerCase().includes(query) ||
         factory.officialName?.toLowerCase().includes(query) ||
+        factory.officialNameAlt?.toLowerCase().includes(query) ||
         factory.country?.toLowerCase().includes(query) ||
         factory.addressEnglish?.toLowerCase().includes(query) ||
         factory.addressLocal?.toLowerCase().includes(query) ||
@@ -108,6 +112,7 @@ export default function FactoriesPage({ permissions }: Props) {
     setEditing(factory || null);
     setName(factory?.factoryName || "");
     setOfficialName(factory?.officialName || "");
+    setOfficialNameAlt(factory?.officialNameAlt || ""); // 🆕 回填次要全名
     setCountry(factory?.country || "");
     setAddressLocal(factory?.addressLocal || "");
     setAddressEnglish(factory?.addressEnglish || "");
@@ -142,6 +147,7 @@ export default function FactoriesPage({ permissions }: Props) {
           id: editing?.id,
           factoryName: name.trim(),
           officialName,
+          officialNameAlt, // 🆕 送出次要全名
           country,
           addressLocal,
           addressEnglish,
@@ -174,7 +180,7 @@ export default function FactoriesPage({ permissions }: Props) {
     if (response.ok) load();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div>
@@ -183,16 +189,16 @@ export default function FactoriesPage({ permissions }: Props) {
           <h1 className="text-2xl font-bold text-slate-900">Yarn Mills</h1>
           <p className="text-sm text-slate-500">{filtered.length} yarn mill{filtered.length === 1 ? "" : "s"}</p>
         </div>
-        {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ Add Yarn Mill</button>}
+        {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-medium transition-colors">+ Add Yarn Mill</button>}
       </div>
 
-      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.text}</div>}
+      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{toast.text}</div>}
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-[#f1c6b2]"
           placeholder="Search mill, address, country, telephone or certificate..."
         />
         <select value={relationshipFilter} onChange={(e) => setRelationshipFilter(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white min-w-[180px]">
@@ -237,29 +243,100 @@ export default function FactoriesPage({ permissions }: Props) {
 
       {showForm && permissions.canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editing ? "Edit Yarn Mill" : "Add Yarn Mill"}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={save} className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Name (Display) *</label><input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Official Name</label><input value={officialName} onChange={(e) => setOfficialName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Registered company name" /></div>
+              {/* 1. Display Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Name (Display / System) *
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  placeholder="e.g. Ningbo Worsted Mill"
+                  required
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Relationship</label><select value={relationship} onChange={(e) => setRelationship(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="My Factory">Mine</option><option value="Competitor Factory">Competitor</option></select></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+
+              {/* 2. 🆕 Official Name Primary & Secondary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Official Name (Primary)
+                  </label>
+                  <input
+                    value={officialName}
+                    onChange={(e) => setOfficialName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="e.g. 寧波精紡毛紡織有限公司"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Official Name (Secondary / Optional)
+                  </label>
+                  <input
+                    value={officialNameAlt}
+                    onChange={(e) => setOfficialNameAlt(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="e.g. Ningbo Worsted Textile Co., Ltd."
+                  />
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (Local Language)</label><textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Address (English)</label><textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Parent Yarn Mill</label><select value={parentId || 0} onChange={(e) => setParentId(Number(e.target.value) || null)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value={0}>None</option>{factories.filter((factory) => factory.id !== editing?.id).map((factory) => <option key={factory.id} value={factory.id}>{factory.factoryName}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option>Active</option><option>Inactive</option></select></div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Relationship</label>
+                  <select value={relationship} onChange={(e) => setRelationship(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                    <option value="My Factory">Mine</option>
+                    <option value="Competitor Factory">Competitor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label>
+                  <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. China / CN" />
+                </div>
+              </div>
+
+              {/* 3. Address Primary & Secondary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Primary / Local)</label>
+                  <textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="e.g. 浙江省寧波市海曙區XX路88號" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Secondary / English)</label>
+                  <textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="e.g. No. 88, XX Road, Haishu, Ningbo" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Company main switchboard" /></div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Status</label>
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                    <option>Active</option>
+                    <option>Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Parent Yarn Mill</label>
+                <select value={parentId || 0} onChange={(e) => setParentId(Number(e.target.value) || null)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                  <option value={0}>None</option>
+                  {factories.filter((factory) => factory.id !== editing?.id).map((factory) => <option key={factory.id} value={factory.id}>{factory.factoryName}</option>)}
+                </select>
+              </div>
 
               {certificates.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Certifications</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Certifications</label>
                   <div className="flex flex-wrap gap-2">
                     {certificates.map((certificate) => (
                       <button
@@ -275,7 +352,7 @@ export default function FactoriesPage({ permissions }: Props) {
                 </div>
               )}
 
-             <FapiaoInfoSection
+              <FapiaoInfoSection
                 country={country}
                 values={fapiao}
                 defaultCompanyName={officialName}
@@ -283,10 +360,11 @@ export default function FactoriesPage({ permissions }: Props) {
                 onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
               />
 
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
-              <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editing ? "Update" : "Create"}</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm">Cancel</button>
+              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
+              
+              <div className="flex gap-3 pt-2 border-t border-slate-200">
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors">{saving ? "Saving..." : editing ? "Update Mill" : "Create Mill"}</button>
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Cancel</button>
               </div>
             </form>
           </div>
@@ -302,20 +380,7 @@ export default function FactoriesPage({ permissions }: Props) {
         onClose={() => setViewingContacts(null)}
         onChanged={load}
       />
-          <DirectoryViewModal
-        entity={viewingEntity ? {
-          ...viewingEntity,
-          name: viewingEntity.factoryName,
-          addressLocal: viewingEntity.addressLocal,
-          addressEnglish: viewingEntity.addressEnglish,
-          certNames: viewingEntity.certNames,
-        } : null}
-        entityType="factory"
-        entityLabel="Yarn Mill"
-        contactsEndpoint="/api/factory-contacts"
-        contactsForeignKey="factoryId"
-        onClose={() => setViewingEntity(null)}
-      />
+
       <DirectoryViewModal
         entity={viewingEntity ? {
           ...viewingEntity,
