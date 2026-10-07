@@ -11,10 +11,10 @@ import {
   payments,
   users,
 } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { generateExcel, ExportData, ExportItem } from "@/lib/excelExport";
 import { detectDocumentLanguage, getRemarksTemplateKey } from "@/lib/exportHelpers";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth"; // 🆕 正確引入
 
 async function fetchTemplateRemarks(key: string): Promise<string> {
   try {
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     // 讀取當前登入用戶的 Display Name
     let currentUserName = "System";
     try {
-      const session = await getSession(req);
+      const session = getSession(req); // 修正為直接同步呼叫
       if (session?.id) {
         const [u] = await db
           .select({ 
