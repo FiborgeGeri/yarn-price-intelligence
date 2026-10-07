@@ -224,7 +224,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
       )}
 
       {canOrders && data.stageBoard && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm relative z-20">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-1">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-800">Production Stage Pipeline</h3>
@@ -298,7 +298,7 @@ export default function DashboardPage({ onNavigate, permissions }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 relative z-10">
         {canOrders && (
           <SectionCard title="Order Status Breakdown" action="Sales Orders" onAction={() => onNavigate("sales-orders")}>
             <div className="space-y-3">
