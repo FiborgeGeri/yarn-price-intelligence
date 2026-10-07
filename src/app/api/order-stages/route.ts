@@ -1,13 +1,64 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { soItems, poItems, salesOrders, purchaseOrders } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+
+const STAGE_ORDER = [
+  "On Hold", "Order Confirmed", "Lab Dipping", "Lab Dip Confirmed",
+  "Dyeing", "Lot Confirmed", "Packing", "Ready to Ship", "Ex Mill",
+];
+
+// Status → 最低 Stage 門檻
+const STATUS_MIN_STAGE: Record<string, string> = {
+  "Draft": "On Hold",
+  "Confirmed": "Order Confirmed",
+  "In Production": "Lab Dipping",
+  "Shipped": "Ready to Ship",
+  "Delivered": "Ex Mill",
+  "Received": "Ex Mill",
+  "Closed": "Ex Mill",
+  "Cancelled": "On Hold",
+};
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { orderType, orderId, itemId, stage, stageNote } = body;
+    const { orderType, orderId, itemId, stage, stageNote, bulkStatus } = body;
 
+    // 🆕 批量同步模式：Status 改變時，自動推升所有落後的 Stage
+    if (bulkStatus && orderId) {
+      const minStage = STATUS_MIN_STAGE[bulkStatus];
+      if (!minStage) {
+        return NextResponse.json({ error: "Unknown status" }, { status: 400 });
+      }
+
+      const minIdx = STAGE_ORDER.indexOf(minStage);
+      const table = orderType === "so" ? soItems : poItems;
+      const fkCol = orderType === "so" ? soItems.soId : poItems.poId;
+
+      // 撈取該訂單下所有 items
+      const items = await db
+        .select({ id: table.id, stage: table.stage })
+        .from(table)
+        .where(eq(fkCol, Number(orderId)));
+
+      let updatedCount = 0;
+      for (const item of items) {
+        const currentIdx = STAGE_ORDER.indexOf(item.stage || "Order Confirmed");
+        // 只推升落後的，不往回拉已經超前的
+        if (currentIdx < minIdx) {
+          await db
+            .update(table)
+            .set({ stage: minStage })
+            .where(eq(table.id, item.id));
+          updatedCount++;
+        }
+      }
+
+      return NextResponse.json({ success: true, updatedCount, minStage });
+    }
+
+    // 單一品項更新模式
     if (!itemId) {
       return NextResponse.json({ error: "Missing itemId" }, { status: 400 });
     }
@@ -17,21 +68,19 @@ export async function POST(req: Request) {
     if (stageNote !== undefined) updateData.stageNote = stageNote;
 
     if (orderType === "so") {
-      // 1. 取得 SO item 完整資訊（用於匹配 PO item）
       const [currentItem] = await db
         .select()
         .from(soItems)
         .where(eq(soItems.id, Number(itemId)))
         .limit(1);
 
-      // 2. 更新 SO item
       await db
         .update(soItems)
         .set(updateData)
         .where(eq(soItems.id, Number(itemId)));
 
-      // 3. SO → PO 精準同步：按 yarnId + colorName + colorCode 匹配
-      if (currentItem && orderId) {
+      // SO → PO 精準同步
+      if (currentItem && orderId && stage !== undefined) {
         try {
           const [so] = await db
             .select({ soNo: salesOrders.soNo })
@@ -46,19 +95,17 @@ export async function POST(req: Request) {
               .where(eq(purchaseOrders.soNo, so.soNo));
 
             for (const po of relatedPOs) {
-              // 找到該 PO 下，與 SO item 相同 yarn + 相同顏色的 po item
               const matchingPoItems = await db
                 .select()
                 .from(poItems)
                 .where(eq(poItems.poId, po.id));
 
               for (const poItem of matchingPoItems) {
-                // 精準匹配條件：yarn + color name + color code
-                const sameYarn = poItem.yarnId === currentItem.yarnId;
-                const sameColorName = (poItem.colorName || "") === (currentItem.colorName || "");
-                const sameColorCode = (poItem.colorCode || "") === (currentItem.colorCode || "");
-
-                if (sameYarn && sameColorName && sameColorCode) {
+                if (
+                  poItem.yarnId === currentItem.yarnId &&
+                  (poItem.colorName || "") === (currentItem.colorName || "") &&
+                  (poItem.colorCode || "") === (currentItem.colorCode || "")
+                ) {
                   await db
                     .update(poItems)
                     .set(updateData)
@@ -68,11 +115,10 @@ export async function POST(req: Request) {
             }
           }
         } catch (syncErr) {
-          console.error("SO→PO stage sync warning:", syncErr);
+          console.error("SO→PO sync warning:", syncErr);
         }
       }
     } else if (orderType === "po") {
-      // PO 更新時，也可以反向同步回 SO（可選）
       const [currentItem] = await db
         .select()
         .from(poItems)
@@ -85,7 +131,7 @@ export async function POST(req: Request) {
         .where(eq(poItems.id, Number(itemId)));
 
       // PO → SO 反向同步
-      if (currentItem && orderId) {
+      if (currentItem && orderId && stage !== undefined) {
         try {
           const [po] = await db
             .select({ soNo: purchaseOrders.soNo })
@@ -107,11 +153,11 @@ export async function POST(req: Request) {
                 .where(eq(soItems.soId, relatedSO.id));
 
               for (const soItem of matchingSoItems) {
-                const sameYarn = soItem.yarnId === currentItem.yarnId;
-                const sameColorName = (soItem.colorName || "") === (currentItem.colorName || "");
-                const sameColorCode = (soItem.colorCode || "") === (currentItem.colorCode || "");
-
-                if (sameYarn && sameColorName && sameColorCode) {
+                if (
+                  soItem.yarnId === currentItem.yarnId &&
+                  (soItem.colorName || "") === (currentItem.colorName || "") &&
+                  (soItem.colorCode || "") === (currentItem.colorCode || "")
+                ) {
                   await db
                     .update(soItems)
                     .set(updateData)
@@ -121,7 +167,7 @@ export async function POST(req: Request) {
             }
           }
         } catch (syncErr) {
-          console.error("PO→SO stage sync warning:", syncErr);
+          console.error("PO→SO sync warning:", syncErr);
         }
       }
     } else {

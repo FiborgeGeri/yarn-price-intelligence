@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 
 const STAGES = [
+  "On Hold",
   "Order Confirmed",
+  "Lab Dipping",
   "Lab Dip Confirmed",
   "Dyeing",
   "Lot Confirmed",
@@ -13,7 +15,9 @@ const STAGES = [
 ];
 
 const STAGE_COLORS: Record<string, string> = {
+  "On Hold": "bg-slate-400",
   "Order Confirmed": "bg-blue-500",
+  "Lab Dipping": "bg-violet-400",
   "Lab Dip Confirmed": "bg-purple-500",
   "Dyeing": "bg-amber-500",
   "Lot Confirmed": "bg-indigo-500",
@@ -26,7 +30,7 @@ interface Props {
   currentStage: string;
   currentNote?: string;
   canEdit: boolean;
-  onLocalChange?: (stage: string, note: string) => void; // 🆕 僅通知外層，不呼叫API
+  onLocalChange?: (stage: string, note: string) => void;
 }
 
 export default function OrderStageTracker({
@@ -38,14 +42,8 @@ export default function OrderStageTracker({
   const [localStage, setLocalStage] = useState(currentStage || "Order Confirmed");
   const [localNote, setLocalNote] = useState(currentNote || "");
 
-  // 外部資料更新時同步
-  useEffect(() => {
-    setLocalStage(currentStage || "Order Confirmed");
-  }, [currentStage]);
-
-  useEffect(() => {
-    setLocalNote(currentNote || "");
-  }, [currentNote]);
+  useEffect(() => { setLocalStage(currentStage || "Order Confirmed"); }, [currentStage]);
+  useEffect(() => { setLocalNote(currentNote || ""); }, [currentNote]);
 
   const currentIdx = STAGES.indexOf(localStage);
   const pct = currentIdx >= 0 ? Math.round(((currentIdx + 1) / STAGES.length) * 100) : 0;
@@ -79,7 +77,6 @@ export default function OrderStageTracker({
       <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-300 ${STAGE_COLORS[localStage] || "bg-blue-500"}`} style={{ width: `${pct}%` }} />
       </div>
-
       <select
         value={localStage}
         onChange={(e) => handleStageChange(e.target.value)}
@@ -89,11 +86,11 @@ export default function OrderStageTracker({
           <option key={s} value={s}>{s}</option>
         ))}
       </select>
-
       <input
         type="text"
         value={localNote}
         onChange={(e) => handleNoteChange(e.target.value)}
+        
         placeholder="Add stage note..."
         className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] text-slate-600 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-slate-300"
       />

@@ -165,14 +165,12 @@ export async function GET() {
     const allGRs = await db.select({ id: goodsReceipts.id, status: goodsReceipts.status, grNo: goodsReceipts.grNo, grDate: goodsReceipts.grDate }).from(goodsReceipts).orderBy(desc(goodsReceipts.grDate));
     const allDNs = await db.select({ id: deliveryNotes.id, status: deliveryNotes.status, dnNo: deliveryNotes.dnNo, dnDate: deliveryNotes.dnDate }).from(deliveryNotes).orderBy(desc(deliveryNotes.dnDate));
 
-    // 🆕 升級為大小寫無感、且統計 In Production 生產中的品項為 Open 狀態
     const countBy = (rows: { status: string | null }[], list: string[]) => {
       const upperList = list.map(l => l.toUpperCase());
       return rows.filter(r => upperList.includes((r.status || "").toUpperCase())).length;
     };
 
     const soOpen = countBy(allSOs, ["Confirmed", "In Production"]);
-    // 🆕 PO 開啟中條件加入 "In Production" (大小寫相容)
     const poOpen = countBy(allPOs, ["Draft", "Confirmed", "In Production"]);
     const grInTransit = countBy(allGRs, ["Shipped from Mill", "In Transit", "Arrived at Port", "Customs Clearance"]);
     const dnPending = countBy(allDNs, ["Draft", "Packed", "Shipped"]);
@@ -245,13 +243,12 @@ export async function GET() {
     const costThisMonth = revByCurrency(allSupplierInv, firstDayThisMonth, todayStr);
 
     // ==========================================
-    // SO/PO 狀態分佈 (支援大小寫標準化)
+    // SO/PO 狀態分佈
     // ==========================================
     const buildStatusDist = (rows: { status: string | null }[]) => {
       const dist: Record<string, number> = {};
       for (const r of rows) {
         let s = r.status || "Unknown";
-        // 將 "IN PRODUCTION" 標準化為 "In Production" 顯示
         if (s.toUpperCase() === "IN PRODUCTION") s = "In Production";
         dist[s] = (dist[s] || 0) + 1;
       }
@@ -263,7 +260,7 @@ export async function GET() {
     // ==========================================
     // Stage 分佈 + 瓶頸偵測
     // ==========================================
-    const STAGE_ORDER = ["Order Confirmed", "Lab Dip Confirmed", "Dyeing", "Lot Confirmed", "Packing", "Ready to Ship", "Ex Mill"];
+    const STAGE_ORDER = ["On Hold", "Order Confirmed", "Lab Dipping", "Lab Dip Confirmed", "Dyeing", "Lot Confirmed", "Packing", "Ready to Ship", "Ex Mill"];
 
     const openSoIds = allSOs.filter(s => ["Confirmed", "In Production"].includes(s.status || "")).map(s => s.id);
     const openPoIds = allPOs.filter(p => ["Draft", "Confirmed", "In Production"].includes(p.status || "")).map(p => p.id);
@@ -271,25 +268,95 @@ export async function GET() {
     const stageDist: Record<string, number> = {};
     STAGE_ORDER.forEach(s => stageDist[s] = 0);
 
+    // 🆕 定義強型別的 StageDetail 結構
+    const stageDetails: Record<string, Array<{
+      orderType: string;
+      orderNo: string;
+      orderId: number;
+      yarnName: string;
+      colorName: string;
+      colorCode: string;
+      quantity: string;
+      customerName: string | null;
+      factoryName: string | null;
+    }>> = {};
+    STAGE_ORDER.forEach(s => stageDetails[s] = []);
+
     if (openSoIds.length > 0) {
-      const soItemStages = await db
-        .select({ stage: soItems.stage })
+      const soItemDetails = await db
+        .select({
+          stage: soItems.stage,
+          orderNo: salesOrders.soNo,
+          orderId: salesOrders.id,
+          yarnName: yarns.yarnName,
+          colorName: soItems.colorName,
+          colorCode: soItems.colorCode,
+          quantity: soItems.quantity,
+          customerName: customers.name,
+          factoryName: factories.factoryName,
+        })
         .from(soItems)
+        .leftJoin(salesOrders, eq(soItems.soId, salesOrders.id))
+        .leftJoin(yarns, eq(soItems.yarnId, yarns.id))
+        .leftJoin(customers, eq(salesOrders.customerId, customers.id))
+        .leftJoin(factories, eq(yarns.factoryId, factories.id))
         .where(sql`${soItems.soId} IN (${sql.join(openSoIds.map(id => sql`${id}`), sql`, `)})`);
-      for (const r of soItemStages) {
+
+      for (const r of soItemDetails) {
         const s = r.stage || "Order Confirmed";
-        if (stageDist[s] !== undefined) stageDist[s]++;
+        if (stageDetails[s]) {
+          stageDetails[s].push({
+            orderType: "SO",
+            orderNo: r.orderNo || "",
+            orderId: Number(r.orderId) || 0, // 🆕 強制轉型，100% 解決 number | null 報錯
+            yarnName: r.yarnName || "",
+            colorName: r.colorName || "",
+            colorCode: r.colorCode || "",
+            quantity: r.quantity || "",
+            customerName: r.customerName,
+            factoryName: r.factoryName,
+          });
+          if (stageDist[s] !== undefined) stageDist[s]++;
+        }
       }
     }
 
     if (openPoIds.length > 0) {
-      const poItemStages = await db
-        .select({ stage: poItems.stage })
+      const poItemDetails = await db
+        .select({
+          stage: poItems.stage,
+          orderNo: purchaseOrders.poNo,
+          orderId: purchaseOrders.id,
+          yarnName: yarns.yarnName,
+          colorName: poItems.colorName,
+          colorCode: poItems.colorCode,
+          quantity: poItems.quantity,
+          customerName: customers.name,
+          factoryName: factories.factoryName,
+        })
         .from(poItems)
+        .leftJoin(purchaseOrders, eq(poItems.poId, purchaseOrders.id))
+        .leftJoin(yarns, eq(poItems.yarnId, yarns.id))
+        .leftJoin(customers, eq(purchaseOrders.customerId, customers.id))
+        .leftJoin(factories, eq(yarns.factoryId, factories.id))
         .where(sql`${poItems.poId} IN (${sql.join(openPoIds.map(id => sql`${id}`), sql`, `)})`);
-      for (const r of poItemStages) {
+
+      for (const r of poItemDetails) {
         const s = r.stage || "Order Confirmed";
-        if (stageDist[s] !== undefined) stageDist[s]++;
+        if (stageDetails[s]) {
+          stageDetails[s].push({
+            orderType: "PO",
+            orderNo: r.orderNo || "",
+            orderId: Number(r.orderId) || 0, // 🆕 強制轉型，100% 解決 number | null 報錯
+            yarnName: r.yarnName || "",
+            colorName: r.colorName || "",
+            colorCode: r.colorCode || "",
+            quantity: r.quantity || "",
+            customerName: r.customerName,
+            factoryName: r.factoryName,
+          });
+          if (stageDist[s] !== undefined) stageDist[s]++;
+        }
       }
     }
 
@@ -358,7 +425,7 @@ export async function GET() {
         salesOrders: allSOs.length,
         salesOrdersOpen: soOpen,
         purchaseOrders: allPOs.length,
-        purchaseOrdersOpen: poOpen, // 🆕 此時會正確返回大小寫無感的數量 2！
+        purchaseOrdersOpen: poOpen,
         goodsReceipts: allGRs.length,
         goodsReceiptsInTransit: grInTransit,
         deliveryNotes: allDNs.length,
@@ -381,6 +448,7 @@ export async function GET() {
         total: stageTotal,
         bottleneck: bottleneckStage,
         stageOrder: STAGE_ORDER,
+        details: stageDetails, // 🆕 正確回傳明細
       },
       topYarnTrends: top5Trends,
       movers: movers.slice(0, 10),
