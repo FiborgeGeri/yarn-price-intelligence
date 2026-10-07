@@ -1,6 +1,5 @@
 import ExcelJS from "exceljs";
 
-// 🆕 全新專業黑白灰色調 - 列印友善
 const COLORS = {
   black: "000000",
   darkGray: "595959",
@@ -16,13 +15,6 @@ const BORDER_THIN: Partial<ExcelJS.Borders> = {
   left: { style: "thin", color: { argb: COLORS.lightGray } },
   bottom: { style: "thin", color: { argb: COLORS.lightGray } },
   right: { style: "thin", color: { argb: COLORS.lightGray } },
-};
-
-const BORDER_MEDIUM: Partial<ExcelJS.Borders> = {
-  top: { style: "medium", color: { argb: COLORS.darkGray } },
-  left: { style: "medium", color: { argb: COLORS.darkGray } },
-  bottom: { style: "medium", color: { argb: COLORS.darkGray } },
-  right: { style: "medium", color: { argb: COLORS.darkGray } },
 };
 
 const BORDER_BOTTOM: Partial<ExcelJS.Borders> = {
@@ -59,7 +51,6 @@ export interface ExportItem {
   packages?: number;
   grossWeight?: string;
   netWeight?: string;
-  // 🆕 Reconciliation 專用
   docNo?: string;
   docDate?: string;
   docType?: string;
@@ -83,23 +74,26 @@ export interface ExportData {
   incoterms?: string;
   status?: string;
   validUntil?: string;
+  orderCategory?: string;
+  quantityUnit?: string;
   items: ExportItem[];
   subtotal?: number;
   vatRate?: number;
   vatAmount?: number;
   total?: number;
+  totalQuantity?: number;
   bankInfo?: { bankName: string; accountName?: string; accountNumber?: string; swiftCode?: string; iban?: string; branch?: string; bankCode?: string };
   notes?: string;
-  // 🆕 Reconciliation 專用
   periodFrom?: string;
   periodTo?: string;
   openingBalance?: number;
   closingBalance?: number;
+  exportedBy?: string;
 }
 
 export async function generateExcel(data: ExportData): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Fiborge Sales & Sourcing Hub";
+  wb.creator = "Fiborge";
   wb.created = new Date();
 
   const ws = wb.addWorksheet(data.docType, {
@@ -115,25 +109,22 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     views: [{ showGridLines: false }],
   });
 
-  // 統一欄位寬度（適合 A4 直式列印）
   ws.columns = [
     { width: 4 },   // A: #
-    { width: 24 },  // B: Yarn/Description
-    { width: 12 },  // C: Spec
+    { width: 22 },  // B: Description
+    { width: 16 },  // C: Spec (Count + Composition)
     { width: 14 },  // D: Color
     { width: 14 },  // E: Reference
-    { width: 10 },  // F: Qty
-    { width: 12 },  // G: Unit Price
+    { width: 12 },  // F: Qty
+    { width: 14 },  // G: Unit Price
     { width: 14 },  // H: Amount
-    { width: 8 },   // I: Weight
-    { width: 10 },  // J: Incoterms
-    { width: 16 },  // K: Remarks
+    { width: 10 },  // I: Weight Basis
+    { width: 16 },  // J: Remarks
   ];
 
   let row = 1;
 
-  // ===================== HEADER AREA =====================
-  // Left: Logo + Company Name
+  // ===================== LOGO =====================
   let logoImageId: number | null = null;
   if (data.company?.logoPath) {
     try {
@@ -153,122 +144,152 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   }
 
   if (logoImageId !== null) {
-    ws.addImage(logoImageId, {
-      tl: { col: 0, row: 0 },
-      ext: { width: 110, height: 36 },
-    });
+    ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: 110, height: 36 } });
   }
 
-  // 公司名稱（Logo 下方）
-  ws.getRow(3).height = 20;
+  // ===================== 🔧 優化 1: 公司名稱放大 + 地址電話直接跟隨 =====================
+  ws.getRow(3).height = 22;
   ws.getCell("A3").value = data.company?.officialName || data.company?.name || "FIBORGE COMPANY LIMITED";
-  ws.getCell("A3").font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+  ws.getCell("A3").font = { size: 14, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
   ws.mergeCells("A3:E3");
 
-  // Right: Document Type (大標題)
-  ws.getCell("G1").value = data.docType.toUpperCase();
-  ws.getCell("G1").font = { size: 20, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
-  ws.getCell("G1").alignment = { horizontal: "right", vertical: "middle" };
-  ws.mergeCells("G1:K2");
-  ws.getRow(1).height = 24;
-  ws.getRow(2).height = 24;
-
-  // 文件編號 & 日期
-  ws.getCell("G3").value = `No: ${data.docNo}`;
-  ws.getCell("G3").font = { size: 10, bold: true, color: { argb: COLORS.darkGray }, name: "Calibri" };
-  ws.getCell("G3").alignment = { horizontal: "right" };
-  ws.mergeCells("G3:K3");
-
-  ws.getCell("G4").value = `Date: ${data.date}`;
-  ws.getCell("G4").font = { size: 10, color: { argb: COLORS.darkGray }, name: "Calibri" };
-  ws.getCell("G4").alignment = { horizontal: "right" };
-  ws.mergeCells("G4:K4");
-
-  if (data.validUntil) {
-    ws.getCell("G5").value = `Valid Until: ${data.validUntil}`;
-    ws.getCell("G5").font = { size: 10, color: { argb: COLORS.darkGray }, name: "Calibri" };
-    ws.getCell("G5").alignment = { horizontal: "right" };
-    ws.mergeCells("G5:K5");
-  }
-
-  // 水平分隔線
-  row = 6;
-  for (let c = 1; c <= 11; c++) {
-    ws.getCell(row, c).border = BORDER_BOTTOM;
-  }
-  row++;
-
-  // ===================== PARTY INFO =====================
-  const infoStart = row;
-
-  // From (公司)
-  ws.getCell(`A${row}`).value = "FROM";
-  ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
-  ws.mergeCells(`A${row}:E${row}`);
-  row++;
-  ws.getCell(`A${row}`).value = data.company?.name || "";
-  ws.getCell(`A${row}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
-  ws.mergeCells(`A${row}:E${row}`);
-  row++;
+  let compRow = 4;
   if (data.company?.address) {
-    ws.getCell(`A${row}`).value = data.company.address;
-    ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
-    ws.getCell(`A${row}`).alignment = { wrapText: true, vertical: "top" };
-    ws.mergeCells(`A${row}:E${row}`);
-    ws.getRow(row).height = 30;
-    row++;
+    ws.getCell(`A${compRow}`).value = data.company.address;
+    ws.getCell(`A${compRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+    ws.getCell(`A${compRow}`).alignment = { wrapText: true, vertical: "top" };
+    ws.mergeCells(`A${compRow}:E${compRow}`);
+    ws.getRow(compRow).height = 28;
+    compRow++;
   }
   if (data.company?.telephone) {
-    ws.getCell(`A${row}`).value = `Tel: ${data.company.telephone}`;
-    ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
-    ws.mergeCells(`A${row}:E${row}`);
-    row++;
+    ws.getCell(`A${compRow}`).value = `Tel: ${data.company.telephone}`;
+    ws.getCell(`A${compRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+    ws.mergeCells(`A${compRow}:E${compRow}`);
+    compRow++;
   }
 
-  // To (客戶/紗廠)
-  if (data.party) {
-    const partyLabel = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "TO (SUPPLIER)" : "TO (CLIENT)";
-    let partyRow = infoStart;
-    ws.getCell(`G${partyRow}`).value = partyLabel;
-    ws.getCell(`G${partyRow}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
-    ws.mergeCells(`G${partyRow}:K${partyRow}`);
-    partyRow++;
-    ws.getCell(`G${partyRow}`).value = data.party.name;
-    ws.getCell(`G${partyRow}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
-    ws.mergeCells(`G${partyRow}:K${partyRow}`);
-    partyRow++;
-    if (data.party.officialName && data.party.officialName !== data.party.name) {
-      ws.getCell(`G${partyRow}`).value = data.party.officialName;
-      ws.getCell(`G${partyRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
-      ws.mergeCells(`G${partyRow}:K${partyRow}`);
-      partyRow++;
-    }
-    if (data.party.address) {
-      ws.getCell(`G${partyRow}`).value = data.party.address;
-      ws.getCell(`G${partyRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
-      ws.getCell(`G${partyRow}`).alignment = { wrapText: true, vertical: "top" };
-      ws.mergeCells(`G${partyRow}:K${partyRow}`);
-      ws.getRow(partyRow).height = 30;
-      partyRow++;
-    }
-    if (data.party.attn) {
-      ws.getCell(`G${partyRow}`).value = `Attn: ${data.party.attn}`;
-      ws.getCell(`G${partyRow}`).font = { size: 9, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
-      ws.mergeCells(`G${partyRow}:K${partyRow}`);
-      partyRow++;
-    }
-    row = Math.max(row, partyRow);
+  // ===================== 🔧 優化 4: 文件類型 + 編號 + 日期 (右上角) =====================
+  ws.getCell("G1").value = data.docType.toUpperCase();
+  ws.getCell("G1").font = { size: 14, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+  ws.getCell("G1").alignment = { horizontal: "right", vertical: "middle" };
+  ws.mergeCells("G1:J2");
+
+  // 🔧 Client PO 粗體顯示（最醒目）
+  let rightRow = 3;
+  if (data.customerPoNo) {
+    ws.getCell(`G${rightRow}`).value = `Client PO: ${data.customerPoNo}`;
+    ws.getCell(`G${rightRow}`).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+    ws.getCell(`G${rightRow}`).alignment = { horizontal: "right" };
+    ws.mergeCells(`G${rightRow}:J${rightRow}`);
+    rightRow++;
   }
 
+  // 🔧 Internal PO No
+  const internalLabel = data.docType === "Purchase Order" ? "PO No" : data.docType === "Quotation" ? "Quote No" : data.docType === "Delivery Note" ? "DN No" : data.docType === "Sales Invoice" ? "Invoice No" : "Doc No";
+  ws.getCell(`G${rightRow}`).value = `${internalLabel}: ${data.docNo}`;
+  ws.getCell(`G${rightRow}`).font = { size: 10, color: { argb: COLORS.darkGray }, name: "Calibri" };
+  ws.getCell(`G${rightRow}`).alignment = { horizontal: "right" };
+  ws.mergeCells(`G${rightRow}:J${rightRow}`);
+  rightRow++;
+
+  // 🔧 PO Date / Quote Date 等
+  const dateLabel = data.docType === "Purchase Order" ? "PO Date" : data.docType === "Quotation" ? "Quote Date" : data.docType === "Delivery Note" ? "DN Date" : data.docType === "Sales Invoice" ? "Invoice Date" : "Date";
+  ws.getCell(`G${rightRow}`).value = `${dateLabel}: ${data.date}`;
+  ws.getCell(`G${rightRow}`).font = { size: 10, color: { argb: COLORS.darkGray }, name: "Calibri" };
+  ws.getCell(`G${rightRow}`).alignment = { horizontal: "right" };
+  ws.mergeCells(`G${rightRow}:J${rightRow}`);
+  rightRow++;
+
+  // 🔧 Delivery Date
+  if (data.deliveryDate) {
+    ws.getCell(`G${rightRow}`).value = `Delivery Date: ${data.deliveryDate}`;
+    ws.getCell(`G${rightRow}`).font = { size: 10, color: { argb: COLORS.darkGray }, name: "Calibri" };
+    ws.getCell(`G${rightRow}`).alignment = { horizontal: "right" };
+    ws.mergeCells(`G${rightRow}:J${rightRow}`);
+    rightRow++;
+  }
+
+  if (data.validUntil) {
+    ws.getCell(`G${rightRow}`).value = `Valid Until: ${data.validUntil}`;
+    ws.getCell(`G${rightRow}`).font = { size: 10, color: { argb: COLORS.darkGray }, name: "Calibri" };
+    ws.getCell(`G${rightRow}`).alignment = { horizontal: "right" };
+    ws.mergeCells(`G${rightRow}:J${rightRow}`);
+    rightRow++;
+  }
+
+  row = Math.max(compRow, rightRow) + 1;
+
+  // 分隔線
+  for (let c = 1; c <= 10; c++) { ws.getCell(row, c).border = BORDER_BOTTOM; }
   row++;
 
-  // ===================== REFERENCE INFO BAR =====================
+  // ===================== 🔧 優化 2: TO (Supplier/Client) + Ship To =====================
+  const infoStart = row;
+
+  // TO
+  const toLabel = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "TO (SUPPLIER)" : "TO (CLIENT)";
+  if (data.party) {
+    ws.getCell(`A${row}`).value = toLabel;
+    ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
+    ws.mergeCells(`A${row}:E${row}`);
+    row++;
+    ws.getCell(`A${row}`).value = data.party.name;
+    ws.getCell(`A${row}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+    ws.mergeCells(`A${row}:E${row}`);
+    row++;
+    if (data.party.officialName && data.party.officialName !== data.party.name) {
+      ws.getCell(`A${row}`).value = data.party.officialName;
+      ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+      ws.mergeCells(`A${row}:E${row}`);
+      row++;
+    }
+    if (data.party.address) {
+      ws.getCell(`A${row}`).value = data.party.address;
+      ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+      ws.getCell(`A${row}`).alignment = { wrapText: true, vertical: "top" };
+      ws.mergeCells(`A${row}:E${row}`);
+      ws.getRow(row).height = 28;
+      row++;
+    }
+    if (data.party.attn) {
+      ws.getCell(`A${row}`).value = `Attn: ${data.party.attn}`;
+      ws.getCell(`A${row}`).font = { size: 9, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+      ws.mergeCells(`A${row}:E${row}`);
+      row++;
+    }
+  }
+
+  // 🔧 Ship To / Delivery To（右側）
+  if (data.shipTo) {
+    let shipRow = infoStart;
+    ws.getCell(`G${shipRow}`).value = "SHIP TO";
+    ws.getCell(`G${shipRow}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
+    ws.mergeCells(`G${shipRow}:J${shipRow}`);
+    shipRow++;
+    ws.getCell(`G${shipRow}`).value = data.shipTo.name;
+    ws.getCell(`G${shipRow}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+    ws.mergeCells(`G${shipRow}:J${shipRow}`);
+    shipRow++;
+    if (data.shipTo.address) {
+      ws.getCell(`G${shipRow}`).value = data.shipTo.address;
+      ws.getCell(`G${shipRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+      ws.getCell(`G${shipRow}`).alignment = { wrapText: true, vertical: "top" };
+      ws.mergeCells(`G${shipRow}:J${shipRow}`);
+      ws.getRow(shipRow).height = 28;
+      shipRow++;
+    }
+    row = Math.max(row, shipRow);
+  }
+
+  row += 1;
+
+  // ===================== 🔧 優化 3: Reference Info Bar (加 Order Category, 去掉 Client PO 和 Delivery) =====================
   const refItems: string[] = [];
   if (data.reference) refItems.push(`Ref: ${data.reference}`);
-  if (data.customerPoNo) refItems.push(`Client PO: ${data.customerPoNo}`);
-  if (data.deliveryDate) refItems.push(`Delivery: ${data.deliveryDate}`);
   if (data.paymentTerms) refItems.push(`Payment: ${data.paymentTerms}`);
   if (data.incoterms) refItems.push(`Incoterms: ${data.incoterms}`);
+  if (data.orderCategory && data.orderCategory !== "Bulk") refItems.push(`Category: ${data.orderCategory}`);
   if (data.currency) refItems.push(`Currency: ${data.currency}`);
 
   if (refItems.length > 0) {
@@ -276,80 +297,69 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
     ws.getCell(`A${row}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
     ws.getCell(`A${row}`).alignment = { vertical: "middle", wrapText: true };
-    ws.mergeCells(`A${row}:K${row}`);
+    ws.mergeCells(`A${row}:J${row}`);
     ws.getRow(row).height = 20;
     row += 2;
   }
 
-  // ===================== ITEMS TABLE =====================
+  // ===================== 🔧 優化 5: ITEMS TABLE =====================
   const isDN = data.docType === "Delivery Note";
   const isReconciliation = data.docType === "Reconciliation";
 
+  // 計算統一的幣別和單位標示
+  const mainCurrency = data.currency || data.items[0]?.currency || "USD";
+  const mainUnit = data.quantityUnit || "KGS";
+
   let headers: string[];
   if (isReconciliation) {
-    headers = ["#", "Doc No", "Date", "Type", "Description", "", "Debit", "Credit", "", "", "Balance"];
+    headers = ["#", "Doc No", "Date", "Type", "Description", "", "Debit", "Credit", "", "Balance"];
   } else if (isDN) {
-    headers = ["#", "Yarn", "Count", "Color", "Lot No", "Qty", "Packages", "Gross Wt", "Net Wt", "", "Remarks"];
+    headers = ["#", "Yarn", "Count", "Color", "Lot No", `Qty (${mainUnit})`, "Packages", "Gross Wt", "Net Wt", "Remarks"];
   } else {
-    headers = ["#", "Description", "Spec", "Color", "Reference", "Qty", "Unit Price", "Amount", "Weight", "Incoterms", "Remarks"];
+    // 🔧 直接在標頭顯示單位 (方案 A)
+    headers = ["#", "Description", "Spec", "Color", "Reference", `Qty (${mainUnit})`, `Unit Price (${mainCurrency}/${mainUnit.replace(/S$/i, "")})`, `Amount (${mainCurrency})`, "Weight", "Remarks"];
   }
 
-  // 表格標頭（黑底白字）
   const headerRow = ws.getRow(row++);
   headerRow.values = headers;
   headerRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.black } };
-    cell.font = { color: { argb: COLORS.white }, bold: true, size: 9, name: "Calibri" };
+    cell.font = { color: { argb: COLORS.white }, bold: true, size: 8, name: "Calibri" };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.border = BORDER_THIN;
   });
-  headerRow.height = 22;
+  headerRow.height = 26;
 
-  // 資料列
+  let totalQty = 0;
+
   data.items.forEach((item, i) => {
     const dataRow = ws.getRow(row++);
-    let vals: any[];
 
+    // 🔧 Spec = Count + Composition 合併顯示
+    const spec = [item.yarnCount, item.composition].filter(Boolean).join("\n");
+    const qty = parseFloat(item.quantity || "0") || 0;
+    totalQty += qty;
+
+    // 計算 amount
+    const amount = item.amount || (qty * (item.unitPrice || 0));
+
+    let vals: any[];
     if (isReconciliation) {
-      vals = [
-        i + 1,
-        item.docNo || "",
-        item.docDate || "",
-        item.docType || "",
-        item.description || "",
-        "",
-        item.debit !== undefined && item.debit > 0 ? item.debit.toFixed(2) : "",
-        item.credit !== undefined && item.credit > 0 ? item.credit.toFixed(2) : "",
-        "",
-        "",
-        item.balance !== undefined ? item.balance.toFixed(2) : "",
-      ];
+      vals = [i + 1, item.docNo || "", item.docDate || "", item.docType || "", item.description || "", "", item.debit && item.debit > 0 ? item.debit.toFixed(2) : "", item.credit && item.credit > 0 ? item.credit.toFixed(2) : "", "", item.balance !== undefined ? item.balance.toFixed(2) : ""];
     } else if (isDN) {
-      vals = [
-        i + 1,
-        item.yarnName || item.description || "",
-        item.yarnCount || "",
-        item.colorName || "",
-        item.lotNo || "",
-        item.quantity || "",
-        item.packages || "",
-        item.grossWeight || "",
-        item.netWeight || "",
-        "",
-        item.notes || "",
-      ];
+      vals = [i + 1, item.yarnName || item.description || "", item.yarnCount || "", item.colorName || "", item.lotNo || "", item.quantity || "", item.packages || "", item.grossWeight || "", item.netWeight || "", item.notes || ""];
     } else {
+      // 🔧 Qty 和 Unit Price 只顯示數字（單位已在標頭）
       vals = [
         i + 1,
         item.yarnName || item.description || "",
-        item.yarnCount || item.composition || "",
-        item.colorName || "",
-        item.colorReference || item.colorCode || "",
-        item.quantity || "",
+        spec,
+        [item.colorName, item.colorCode].filter(Boolean).join("\n"),
+        item.colorReference || "",
+        qty > 0 ? qty.toLocaleString(undefined, { minimumFractionDigits: 0 }) : "",
         item.unitPrice ? item.unitPrice.toFixed(2) : "",
-        item.amount ? item.amount.toFixed(2) : "",
+        amount > 0 ? amount.toFixed(2) : "",
         item.weightBasis || "",
-        item.incoterms || "",
         item.notes || "",
       ];
     }
@@ -363,20 +373,16 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       cell.alignment = { vertical: "middle", wrapText: true };
       cell.border = BORDER_THIN;
 
-      // 文字對齊規則
-      if (colNum === 1) {
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-      } else if (colNum >= 6 && colNum <= 8) {
-        cell.alignment = { horizontal: "right", vertical: "middle" };
-        cell.font = { size: 9, color: { argb: COLORS.black }, name: "Calibri" };
-      } else if (colNum === 11) {
-        cell.alignment = { horizontal: "right", vertical: "middle" };
-      }
+      if (colNum === 1) cell.alignment = { horizontal: "center", vertical: "middle" };
+      if (colNum >= 6 && colNum <= 8) cell.alignment = { horizontal: "right", vertical: "middle" };
+      if (colNum === 10) cell.alignment = { horizontal: "right", vertical: "middle" };
+      // Spec 欄位稍微特殊處理
+      if (colNum === 3) cell.alignment = { vertical: "middle", wrapText: true };
     });
-    dataRow.height = 20;
+    dataRow.height = spec.includes("\n") ? 28 : 20;
   });
 
-  // ===================== TOTALS =====================
+  // ===================== 🔧 優化 6: TOTALS (含重量總計) =====================
   if (!isDN && !isReconciliation && data.total !== undefined) {
     row++;
     const addTotalRow = (label: string, value: string, isGrand = false) => {
@@ -396,29 +402,33 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       tr.height = isGrand ? 24 : 18;
     };
 
+    // 🔧 Total Qty（重量總計）
+    if (totalQty > 0) {
+      addTotalRow(`Total Qty:`, `${totalQty.toLocaleString(undefined, { minimumFractionDigits: 0 })} ${mainUnit}`);
+    }
     if (data.subtotal !== undefined) {
-      addTotalRow("Subtotal:", `${data.currency || ""} ${data.subtotal.toFixed(2)}`);
+      addTotalRow("Subtotal:", `${mainCurrency} ${data.subtotal.toFixed(2)}`);
     }
     if (data.vatRate && data.vatAmount) {
-      addTotalRow(`VAT (${data.vatRate}%):`, `${data.currency || ""} ${data.vatAmount.toFixed(2)}`);
+      addTotalRow(`VAT (${data.vatRate}%):`, `${mainCurrency} ${data.vatAmount.toFixed(2)}`);
     }
-    addTotalRow("TOTAL:", `${data.currency || ""} ${data.total.toFixed(2)}`, true);
+    addTotalRow("TOTAL:", `${mainCurrency} ${data.total.toFixed(2)}`, true);
   }
 
-  // Reconciliation 的期末餘額
+  // Reconciliation closing balance
   if (isReconciliation && data.closingBalance !== undefined) {
     row++;
-    const balanceRow = ws.getRow(row++);
-    balanceRow.getCell(7).value = "CLOSING BALANCE:";
-    balanceRow.getCell(11).value = `${data.currency || ""} ${data.closingBalance.toFixed(2)}`;
-    balanceRow.getCell(7).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
-    balanceRow.getCell(11).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
-    balanceRow.getCell(7).alignment = { horizontal: "right" };
-    balanceRow.getCell(11).alignment = { horizontal: "right" };
-    balanceRow.getCell(7).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
-    balanceRow.getCell(11).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
-    balanceRow.getCell(11).border = { top: { style: "medium", color: { argb: COLORS.black } }, bottom: { style: "double", color: { argb: COLORS.black } } };
-    balanceRow.height = 24;
+    const balRow = ws.getRow(row++);
+    balRow.getCell(7).value = "CLOSING BALANCE:";
+    balRow.getCell(10).value = `${data.currency || ""} ${data.closingBalance.toFixed(2)}`;
+    balRow.getCell(7).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+    balRow.getCell(10).font = { size: 11, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+    balRow.getCell(7).alignment = { horizontal: "right" };
+    balRow.getCell(10).alignment = { horizontal: "right" };
+    balRow.getCell(10).border = { top: { style: "medium", color: { argb: COLORS.black } }, bottom: { style: "double", color: { argb: COLORS.black } } };
+    balRow.getCell(7).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
+    balRow.getCell(10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
+    balRow.height = 24;
   }
 
   // ===================== BANK INFO =====================
@@ -426,7 +436,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     row += 2;
     ws.getCell(`A${row}`).value = "BANK DETAILS";
     ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
-    ws.mergeCells(`A${row}:K${row}`);
+    ws.mergeCells(`A${row}:J${row}`);
     row++;
 
     const bankLines = [
@@ -439,10 +449,10 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     ].filter(Boolean);
 
     bankLines.forEach((line) => {
-      const r = ws.getRow(row++);
-      r.getCell(1).value = line;
-      r.getCell(1).font = { size: 9, color: { argb: COLORS.black }, name: "Calibri" };
-      ws.mergeCells(`A${row - 1}:K${row - 1}`);
+      ws.getCell(`A${row}`).value = line;
+      ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.black }, name: "Calibri" };
+      ws.mergeCells(`A${row}:J${row}`);
+      row++;
     });
   }
 
@@ -451,40 +461,54 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     row += 2;
     ws.getCell(`A${row}`).value = "REMARKS";
     ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
-    ws.mergeCells(`A${row}:K${row}`);
+    ws.mergeCells(`A${row}:J${row}`);
     row++;
-
     ws.getCell(`A${row}`).value = data.notes;
     ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.black }, name: "Calibri" };
     ws.getCell(`A${row}`).alignment = { wrapText: true, vertical: "top" };
-    ws.mergeCells(`A${row}:K${row}`);
+    ws.mergeCells(`A${row}:J${row}`);
     const noteLines = data.notes.split("\n").length;
     ws.getRow(row).height = Math.max(40, noteLines * 14);
     row++;
   }
 
-  // ===================== SIGNATURES =====================
+  // ===================== 🔧 優化 8: SIGNATURES (帶公司名稱) =====================
   row += 3;
-  const sigRow = ws.getRow(row);
-  sigRow.getCell(2).value = "_______________________";
-  sigRow.getCell(8).value = "_______________________";
-  sigRow.getCell(2).alignment = { horizontal: "center" };
-  sigRow.getCell(8).alignment = { horizontal: "center" };
-  row++;
-  const sigLabelRow = ws.getRow(row);
-  sigLabelRow.getCell(2).value = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "Authorized by" : "Authorized by";
-  sigLabelRow.getCell(8).value = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "Supplier Confirmation" : "Client Confirmation";
-  sigLabelRow.getCell(2).alignment = { horizontal: "center" };
-  sigLabelRow.getCell(8).alignment = { horizontal: "center" };
-  sigLabelRow.getCell(2).font = { size: 8, color: { argb: COLORS.mediumGray }, name: "Calibri" };
-  sigLabelRow.getCell(8).font = { size: 8, color: { argb: COLORS.mediumGray }, name: "Calibri" };
 
-  // ===================== FOOTER =====================
+  // 左邊：我方（公司）
+  const myCompanyName = data.company?.name || "Company";
+  const otherPartyName = data.party?.name || (data.docType === "Purchase Order" ? "Supplier" : "Client");
+
+  ws.getCell(`B${row}`).value = "_______________________";
+  ws.getCell(`B${row}`).alignment = { horizontal: "center" };
+  ws.getCell(`H${row}`).value = "_______________________";
+  ws.getCell(`H${row}`).alignment = { horizontal: "center" };
+  row++;
+
+  ws.getCell(`B${row}`).value = "Authorized by";
+  ws.getCell(`B${row}`).font = { size: 8, color: { argb: COLORS.mediumGray }, name: "Calibri" };
+  ws.getCell(`B${row}`).alignment = { horizontal: "center" };
+  ws.getCell(`H${row}`).value = "Confirmation";
+  ws.getCell(`H${row}`).font = { size: 8, color: { argb: COLORS.mediumGray }, name: "Calibri" };
+  ws.getCell(`H${row}`).alignment = { horizontal: "center" };
+  row++;
+
+  // 🔧 簽名下方帶出公司名
+  ws.getCell(`B${row}`).value = myCompanyName;
+  ws.getCell(`B${row}`).font = { size: 8, bold: true, color: { argb: COLORS.darkGray }, name: "Calibri" };
+  ws.getCell(`B${row}`).alignment = { horizontal: "center" };
+  ws.getCell(`H${row}`).value = otherPartyName;
+  ws.getCell(`H${row}`).font = { size: 8, bold: true, color: { argb: COLORS.darkGray }, name: "Calibri" };
+  ws.getCell(`H${row}`).alignment = { horizontal: "center" };
+
+  // ===================== 🔧 優化 7: FOOTER (User + 精確到秒) =====================
   row += 3;
-  ws.getCell(`A${row}`).value = `Generated on ${new Date().toISOString().slice(0, 10)}  |  Fiborge Sales & Sourcing Hub`;
+  const nowFormatted = new Date().toISOString().replace("T", " ").slice(0, 19);
+  const exportedByText = data.exportedBy ? `by ${data.exportedBy}` : "";
+  ws.getCell(`A${row}`).value = `Generated on ${nowFormatted} ${exportedByText}`.trim();
   ws.getCell(`A${row}`).font = { size: 7, color: { argb: COLORS.mediumGray }, name: "Calibri", italic: true };
   ws.getCell(`A${row}`).alignment = { horizontal: "center" };
-  ws.mergeCells(`A${row}:K${row}`);
+  ws.mergeCells(`A${row}:J${row}`);
 
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer);

@@ -394,8 +394,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: `Unknown type: ${type}` }, { status: 400 });
     }
 
-    const buffer = await generateExcel(data);
-    const fileName = `${data.docType.replace(/\s+/g, "_")}_${data.docNo}.xlsx`;
+        const buffer = await generateExcel(data);
+
+    // 🆕 智能檔案命名：Type_ClientPO_InternalPO_Date
+    const prefixMap: Record<string, string> = {
+      "Quotation": "Q",
+      "Purchase Order": "PO",
+      "Delivery Note": "DN",
+      "Sales Invoice": "INV",
+      "Supplier Invoice": "SINV",
+      "Reconciliation": "REC",
+    };
+    const prefix = prefixMap[data.docType] || data.docType;
+
+    // 清理檔名中的非法字元
+    const sanitize = (s: string) => s.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_");
+
+    const parts: string[] = [prefix];
+
+    // Client PO（如果有）
+    if (data.customerPoNo) {
+      parts.push(sanitize(data.customerPoNo));
+    }
+
+    // 內部單號
+    parts.push(sanitize(data.docNo));
+
+    // 日期
+    parts.push(data.date);
+
+    const fileName = `${parts.join("_")}.xlsx`;
+
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
