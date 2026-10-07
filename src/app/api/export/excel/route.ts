@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
+  quotations,
   purchaseOrders, poItems,
   deliveryNotes, dnItems,
   invoices, invoiceItems,
   supplierInvoices, supplierInvoiceItems,
-  customers, factories, companies, yarns,
+  customers, customerContacts, factories, companies, yarns,
   shipToAddresses, bankAccounts, systemSettings,
+  payments,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { generateExcel, ExportData, ExportItem } from "@/lib/excelExport";
+import { detectDocumentLanguage, getRemarksTemplateKey } from "@/lib/exportHelpers";
 
 async function fetchTemplateRemarks(key: string): Promise<string> {
   try {
@@ -49,12 +52,90 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
     const id = Number(searchParams.get("id"));
+    const langOverride = searchParams.get("lang") as "en" | "zh" | null;
 
     if (!type || !id) return NextResponse.json({ error: "type and id required" }, { status: 400 });
 
     let data: ExportData;
 
-    if (type === "po") {
+    // ============== QUOTATION ==============
+    if (type === "quotation") {
+      // 查詢同 quoteNo 的所有報價行
+      const [refQuote] = await db.select().from(quotations).where(eq(quotations.id, id));
+      if (!refQuote) return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
+
+      const quoteNo = refQuote.quoteNo;
+      const quoteRows = quoteNo
+        ? await db.select().from(quotations).where(eq(quotations.quoteNo, quoteNo))
+        : [refQuote];
+
+      const [customer] = refQuote.customerId
+        ? await db.select().from(customers).where(eq(customers.id, refQuote.customerId))
+        : [];
+      const [company] = refQuote.companyId
+        ? await db.select().from(companies).where(eq(companies.id, refQuote.companyId))
+        : [];
+      const [contact] = refQuote.contactId
+        ? await db.select().from(customerContacts).where(eq(customerContacts.id, refQuote.contactId))
+        : [];
+
+      // 撈取每一行報價對應的 yarn
+      const items: ExportItem[] = [];
+      for (const q of quoteRows) {
+        const [yarn] = q.yarnId ? await db.select().from(yarns).where(eq(yarns.id, q.yarnId)) : [];
+        items.push({
+          yarnName: yarn?.yarnName,
+          yarnCount: yarn?.yarnCount ?? undefined,
+          composition: yarn?.composition ?? undefined,
+          quantity: "",
+          unitPrice: q.quotedPrice,
+          currency: q.currency ?? "USD",
+          unit: q.unit ?? "per KG",
+          weightBasis: q.weightBasis ?? undefined,
+          incoterms: q.incoterms ?? undefined,
+          notes: q.notes ?? undefined,
+        });
+      }
+
+      const lang = langOverride || detectDocumentLanguage(customer?.country);
+      const templateKey = getRemarksTemplateKey("quotation", lang);
+      const defaultRemarks = await fetchTemplateRemarks(templateKey);
+      const finalRemarks = refQuote.notes
+        ? `${refQuote.notes}\n\n${defaultRemarks}`
+        : defaultRemarks;
+
+      data = {
+        docType: "Quotation",
+        docNo: quoteNo || `Q-${id}`,
+        date: refQuote.quoteDate,
+        company: company
+          ? {
+              name: company.name,
+              officialName: company.officialName ?? undefined,
+              address: company.addressEnglish ?? undefined,
+              telephone: company.telephone ?? undefined,
+              logoPath: company.logoPath ?? undefined,
+            }
+          : undefined,
+        party: customer
+          ? {
+              name: customer.name,
+              officialName: customer.officialName ?? undefined,
+              address: customer.addressEnglish ?? undefined,
+              telephone: customer.telephone ?? undefined,
+              attn: contact?.contactName ?? undefined,
+            }
+          : undefined,
+        currency: refQuote.currency ?? undefined,
+        incoterms: refQuote.incoterms ?? undefined,
+        status: refQuote.status ?? undefined,
+        validUntil: refQuote.validUntil ?? undefined,
+        items,
+        notes: finalRemarks || undefined,
+      };
+
+    // ============== PURCHASE ORDER ==============
+    } else if (type === "po") {
       const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
       if (!po) return NextResponse.json({ error: "PO not found" }, { status: 404 });
 
@@ -69,8 +150,16 @@ export async function GET(req: NextRequest) {
       const [company] = po.companyId ? await db.select().from(companies).where(eq(companies.id, po.companyId)) : [];
 
       const exportItems = toExportItems(items);
-      const subtotal = exportItems.reduce((s, it) => s + ((it.amount) || 0), 0);
-      const defaultRemarks = await fetchTemplateRemarks("template_po_remarks");
+      // 計算每行 amount
+      exportItems.forEach(it => {
+        const qty = parseFloat(it.quantity || "0") || 0;
+        it.amount = qty * (it.unitPrice || 0);
+      });
+      const subtotal = exportItems.reduce((s, it) => s + (it.amount || 0), 0);
+
+      const lang = langOverride || detectDocumentLanguage(factory?.country);
+      const templateKey = getRemarksTemplateKey("po", lang);
+      const defaultRemarks = await fetchTemplateRemarks(templateKey);
       const finalRemarks = po.notes ? `${po.notes}\n\n${defaultRemarks}` : defaultRemarks;
 
       data = {
@@ -78,7 +167,7 @@ export async function GET(req: NextRequest) {
         docNo: po.poNo || `PO-${id}`,
         date: po.poDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? undefined, telephone: factory.telephone ?? undefined } : undefined,
+        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? undefined, telephone: factory.telephone ?? undefined, attn: po.contactPerson ?? undefined } : undefined,
         reference: po.soNo ?? undefined,
         customerPoNo: po.customerPoNo ?? undefined,
         deliveryDate: po.deliveryDate ?? undefined,
@@ -92,6 +181,7 @@ export async function GET(req: NextRequest) {
         notes: finalRemarks || undefined,
       };
 
+    // ============== DELIVERY NOTE ==============
     } else if (type === "dn") {
       const [dn] = await db.select().from(deliveryNotes).where(eq(deliveryNotes.id, id));
       if (!dn) return NextResponse.json({ error: "DN not found" }, { status: 404 });
@@ -107,7 +197,9 @@ export async function GET(req: NextRequest) {
       const [company] = dn.companyId ? await db.select().from(companies).where(eq(companies.id, dn.companyId)) : [];
       const [shipTo] = dn.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, dn.shipToId)) : [];
 
-      const defaultRemarks = await fetchTemplateRemarks("template_dn_remarks");
+      const lang = langOverride || detectDocumentLanguage(customer?.country);
+      const templateKey = getRemarksTemplateKey("dn", lang);
+      const defaultRemarks = await fetchTemplateRemarks(templateKey);
       const finalRemarks = dn.notes ? `${dn.notes}\n\n${defaultRemarks}` : defaultRemarks;
 
       data = {
@@ -124,16 +216,16 @@ export async function GET(req: NextRequest) {
         notes: finalRemarks || undefined,
       };
 
+    // ============== SALES INVOICE ==============
     } else if (type === "invoice") {
       const [inv] = await db.select().from(invoices).where(eq(invoices.id, id));
       if (!inv) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
-      // 🆕 透過 Join invoices 表來撈取正確的 currency
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
         description: invoiceItems.description, colorName: invoiceItems.colorName, colorCode: invoiceItems.colorCode,
-        quantity: invoiceItems.quantity, unitPrice: invoiceItems.unitPrice, 
-        currency: invoices.currency, // 從父表帶入
+        quantity: invoiceItems.quantity, unitPrice: invoiceItems.unitPrice,
+        currency: invoices.currency,
         unit: invoiceItems.unit, weightBasis: invoiceItems.weightBasis, incoterms: invoiceItems.incoterms,
         amount: invoiceItems.amount, notes: invoiceItems.notes,
       }).from(invoiceItems)
@@ -142,18 +234,17 @@ export async function GET(req: NextRequest) {
         .where(eq(invoiceItems.invoiceId, id));
 
       const [company] = inv.companyId ? await db.select().from(companies).where(eq(companies.id, inv.companyId)) : [];
-      let party: { name: string; officialName?: string; address?: string } | undefined;
-      if (inv.customerId) {
-        const [c] = await db.select().from(customers).where(eq(customers.id, inv.customerId));
-        if (c) party = { name: c.name, officialName: c.officialName ?? undefined, address: c.addressEnglish ?? undefined };
-      }
+      const [customer] = inv.customerId ? await db.select().from(customers).where(eq(customers.id, inv.customerId)) : [];
+      const [contact] = inv.contactId ? await db.select().from(customerContacts).where(eq(customerContacts.id, inv.contactId)) : [];
       let bankInfo: any;
       if (inv.bankAccountId) {
         const [b] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, inv.bankAccountId));
         if (b) bankInfo = b;
       }
 
-      const defaultRemarks = await fetchTemplateRemarks("template_invoice_remarks");
+      const lang = langOverride || detectDocumentLanguage(customer?.country);
+      const templateKey = getRemarksTemplateKey("invoice", lang);
+      const defaultRemarks = await fetchTemplateRemarks(templateKey);
       const finalRemarks = inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks;
 
       data = {
@@ -161,7 +252,7 @@ export async function GET(req: NextRequest) {
         docNo: inv.invoiceNo || `INV-${id}`,
         date: inv.invoiceDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party,
+        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? undefined, attn: contact?.contactName ?? undefined } : undefined,
         reference: inv.soNo ?? undefined,
         customerPoNo: inv.customerPoNo ?? undefined,
         deliveryDate: inv.dueDate ?? undefined,
@@ -176,16 +267,16 @@ export async function GET(req: NextRequest) {
         notes: finalRemarks || undefined,
       };
 
+    // ============== SUPPLIER INVOICE ==============
     } else if (type === "supplier-invoice") {
       const [inv] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, id));
       if (!inv) return NextResponse.json({ error: "Supplier Invoice not found" }, { status: 404 });
 
-      // 🆕 透過 Join supplierInvoices 表來撈取正確的 currency
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
         description: supplierInvoiceItems.description, colorName: supplierInvoiceItems.colorName, colorCode: supplierInvoiceItems.colorCode,
         quantity: supplierInvoiceItems.quantity, unitPrice: supplierInvoiceItems.unitPrice,
-        currency: supplierInvoices.currency, // 從父表帶入
+        currency: supplierInvoices.currency,
         unit: supplierInvoiceItems.unit, weightBasis: supplierInvoiceItems.weightBasis, incoterms: supplierInvoiceItems.incoterms,
         amount: supplierInvoiceItems.amount, notes: supplierInvoiceItems.notes,
       }).from(supplierInvoiceItems)
@@ -194,18 +285,16 @@ export async function GET(req: NextRequest) {
         .where(eq(supplierInvoiceItems.supplierInvoiceId, id));
 
       const [company] = inv.companyId ? await db.select().from(companies).where(eq(companies.id, inv.companyId)) : [];
-      let party: { name: string; officialName?: string; address?: string } | undefined;
-      if (inv.factoryId) {
-        const [f] = await db.select().from(factories).where(eq(factories.id, inv.factoryId));
-        if (f) party = { name: f.factoryName, officialName: f.officialName ?? undefined, address: f.addressEnglish ?? undefined };
-      }
+      const [factory] = inv.factoryId ? await db.select().from(factories).where(eq(factories.id, inv.factoryId)) : [];
       let bankInfo: any;
       if (inv.bankAccountId) {
         const [b] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, inv.bankAccountId));
         if (b) bankInfo = b;
       }
 
-      const defaultRemarks = await fetchTemplateRemarks("template_supplier_invoice_remarks");
+      const lang = langOverride || detectDocumentLanguage(factory?.country);
+      const templateKey = getRemarksTemplateKey("supplier-invoice", lang);
+      const defaultRemarks = await fetchTemplateRemarks(templateKey);
       const finalRemarks = inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks;
 
       data = {
@@ -213,9 +302,8 @@ export async function GET(req: NextRequest) {
         docNo: inv.supplierInvoiceNo || inv.internalNo || `SI-${id}`,
         date: inv.invoiceDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party,
+        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? undefined } : undefined,
         reference: inv.poNo ?? undefined,
-        customerPoNo: undefined, // 🆕 修正為 undefined
         deliveryDate: inv.dueDate ?? undefined,
         currency: inv.currency ?? undefined,
         status: inv.status ?? undefined,
@@ -226,6 +314,80 @@ export async function GET(req: NextRequest) {
         total: inv.total ?? undefined,
         bankInfo,
         notes: finalRemarks || undefined,
+      };
+
+    // ============== RECONCILIATION ==============
+    } else if (type === "reconciliation") {
+      // 對帳單：id = customerId
+      const customerId = id;
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId));
+      if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+
+      // 預設公司（第一個 default）
+      const [company] = await db.select().from(companies).limit(1);
+
+      // 查該客戶所有發票 + 收款
+      const custInvoices = await db.select().from(invoices).where(eq(invoices.customerId, customerId)).orderBy(desc(invoices.invoiceDate));
+
+      // 計算每筆發票的收款
+      const items: ExportItem[] = [];
+      let balance = 0;
+      let totalDebit = 0;
+      let totalCredit = 0;
+
+      for (const inv of custInvoices) {
+        if (inv.status === "Cancelled") continue;
+        const debit = inv.total || 0;
+        balance += debit;
+        totalDebit += debit;
+        items.push({
+          docNo: inv.invoiceNo || `INV-${inv.id}`,
+          docDate: inv.invoiceDate,
+          docType: "Invoice",
+          description: `SO: ${inv.soNo || "-"} / PO: ${inv.customerPoNo || "-"}`,
+          debit,
+          credit: 0,
+          balance,
+          currency: inv.currency || "USD",
+        });
+
+        // 查該發票的收款
+        const invPayments = await db.select().from(payments).where(eq(payments.invoiceId, inv.id)).orderBy(payments.paymentDate);
+        for (const pay of invPayments) {
+          const credit = pay.amount;
+          balance -= credit;
+          totalCredit += credit;
+          items.push({
+            docNo: pay.reference || `PAY-${pay.id}`,
+            docDate: pay.paymentDate,
+            docType: "Payment",
+            description: `${pay.method || "Payment"} received against ${inv.invoiceNo || `INV-${inv.id}`}`,
+            debit: 0,
+            credit,
+            balance,
+            currency: pay.currency || "USD",
+          });
+        }
+      }
+
+      const lang = langOverride || detectDocumentLanguage(customer.country);
+      const templateKey = getRemarksTemplateKey("reconciliation", lang);
+      const defaultRemarks = await fetchTemplateRemarks(templateKey);
+      const mainCurrency = items[0]?.currency || "USD";
+
+      data = {
+        docType: "Reconciliation",
+        docNo: `REC-${customerId}-${new Date().toISOString().slice(0, 10)}`,
+        date: new Date().toISOString().slice(0, 10),
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? undefined },
+        currency: mainCurrency,
+        items,
+        openingBalance: 0,
+        closingBalance: balance,
+        subtotal: totalDebit,
+        total: balance,
+        notes: defaultRemarks || undefined,
       };
 
     } else {
