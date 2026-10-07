@@ -289,10 +289,10 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
   row += 1;
 
-  // ===================== 🔧 優化 3: Reference Info Bar (全新排序) =====================
+  // ===================== 🔧 優化 1: Reference Info Bar (全新排序) =====================
   const refItems: string[] = [];
   if (data.reference) refItems.push(`Ref: ${data.reference}`);
-  if (data.orderCategory && data.orderCategory !== "Bulk") refItems.push(`Category: ${data.orderCategory}`);
+  if (data.orderCategory) refItems.push(`Category: ${data.orderCategory}`);
   if (data.currency) refItems.push(`Currency: ${data.currency}`);
   if (data.incoterms) refItems.push(`Incoterms: ${data.incoterms}`);
   if (data.paymentTerms) refItems.push(`Payment: ${data.paymentTerms}`);
@@ -498,7 +498,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   ws.getCell(row, sigEndCol).font = { size: 8, bold: true, color: { argb: COLORS.darkGray }, name: "Calibri" };
   ws.getCell(row, sigEndCol).alignment = { horizontal: "center" };
 
-  // FOOTER (時間精確到秒，BY 登入用戶 Display Name)
+  // FOOTER
   row += 3;
   const nowFormatted = new Date().toISOString().replace("T", " ").slice(0, 19);
   const byUser = data.exportedBy ? ` by ${data.exportedBy}` : "";
