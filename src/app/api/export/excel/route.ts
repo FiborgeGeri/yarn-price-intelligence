@@ -7,12 +7,14 @@ import {
   invoices, invoiceItems,
   supplierInvoices, supplierInvoiceItems,
   customers, customerContacts, factories, companies, yarns,
-  shipToAddresses, bankAccounts, systemSettings,
+  shipToAddresses, shipToContacts, bankAccounts, systemSettings,
   payments,
+  users,
 } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { generateExcel, ExportData, ExportItem } from "@/lib/excelExport";
 import { detectDocumentLanguage, getRemarksTemplateKey } from "@/lib/exportHelpers";
+import { getSession } from "@/lib/auth";
 
 async function fetchTemplateRemarks(key: string): Promise<string> {
   try {
@@ -23,13 +25,12 @@ async function fetchTemplateRemarks(key: string): Promise<string> {
   }
 }
 
-// 🆕 確保 toExportItems 正確對齊並處理了 micron 屬性
 function toExportItems(rows: any[]): ExportItem[] {
   return rows.map((it) => ({
     yarnName: it.yarnName ?? undefined,
     yarnCount: it.yarnCount ?? undefined,
     composition: it.composition ?? undefined,
-    micron: it.micron ?? undefined, // 🆕 正確對齊明細 Micron
+    micron: it.micron ?? undefined,
     description: it.description ?? undefined,
     colorName: it.colorName ?? undefined,
     colorCode: it.colorCode ?? undefined,
@@ -57,6 +58,24 @@ export async function GET(req: NextRequest) {
     const langOverride = searchParams.get("lang") as "en" | "zh" | null;
 
     if (!type || !id) return NextResponse.json({ error: "type and id required" }, { status: 400 });
+
+    // 讀取當前登入用戶的 Display Name
+    let currentUserName = "System";
+    try {
+      const session = await getSession(req);
+      if (session?.id) {
+        const [u] = await db
+          .select({ 
+            displayName: users.displayName, 
+            username: users.username 
+          })
+          .from(users)
+          .where(eq(users.id, session.id));
+        if (u) currentUserName = u.displayName || u.username || "User";
+      }
+    } catch (err) {
+      console.warn("Could not fetch user session:", err);
+    }
 
     let data: ExportData;
 
@@ -87,7 +106,7 @@ export async function GET(req: NextRequest) {
           yarnName: yarn?.yarnName,
           yarnCount: yarn?.yarnCount ?? undefined,
           composition: yarn?.composition ?? undefined,
-          micron: yarn?.micron ?? undefined, // 🆕 帶入報價單的 Micron
+          micron: yarn?.micron ?? undefined,
           quantity: "",
           unitPrice: q.quotedPrice,
           currency: q.currency ?? "USD",
@@ -133,7 +152,7 @@ export async function GET(req: NextRequest) {
         validUntil: refQuote.validUntil ?? undefined,
         items,
         notes: finalRemarks || undefined,
-        exportedBy: "Admin",
+        exportedBy: currentUserName,
       };
 
     // ============== PURCHASE ORDER ==============
@@ -141,10 +160,9 @@ export async function GET(req: NextRequest) {
       const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
       if (!po) return NextResponse.json({ error: "PO not found" }, { status: 404 });
 
-      // 🆕 查詢中加入 micron 欄位
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
-        micron: yarns.micron, // 🆕 從 yarns 撈取 micron
+        micron: yarns.micron,
         colorName: poItems.colorName, colorCode: poItems.colorCode, colorReference: poItems.colorReference,
         quantity: poItems.quantity, unitPrice: poItems.unitPrice, currency: poItems.currency,
         unit: poItems.unit, weightBasis: poItems.weightBasis, incoterms: poItems.incoterms, notes: poItems.notes,
@@ -153,6 +171,9 @@ export async function GET(req: NextRequest) {
       const [factory] = po.factoryId ? await db.select().from(factories).where(eq(factories.id, po.factoryId)) : [];
       const [company] = po.companyId ? await db.select().from(companies).where(eq(companies.id, po.companyId)) : [];
       const [shipTo] = po.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, po.shipToId)) : [];
+      const [shipToContact] = po.shipToContactId 
+        ? await db.select().from(shipToContacts).where(eq(shipToContacts.id, po.shipToContactId)) 
+        : [];
 
       const exportItems = toExportItems(items);
       exportItems.forEach(it => {
@@ -172,7 +193,13 @@ export async function GET(req: NextRequest) {
         date: po.poDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? undefined, telephone: factory.telephone ?? undefined, attn: po.contactPerson ?? undefined } : undefined,
-        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? undefined } : undefined, // 🆕 新增正確的 Ship To 欄位
+        shipTo: shipTo ? { 
+          name: shipTo.name, 
+          officialName: shipTo.officialName ?? undefined, 
+          address: shipTo.addressEnglish ?? undefined,
+          attn: shipToContact?.contactName ?? undefined,
+          telephone: shipToContact?.phone ?? shipTo.telephone ?? undefined,
+        } : undefined,
         reference: po.soNo ?? undefined,
         customerPoNo: po.customerPoNo ?? undefined,
         deliveryDate: po.deliveryDate ?? undefined,
@@ -180,13 +207,13 @@ export async function GET(req: NextRequest) {
         currency: po.currency ?? undefined,
         incoterms: po.incoterms ?? undefined,
         status: po.status ?? undefined,
-        orderCategory: po.orderCategory ?? undefined, // 🆕 加回 Order Category
-        quantityUnit: po.quantityUnit ?? undefined, // 🆕 自動帶入重量單位
+        orderCategory: po.orderCategory ?? undefined,
+        quantityUnit: po.quantityUnit ?? undefined,
         items: exportItems,
         subtotal,
         total: subtotal,
         notes: finalRemarks || undefined,
-        exportedBy: "Admin",
+        exportedBy: currentUserName,
       };
 
     // ============== DELIVERY NOTE ==============
@@ -204,6 +231,9 @@ export async function GET(req: NextRequest) {
       const [customer] = dn.customerId ? await db.select().from(customers).where(eq(customers.id, dn.customerId)) : [];
       const [company] = dn.companyId ? await db.select().from(companies).where(eq(companies.id, dn.companyId)) : [];
       const [shipTo] = dn.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, dn.shipToId)) : [];
+      const [shipToContact] = dn.shipToContactId 
+        ? await db.select().from(shipToContacts).where(eq(shipToContacts.id, dn.shipToContactId)) 
+        : [];
 
       const lang = langOverride || detectDocumentLanguage(customer?.country);
       const templateKey = getRemarksTemplateKey("dn", lang);
@@ -216,7 +246,13 @@ export async function GET(req: NextRequest) {
         date: dn.dnDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? undefined } : undefined,
-        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? undefined } : undefined,
+        shipTo: shipTo ? { 
+          name: shipTo.name, 
+          officialName: shipTo.officialName ?? undefined, 
+          address: shipTo.addressEnglish ?? undefined,
+          attn: shipToContact?.contactName ?? undefined,
+          telephone: shipToContact?.phone ?? shipTo.telephone ?? undefined,
+        } : undefined,
         customerPoNo: dn.customerPoNo ?? undefined,
         reference: dn.soNo ?? undefined,
         status: dn.status ?? undefined,
@@ -224,7 +260,7 @@ export async function GET(req: NextRequest) {
         quantityUnit: dn.quantityUnit ?? undefined,
         items: toExportItems(items),
         notes: finalRemarks || undefined,
-        exportedBy: "Admin",
+        exportedBy: currentUserName,
       };
 
     // ============== SALES INVOICE ==============
@@ -234,7 +270,7 @@ export async function GET(req: NextRequest) {
 
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
-        micron: yarns.micron, // 🆕 從 yarns 撈取 micron
+        micron: yarns.micron,
         description: invoiceItems.description, colorName: invoiceItems.colorName, colorCode: invoiceItems.colorCode,
         quantity: invoiceItems.quantity, unitPrice: invoiceItems.unitPrice,
         currency: invoices.currency,
@@ -277,7 +313,7 @@ export async function GET(req: NextRequest) {
         total: inv.total ?? undefined,
         bankInfo,
         notes: finalRemarks || undefined,
-        exportedBy: "Admin",
+        exportedBy: currentUserName,
       };
 
     // ============== SUPPLIER INVOICE ==============
@@ -287,7 +323,7 @@ export async function GET(req: NextRequest) {
 
       const items = await db.select({
         yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition,
-        micron: yarns.micron, // 🆕 從 yarns 撈取 micron
+        micron: yarns.micron,
         description: supplierInvoiceItems.description, colorName: supplierInvoiceItems.colorName, colorCode: supplierInvoiceItems.colorCode,
         quantity: supplierInvoiceItems.quantity, unitPrice: supplierInvoiceItems.unitPrice,
         currency: supplierInvoices.currency,
@@ -328,7 +364,7 @@ export async function GET(req: NextRequest) {
         total: inv.total ?? undefined,
         bankInfo,
         notes: finalRemarks || undefined,
-        exportedBy: "Admin",
+        exportedBy: currentUserName,
       };
 
     // ============== RECONCILIATION ==============
@@ -397,7 +433,7 @@ export async function GET(req: NextRequest) {
         subtotal: totalDebit,
         total: balance,
         notes: defaultRemarks || undefined,
-        exportedBy: "Admin",
+        exportedBy: currentUserName,
       };
 
     } else {
@@ -406,7 +442,7 @@ export async function GET(req: NextRequest) {
 
     const buffer = await generateExcel(data);
 
-    // 🆕 智能檔案命名
+    // 智能檔案命名
     const prefixMap: Record<string, string> = {
       "Quotation": "Q",
       "Purchase Order": "PO",

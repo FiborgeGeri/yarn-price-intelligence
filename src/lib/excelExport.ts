@@ -66,7 +66,7 @@ export interface ExportData {
   date: string;
   company?: { name: string; officialName?: string; address?: string; telephone?: string; logoPath?: string };
   party?: { name: string; officialName?: string; address?: string; telephone?: string; attn?: string };
-  shipTo?: { name: string; officialName?: string; address?: string; attn?: string };
+  shipTo?: { name: string; officialName?: string; address?: string; attn?: string; telephone?: string };
   reference?: string;
   customerPoNo?: string;
   deliveryDate?: string;
@@ -130,11 +130,11 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   const unitShort = mainUnit.replace(/S$/i, "");
 
   // 動態設定欄寬（根據是否有 Micron 欄）
-  if (showMicron) {
+    if (showMicron) {
     ws.columns = [
       { width: 4 },   // A: #
-      { width: 18 },  // B: Description
-      { width: 18 },  // C: Spec (Count + Composition)
+      { width: 15 },  // B: Description (縮窄)
+      { width: 24 },  // C: Spec (加闊)
       { width: 8 },   // D: Micron
       { width: 12 },  // E: Color
       { width: 12 },  // F: Reference
@@ -153,8 +153,8 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   } else {
     ws.columns = [
       { width: 4 },   // A: #
-      { width: 18 },  // B: Description
-      { width: 20 },  // C: Spec (加寬)
+      { width: 15 },  // B: Description (縮窄)
+      { width: 26 },  // C: Spec (加闊)
       { width: 12 },  // D: Color
       { width: 12 },  // E: Reference
       { width: 10 },  // F: Qty
@@ -255,23 +255,16 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   const toLabel = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "TO (SUPPLIER)" : "TO (CLIENT)";
   const partyFullName = data.party?.officialName || data.party?.name || "";
 
-  if (data.party) {
+   if (data.party) {
     ws.getCell(`A${row}`).value = toLabel;
     ws.getCell(`A${row}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
     ws.mergeCells(`A${row}:E${row}`);
     row++;
-    // 使用公司全名 (officialName 優先)
+    // 🔧 只用公司全名 (officialName 優先，若無則用 name)
     ws.getCell(`A${row}`).value = partyFullName;
     ws.getCell(`A${row}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     ws.mergeCells(`A${row}:E${row}`);
     row++;
-    // 若 officialName 和 name 不同，也顯示簡稱
-    if (data.party.officialName && data.party.name && data.party.officialName !== data.party.name) {
-      ws.getCell(`A${row}`).value = `(${data.party.name})`;
-      ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.mediumGray }, name: "Calibri" };
-      ws.mergeCells(`A${row}:E${row}`);
-      row++;
-    }
     if (data.party.address) {
       ws.getCell(`A${row}`).value = data.party.address;
       ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -280,38 +273,36 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       ws.getRow(row).height = 28;
       row++;
     }
-    if (data.party.telephone) {
-      ws.getCell(`A${row}`).value = `Tel: ${data.party.telephone}`;
-      ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
-      ws.mergeCells(`A${row}:E${row}`);
-      row++;
-    }
+    // 🔧 聯絡人（Attn）
     if (data.party.attn) {
       ws.getCell(`A${row}`).value = `Attn: ${data.party.attn}`;
       ws.getCell(`A${row}`).font = { size: 9, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
       ws.mergeCells(`A${row}:E${row}`);
       row++;
     }
+    // 🔧 電話
+    if (data.party.telephone) {
+      ws.getCell(`A${row}`).value = `Tel: ${data.party.telephone}`;
+      ws.getCell(`A${row}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
+      ws.mergeCells(`A${row}:E${row}`);
+      row++;
+    }
   }
 
   // 右側：SHIP TO
-  if (data.shipTo) {
+    if (data.shipTo) {
     let shipRow = infoStart;
     ws.getCell(`${rightStartCol}${shipRow}`).value = "SHIP TO";
     ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 8, bold: true, color: { argb: COLORS.mediumGray }, name: "Calibri" };
     ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
     shipRow++;
+    // 🔧 只用公司全名
     const shipToFullName = data.shipTo.officialName || data.shipTo.name;
     ws.getCell(`${rightStartCol}${shipRow}`).value = shipToFullName;
     ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 10, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
     ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
     shipRow++;
-    if (data.shipTo.officialName && data.shipTo.name && data.shipTo.officialName !== data.shipTo.name) {
-      ws.getCell(`${rightStartCol}${shipRow}`).value = `(${data.shipTo.name})`;
-      ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, color: { argb: COLORS.mediumGray }, name: "Calibri" };
-      ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
-      shipRow++;
-    }
+    // 🔧 地址（確保有顯示）
     if (data.shipTo.address) {
       ws.getCell(`${rightStartCol}${shipRow}`).value = data.shipTo.address;
       ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
@@ -320,9 +311,17 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       ws.getRow(shipRow).height = 28;
       shipRow++;
     }
+    // 🔧 聯絡人
     if (data.shipTo.attn) {
       ws.getCell(`${rightStartCol}${shipRow}`).value = `Attn: ${data.shipTo.attn}`;
       ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, bold: true, color: { argb: COLORS.black }, name: "Calibri" };
+      ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
+      shipRow++;
+    }
+    // 🔧 電話
+    if (data.shipTo.telephone) {
+      ws.getCell(`${rightStartCol}${shipRow}`).value = `Tel: ${data.shipTo.telephone}`;
+      ws.getCell(`${rightStartCol}${shipRow}`).font = { size: 9, color: { argb: COLORS.darkGray }, name: "Calibri" };
       ws.mergeCells(`${rightStartCol}${shipRow}:${rightEndCol}${shipRow}`);
       shipRow++;
     }

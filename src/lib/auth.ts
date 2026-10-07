@@ -1,67 +1,100 @@
+import { NextRequest } from "next/server";
 import crypto from "crypto";
-
-/**
- * Signed session tokens (HMAC-SHA256).
- * The token is delivered as an httpOnly cookie so that every same-origin
- * request — including plain <a href> file downloads — is authenticated.
- */
-
-const SECRET = process.env.AUTH_SECRET || "fiborge-dev-secret-change-in-prod";
-export const SESSION_COOKIE = "fib_session";
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionUser {
   id: number;
   username: string;
-  displayName: string;
   role: string;
+  displayName?: string;
 }
 
-export function signSession(user: SessionUser): string {
-  const payload = Buffer.from(
-    JSON.stringify({ ...user, exp: Date.now() + SESSION_MAX_AGE * 1000 })
-  ).toString("base64url");
-  const sig = crypto.createHmac("sha256", SECRET).update(payload).digest("base64url");
-  return `${payload}.${sig}`;
-}
+// 🆕 導出登入/登出需要的常數
+export const SESSION_COOKIE = "fib_session";
+export const COOKIE_NAME = SESSION_COOKIE;
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 天 (秒數)
 
-export function verifySession(token: string | null | undefined): SessionUser | null {
-  if (!token) return null;
-  const dot = token.lastIndexOf(".");
-  if (dot <= 0) return null;
-  const payload = token.slice(0, dot);
-  const sig = token.slice(dot + 1);
-  const expected = crypto.createHmac("sha256", SECRET).update(payload).digest("base64url");
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+const AUTH_SECRET = process.env.AUTH_SECRET || "fiborge-secret-key-at-least-32-chars-long";
+
+/**
+ * 驗證並解析 HMAC-SHA256 Session Token
+ */
+export function verifySession(token: string): SessionUser | null {
   try {
-    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (!data?.exp || Date.now() > data.exp) return null;
+    const [payloadB64, sig] = token.split(".");
+    if (!payloadB64 || !sig) return null;
+
+    const expectedSig = crypto
+      .createHmac("sha256", AUTH_SECRET)
+      .update(payloadB64)
+      .digest("base64url");
+
+    if (sig !== expectedSig) return null;
+
+    const json = Buffer.from(payloadB64, "base64url").toString("utf-8");
+    const payload = JSON.parse(json);
+
+    // 檢查過期時間
+    if (payload.exp && Date.now() > payload.exp) {
+      return null;
+    }
+
     return {
-      id: data.id,
-      username: data.username,
-      displayName: data.displayName,
-      role: data.role || "viewer",
+      id: Number(payload.id ?? payload.userId),
+      username: String(payload.username || ""),
+      role: String(payload.role || "viewer"),
+      displayName: payload.displayName ? String(payload.displayName) : undefined,
     };
   } catch {
     return null;
   }
 }
 
-/** Extract and verify the session from a request's cookie header. */
-export function getSession(req: Request): SessionUser | null {
-  const cookie = req.headers.get("cookie") || "";
-  const match = cookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
-  return verifySession(match ? decodeURIComponent(match[1]) : null);
+// 別名導出，兼顧不同檔案引入名稱
+export const verifySessionToken = verifySession;
+
+/**
+ * 簽發 Session Token
+ */
+export function signSession(user: SessionUser): string {
+  const exp = Date.now() + SESSION_MAX_AGE * 1000;
+  const payload = {
+    id: user.id,
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    displayName: user.displayName,
+    exp,
+  };
+
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = crypto
+    .createHmac("sha256", AUTH_SECRET)
+    .update(payloadB64)
+    .digest("base64url");
+
+  return `${payloadB64}.${sig}`;
 }
 
-/** Convenience for route handlers: the current session user or null. */
-export async function getCurrentUser(req?: Request): Promise<SessionUser | null> {
+// 別名導出
+export const signSessionToken = signSession;
+
+/**
+ * 獲取當前登入用戶 Session
+ */
+export async function getSession(req?: NextRequest): Promise<SessionUser | null> {
   if (!req) return null;
-  return getSession(req);
-}
 
-export function canMutate(role: string | undefined): boolean {
-  return role === "admin" || role === "editor";
+  // 1. 從 NextRequest Cookies 讀取
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value || req.cookies.get("session")?.value;
+  if (cookie) {
+    return verifySession(cookie);
+  }
+
+  // 2. 從 Authorization Header 讀取
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    return verifySession(authHeader.slice(7));
+  }
+
+  return null;
 }
