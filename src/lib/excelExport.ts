@@ -105,14 +105,19 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   wb.creator = "Fiborge";
   wb.created = new Date();
 
-  const ws = wb.addWorksheet(data.docType, {
+    const ws = wb.addWorksheet(data.docType, {
     pageSetup: {
-      paperSize: 9,
+      paperSize: 9, 
       orientation: "portrait",
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
       margins: { left: 0.4, right: 0.4, top: 0.4, bottom: 0.5, header: 0.2, footer: 0.2 },
+      printTitlesRow: "1:15", 
+    },
+    headerFooter: {
+      evenFooter: "&RPage &P of &N",
+      oddFooter: "&RPage &P of &N",
     },
     properties: { defaultRowHeight: 15 },
     views: [{ showGridLines: false }],

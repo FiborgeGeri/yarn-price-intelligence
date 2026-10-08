@@ -65,8 +65,7 @@ interface PO {
   updatedByName: string | null;
 }
 
-interface Factory { id: number; factoryName: string; relationship: string; }
-interface FactoryContact { id: number; factoryId: number; contactName: string; position: string; email: string; phone: string; }
+interface Factory { id: number; factoryName: string; relationship: string; country?: string | null; }interface FactoryContact { id: number; factoryId: number; contactName: string; position: string; email: string; phone: string; }
 interface Customer { id: number; name: string; legitName: string; }
 interface ShipTo { id: number; name: string; category: string; }
 interface Yarn {
@@ -963,20 +962,33 @@ useEffect(() => {
                   <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      onChange={async (e) => {
-                        if (e.target.checked) {
-                          try {
-                            const res = await fetch("/api/system-settings");
-                            if (res.ok) {
-                              const settings = await res.json();
-                              const template = settings.find((s: any) => s.key === "template_po_remarks");
-                              if (template?.value) {
-                                setFNotes((prev) => prev ? `${prev}\n\n${template.value}` : template.value);
-                              }
-                            }
-                          } catch {}
-                        }
-                      }}
+                         onChange={async (e) => {
+    if (e.target.checked) {
+      try {
+        const res = await fetch("/api/system-settings");
+        if (res.ok) {
+          const settings = await res.json();
+          
+          const currentFactory = factoryList.find(f => f.id === fFactory);
+          const cStr = (currentFactory?.country || "").toLowerCase();
+          const isChina = cStr.includes("china") || cStr.includes("CN") || 
+                          currentFactory?.country?.includes("中國") || 
+                          currentFactory?.country?.includes("中国");
+                          
+          const targetKey = isChina ? "template_po_remarks_zh" : "template_po_remarks_en";
+          let template = settings.find((s: any) => s.key === targetKey);
+          
+          if (!template?.value) {
+            template = settings.find((s: any) => s.key === "template_po_remarks");
+          }
+
+          if (template?.value) {
+            setFNotes((prev) => prev ? `${prev}\n\n${template.value}` : template.value);
+          }
+        }
+      } catch {}
+    }
+  }}
                       className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
                     Load template
