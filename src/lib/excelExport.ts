@@ -115,7 +115,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       fitToWidth: 1,
       fitToHeight: 0,
       margins: { left: 0.4, right: 0.4, top: 0.4, bottom: 0.5, header: 0.2, footer: 0.2 },
-      printTitlesRow: "1:13", // 重複印出前 13 行表頭
+      printTitlesRow: "1:17",
     },
     headerFooter: {
       evenHeader: "&R Page &P of &N",

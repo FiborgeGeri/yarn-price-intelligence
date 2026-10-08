@@ -20,6 +20,24 @@ async function fetchTemplateRemarks(key: string): Promise<string> {
   }
 }
 
+/**
+ * 🆕 智慧 Remark 組合器 (防止手動載入範本與系統自動帶入產生重複)
+ */
+function combineRemarks(userNotes: string | null | undefined, templateRemarks: string): string {
+  const notes = (userNotes || "").trim();
+  const tmpl = (templateRemarks || "").trim();
+
+  if (!notes) return tmpl;
+  if (!tmpl) return notes;
+
+  // 智慧比對：如果使用者備註中已經包含範本內容（例如在 UI 點過 Load template），就不再重複追加！
+  if (notes.includes(tmpl)) {
+    return notes;
+  }
+
+  return `${notes}\n\n${tmpl}`;
+}
+
 function toExportItems(rows: any[]): ExportItem[] {
   return rows.map((it) => ({
     yarnName: it.yarnName ?? undefined, yarnCount: it.yarnCount ?? undefined, composition: it.composition ?? undefined, micron: it.micron ?? undefined,
@@ -76,7 +94,9 @@ export async function GET(req: NextRequest) {
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
         currency: refQuote.currency ?? undefined, incoterms: refQuote.incoterms ?? undefined, status: refQuote.status ?? undefined, validUntil: refQuote.validUntil ?? undefined,
-        items, notes: refQuote.notes ? `${refQuote.notes}\n\n${defaultRemarks}` : defaultRemarks, exportedBy: currentUserName,
+        items, 
+        notes: combineRemarks(refQuote.notes, defaultRemarks), // 🆕 智慧去重
+        exportedBy: currentUserName,
       };
 
     // ============== PURCHASE ORDER ==============
@@ -114,10 +134,10 @@ export async function GET(req: NextRequest) {
         shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
         reference: po.soNo ?? undefined, customerPoNo: po.customerPoNo ?? undefined, deliveryDate: po.deliveryDate ?? undefined, paymentTerms: po.paymentMethod ? `${po.paymentMethod}${po.paymentDays ? ` ${po.paymentDays} Days` : ""}` : undefined, currency: po.currency ?? undefined, incoterms: po.incoterms ?? undefined, orderCategory: po.orderCategory ?? undefined, quantityUnit: po.quantityUnit ?? undefined,
         items: exportItems, subtotal: exportItems.reduce((s, it) => s + (it.amount || 0), 0), total: exportItems.reduce((s, it) => s + (it.amount || 0), 0),
-        notes: po.notes ? `${po.notes}\n\n${defaultRemarks}` : defaultRemarks,
+        notes: combineRemarks(po.notes, defaultRemarks), // 🆕 智慧去重
         exportedBy: currentUserName,
-        revision: po.revision ?? undefined,          // 🆕 傳入修訂次數
-        lastRevisedAt: po.lastRevisedAt ?? undefined, // 🆕 傳入修訂時間
+        revision: po.revision ?? undefined,
+        lastRevisedAt: po.lastRevisedAt ?? undefined,
       };
 
     // ============== DELIVERY NOTE ==============
@@ -146,7 +166,9 @@ export async function GET(req: NextRequest) {
         party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
         shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
         customerPoNo: dn.customerPoNo ?? undefined, reference: dn.soNo ?? undefined, orderCategory: dn.orderCategory ?? undefined, quantityUnit: dn.quantityUnit ?? undefined,
-        items: toExportItems(items), notes: dn.notes ? `${dn.notes}\n\n${defaultRemarks}` : defaultRemarks, exportedBy: currentUserName,
+        items: toExportItems(items),
+        notes: combineRemarks(dn.notes, defaultRemarks), // 🆕 智慧去重
+        exportedBy: currentUserName,
       };
 
     // ============== SALES INVOICE ==============
@@ -171,7 +193,8 @@ export async function GET(req: NextRequest) {
         party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
         reference: inv.soNo ?? undefined, customerPoNo: inv.customerPoNo ?? undefined, deliveryDate: inv.dueDate ?? undefined, currency: inv.currency ?? undefined,
         items: toExportItems(items), subtotal: inv.subtotal ?? undefined, vatRate: inv.vatRate ?? undefined, vatAmount: inv.vatAmount ?? undefined, total: inv.total ?? undefined, bankInfo,
-        notes: inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks, exportedBy: currentUserName,
+        notes: combineRemarks(inv.notes, defaultRemarks), // 🆕 智慧去重
+        exportedBy: currentUserName,
       };
 
     // ============== SUPPLIER INVOICE ==============
@@ -195,7 +218,8 @@ export async function GET(req: NextRequest) {
         party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined, attn: factoryContact?.contactName ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined } : undefined,
         reference: inv.poNo ?? undefined, deliveryDate: inv.dueDate ?? undefined, currency: inv.currency ?? undefined,
         items: toExportItems(items), subtotal: inv.subtotal ?? undefined, vatRate: inv.vatRate ?? undefined, vatAmount: inv.vatAmount ?? undefined, total: inv.total ?? undefined, bankInfo,
-        notes: inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks, exportedBy: currentUserName,
+        notes: combineRemarks(inv.notes, defaultRemarks), // 🆕 智慧去重
+        exportedBy: currentUserName,
       };
 
     // ============== RECONCILIATION ==============
@@ -228,7 +252,8 @@ export async function GET(req: NextRequest) {
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, telephone: customer.telephone ?? undefined },
         currency: items[0]?.currency || "USD", items, openingBalance: 0, closingBalance: balance, subtotal: totalDebit, total: balance,
-        notes: defaultRemarks || undefined, exportedBy: currentUserName,
+        notes: combineRemarks(undefined, defaultRemarks), // 🆕 智慧帶入
+        exportedBy: currentUserName,
       };
 
     } else {
