@@ -140,11 +140,17 @@ export async function GET(req: NextRequest) {
         lastRevisedAt: po.lastRevisedAt ?? undefined,
       };
 
-    // ============== DELIVERY NOTE ==============
+        // ============== DELIVERY NOTE ==============
     } else if (type === "dn") {
       const [dn] = await db.select().from(deliveryNotes).where(eq(deliveryNotes.id, id));
       if (!dn) return NextResponse.json({ error: "DN not found" }, { status: 404 });
-      const items = await db.select({ yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, colorName: dnItems.colorName, colorCode: dnItems.colorCode, quantity: dnItems.quantity, lotNo: dnItems.lotNo, packages: dnItems.packages, grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight, notes: dnItems.notes }).from(dnItems).leftJoin(yarns, eq(dnItems.yarnId, yarns.id)).where(eq(dnItems.dnId, id));
+
+      const items = await db.select({
+        yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition, micron: yarns.micron, // 🆕 DN 補上成份與 Micron
+        colorName: dnItems.colorName, colorCode: dnItems.colorCode,
+        quantity: dnItems.quantity, lotNo: dnItems.lotNo,
+        packages: dnItems.packages, grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight, notes: dnItems.notes,
+      }).from(dnItems).leftJoin(yarns, eq(dnItems.yarnId, yarns.id)).where(eq(dnItems.dnId, id));
 
       const [customer] = dn.customerId ? await db.select().from(customers).where(eq(customers.id, dn.customerId)) : [];
       let contact = null;
@@ -162,13 +168,13 @@ export async function GET(req: NextRequest) {
 
       data = {
         docType: "Delivery Note", docNo: dn.dnNo || `DN-${id}`, date: dn.dnDate,
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
-        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, officialNameAlt: company.officialNameAlt ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, officialNameAlt: customer.officialNameAlt ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
+        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, officialNameAlt: shipTo.officialNameAlt ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
         customerPoNo: dn.customerPoNo ?? undefined, reference: dn.soNo ?? undefined, orderCategory: dn.orderCategory ?? undefined, quantityUnit: dn.quantityUnit ?? undefined,
+        shippingMethod: dn.shippingMethod ?? undefined, trackingNo: dn.trackingNo ?? undefined, // 🆕 DN 專用欄位
         items: toExportItems(items),
-        notes: combineRemarks(dn.notes, defaultRemarks), // 🆕 智慧去重
-        exportedBy: currentUserName,
+        notes: combineRemarks(dn.notes, defaultRemarks), exportedBy: currentUserName,
       };
 
     // ============== SALES INVOICE ==============
