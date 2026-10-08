@@ -244,7 +244,7 @@ export default function ClientsPage({ permissions }: Props) {
 
       {showForm && permissions.canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editing ? "Edit Client" : "Add Client"}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
@@ -264,8 +264,8 @@ export default function ClientsPage({ permissions }: Props) {
                 />
               </div>
 
-              {/* 2. Official Name Primary & Secondary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* 2. Official Name Primary & Secondary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Official Name (Primary)
@@ -279,13 +279,41 @@ export default function ClientsPage({ permissions }: Props) {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Official Name (Secondary / Optional)
+                    Official Name (Secondary)
                   </label>
                   <input
                     value={officialNameAlt}
                     onChange={(e) => setOfficialNameAlt(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    placeholder="請輸入次要官方全名 / Alternative official name (optional)"
+                    placeholder="Please enter secondary official name (optional)"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Address Primary & Secondary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Address (Primary / Local)
+                  </label>
+                  <textarea 
+                    value={addressLocal} 
+                    onChange={(e) => setAddressLocal(e.target.value)} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" 
+                    rows={2} 
+                    placeholder="請輸入主要/本地語言詳細地址" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Address (Secondary / English)
+                  </label>
+                  <textarea 
+                    value={addressEnglish} 
+                    onChange={(e) => setAddressEnglish(e.target.value)} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" 
+                    rows={2} 
+                    placeholder="Please enter detailed English address" 
                   />
                 </div>
               </div>

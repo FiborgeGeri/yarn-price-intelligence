@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { purchaseOrders, poItems, factories, customers, shipToAddresses, shipToContacts, yarns, treatments, salesOrders, companies } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { getUserMap } from "@/lib/auditHelpers";
 
 function createPoNo() {
@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
         deliveryDate: purchaseOrders.deliveryDate,
         incoterms: purchaseOrders.incoterms,
         status: purchaseOrders.status,
+        revision: purchaseOrders.revision,
+        lastRevisedAt: purchaseOrders.lastRevisedAt,
         notes: purchaseOrders.notes,
         createdAt: purchaseOrders.createdAt,
         createdBy: purchaseOrders.createdBy,
@@ -73,8 +75,8 @@ export async function GET(req: NextRequest) {
         unit: poItems.unit,
         weightBasis: poItems.weightBasis,
         incoterms: poItems.incoterms,
-        stage: poItems.stage, // 🆕 正確放在品項內撈取
-        stageNote: poItems.stageNote, // 🆕 撈取品項進度備註
+        stage: poItems.stage,
+        stageNote: poItems.stageNote,
         notes: poItems.notes,
       })
       .from(poItems)
@@ -93,6 +95,7 @@ export async function GET(req: NextRequest) {
     const result = rows.map((o: Record<string, unknown>) => ({
       ...o,
       items: itemMap[o.id as number] || [],
+      // 🟢 修正型別判定，確保安全的總額計算
       totalAmount: (itemMap[o.id as number] || []).reduce((sum: number, i: any) => sum + ((Number(i.unitPrice) || 0) * (parseFloat(i.quantity || "0") || 0)), 0),
       itemCount: (itemMap[o.id as number] || []).length,
       createdByName: o.createdBy ? userMap[o.createdBy as number] || null : null,
@@ -163,6 +166,8 @@ export async function POST(req: NextRequest) {
         deliveryDate: deliveryDate || null,
         incoterms: incoterms || null,
         status: status || "Draft",
+        revision: sql`${purchaseOrders.revision} + 1`,
+        lastRevisedAt: new Date(),
         notes: notes || null,
         updatedAt: new Date(),
         updatedBy: userId || null,
@@ -203,7 +208,7 @@ export async function POST(req: NextRequest) {
             weightBasis: item.weightBasis || "condition",
             incoterms: item.incoterms || null,
             stage: item.stage || "Order Confirmed",
-            stageNote: item.stageNote || null, // 🆕 同步更新 Stage Note
+            stageNote: item.stageNote || null,
             notes: item.notes || null,
           } as any);
         }
@@ -255,7 +260,7 @@ export async function POST(req: NextRequest) {
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
           stage: item.stage || "Order Confirmed",
-          stageNote: item.stageNote || null, // 🆕 同步寫入 Stage Note
+          stageNote: item.stageNote || null,
           notes: item.notes || null,
         } as any);
       }

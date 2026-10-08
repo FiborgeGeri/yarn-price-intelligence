@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { salesOrders, soItems, purchaseOrders, poItems, customers, customerContacts, shipToAddresses, shipToContacts, yarns, factories, prices, companies } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm"; // 🆕 引入 sql
 import { getUserMap } from "@/lib/auditHelpers";
 
 function createSoNo() {
@@ -40,6 +40,8 @@ export async function GET() {
         soDate: salesOrders.soDate,
         deliveryDate: salesOrders.deliveryDate,
         status: salesOrders.status,
+        revision: salesOrders.revision, // 🆕
+        lastRevisedAt: salesOrders.lastRevisedAt, // 🆕
         notes: salesOrders.notes,
         createdAt: salesOrders.createdAt,
         createdBy: salesOrders.createdBy,
@@ -73,7 +75,7 @@ export async function GET() {
         weightBasis: soItems.weightBasis,
         incoterms: soItems.incoterms,
         stage: soItems.stage,
-        stageNote: soItems.stageNote, // 🆕 GET 正確返回 Stage Note 欄位
+        stageNote: soItems.stageNote,
         notes: soItems.notes,
       })
       .from(soItems)
@@ -129,6 +131,8 @@ export async function POST(req: NextRequest) {
         soDate,
         deliveryDate: deliveryDate || null,
         status: status || "Confirmed",
+        revision: sql`${salesOrders.revision} + 1`, // 🆕 自動版本號 +1
+        lastRevisedAt: new Date(), // 🆕 自動紀錄修訂時間
         notes: notes || null,
         updatedAt: new Date(),
         updatedBy: userId || null,
@@ -153,6 +157,8 @@ export async function POST(req: NextRequest) {
             customerPoNo: customerPoNo || null,
             deliveryDate: deliveryDate || null,
             ...(poStatus ? { status: poStatus } : {}),
+            revision: sql`${purchaseOrders.revision} + 1`, // 🆕 同步連動 PO 版本號 +1
+            lastRevisedAt: new Date(),
             updatedAt: new Date(),
             updatedBy: userId || null,
           }).where(eq(purchaseOrders.id, po.id));
@@ -186,7 +192,7 @@ export async function POST(req: NextRequest) {
                 weightBasis: item.weightBasis || "condition",
                 incoterms: item.incoterms || null,
                 stage: item.stage || "Order Confirmed",
-                stageNote: item.stageNote || null, // 🆕 同步寫入 PO 的 Stage Note
+                stageNote: item.stageNote || null,
                 notes: item.notes || null,
               })));
             }
@@ -209,7 +215,7 @@ export async function POST(req: NextRequest) {
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
           stage: item.stage || "Order Confirmed",
-          stageNote: item.stageNote || null, // 🆕 同步寫入 SO 的 Stage Note
+          stageNote: item.stageNote || null,
           notes: item.notes || null,
         })));
       }
@@ -252,7 +258,7 @@ export async function POST(req: NextRequest) {
           weightBasis: item.weightBasis || "condition",
           incoterms: item.incoterms || null,
           stage: item.stage || "Order Confirmed",
-          stageNote: item.stageNote || null, // 🆕 同步寫入 Stage Note
+          stageNote: item.stageNote || null,
           notes: item.notes || null,
         })));
       }
@@ -314,7 +320,7 @@ export async function POST(req: NextRequest) {
               weightBasis: item.weightBasis || "condition",
               incoterms: item.incoterms || null,
               stage: item.stage || "Order Confirmed",
-              stageNote: item.stageNote || null, // 🆕 同步寫入 PO 的 Stage Note
+              stageNote: item.stageNote || null,
               notes: item.notes || null,
             })));
           }

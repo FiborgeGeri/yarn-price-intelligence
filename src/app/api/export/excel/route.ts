@@ -58,16 +58,9 @@ export async function GET(req: NextRequest) {
 
       const [customer] = refQuote.customerId ? await db.select().from(customers).where(eq(customers.id, refQuote.customerId)) : [];
       const [company] = refQuote.companyId ? await db.select().from(companies).where(eq(companies.id, refQuote.companyId)) : [];
-      
-      // 🔧 智能 Contact 抓取
       let contact = null;
-      if (refQuote.contactId) {
-        const [c] = await db.select().from(customerContacts).where(eq(customerContacts.id, refQuote.contactId));
-        contact = c;
-      } else if (refQuote.customerId) {
-        const [c] = await db.select().from(customerContacts).where(eq(customerContacts.customerId, refQuote.customerId)).limit(1);
-        contact = c;
-      }
+      if (refQuote.contactId) { const [c] = await db.select().from(customerContacts).where(eq(customerContacts.id, refQuote.contactId)); contact = c; }
+      else if (refQuote.customerId) { const [c] = await db.select().from(customerContacts).where(eq(customerContacts.customerId, refQuote.customerId)).limit(1); contact = c; }
 
       const items: ExportItem[] = [];
       for (const q of quoteRows) {
@@ -97,26 +90,17 @@ export async function GET(req: NextRequest) {
       }).from(poItems).leftJoin(yarns, eq(poItems.yarnId, yarns.id)).where(eq(poItems.poId, id));
 
       const [factory] = po.factoryId ? await db.select().from(factories).where(eq(factories.id, po.factoryId)) : [];
-      const [company] = po.companyId ? await db.select().from(companies).where(eq(companies.id, po.companyId)) : (await db.select().from(companies).limit(1));
-      
-      // 🔧 智能 Factory Contact 抓取 (優先對比 contactPerson，若無則抓該廠第一位)
       let factoryContact = null;
       if (po.factoryId) {
         const contacts = await db.select().from(factoryContacts).where(eq(factoryContacts.factoryId, po.factoryId));
         if (po.contactPerson) factoryContact = contacts.find(c => c.contactName?.toLowerCase().includes(po.contactPerson!.toLowerCase())) || null;
         if (!factoryContact && contacts.length > 0) factoryContact = contacts[0];
       }
-
-      // 🔧 智能 Ship To Contact 抓取
+      const [company] = po.companyId ? await db.select().from(companies).where(eq(companies.id, po.companyId)) : (await db.select().from(companies).limit(1));
       const [shipTo] = po.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, po.shipToId)) : [];
       let shipToContact = null;
-      if (po.shipToContactId) {
-        const [c] = await db.select().from(shipToContacts).where(eq(shipToContacts.id, po.shipToContactId));
-        shipToContact = c;
-      } else if (po.shipToId) {
-        const [c] = await db.select().from(shipToContacts).where(eq(shipToContacts.shipToId, po.shipToId)).limit(1);
-        shipToContact = c;
-      }
+      if (po.shipToContactId) { const [c] = await db.select().from(shipToContacts).where(eq(shipToContacts.id, po.shipToContactId)); shipToContact = c; }
+      else if (po.shipToId) { const [c] = await db.select().from(shipToContacts).where(eq(shipToContacts.shipToId, po.shipToId)).limit(1); shipToContact = c; }
 
       const exportItems = toExportItems(items);
       exportItems.forEach(it => { it.amount = (parseFloat(it.quantity || "0") || 0) * (it.unitPrice || 0); });
@@ -126,11 +110,14 @@ export async function GET(req: NextRequest) {
       data = {
         docType: "Purchase Order", docNo: po.poNo || `PO-${id}`, date: po.poDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, officialNameAlt: factory.officialNameAlt ?? undefined,address: factory.addressEnglish ?? factory.addressLocal ?? undefined, attn: factoryContact?.contactName ?? po.contactPerson ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined } : undefined,
+        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined, attn: factoryContact?.contactName ?? po.contactPerson ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined } : undefined,
         shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
-        reference: po.soNo ?? undefined, customerPoNo: po.customerPoNo ?? undefined, deliveryDate: po.deliveryDate ?? undefined, paymentTerms: po.paymentMethod ? `${po.paymentMethod}${po.paymentDays ? ` ${po.paymentDays} Days` : ""}` : undefined, currency: po.currency ?? undefined, incoterms: po.incoterms ?? undefined, status: po.status ?? undefined, orderCategory: po.orderCategory ?? undefined, quantityUnit: po.quantityUnit ?? undefined,
+        reference: po.soNo ?? undefined, customerPoNo: po.customerPoNo ?? undefined, deliveryDate: po.deliveryDate ?? undefined, paymentTerms: po.paymentMethod ? `${po.paymentMethod}${po.paymentDays ? ` ${po.paymentDays} Days` : ""}` : undefined, currency: po.currency ?? undefined, incoterms: po.incoterms ?? undefined, orderCategory: po.orderCategory ?? undefined, quantityUnit: po.quantityUnit ?? undefined,
         items: exportItems, subtotal: exportItems.reduce((s, it) => s + (it.amount || 0), 0), total: exportItems.reduce((s, it) => s + (it.amount || 0), 0),
-        notes: po.notes ? `${po.notes}\n\n${defaultRemarks}` : defaultRemarks, exportedBy: currentUserName,
+        notes: po.notes ? `${po.notes}\n\n${defaultRemarks}` : defaultRemarks,
+        exportedBy: currentUserName,
+        revision: po.revision ?? undefined,          // 🆕 傳入修訂次數
+        lastRevisedAt: po.lastRevisedAt ?? undefined, // 🆕 傳入修訂時間
       };
 
     // ============== DELIVERY NOTE ==============
@@ -140,11 +127,11 @@ export async function GET(req: NextRequest) {
       const items = await db.select({ yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, colorName: dnItems.colorName, colorCode: dnItems.colorCode, quantity: dnItems.quantity, lotNo: dnItems.lotNo, packages: dnItems.packages, grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight, notes: dnItems.notes }).from(dnItems).leftJoin(yarns, eq(dnItems.yarnId, yarns.id)).where(eq(dnItems.dnId, id));
 
       const [customer] = dn.customerId ? await db.select().from(customers).where(eq(customers.id, dn.customerId)) : [];
-      const [company] = dn.companyId ? await db.select().from(companies).where(eq(companies.id, dn.companyId)) : [];
       let contact = null;
       if (dn.contactId) { const [c] = await db.select().from(customerContacts).where(eq(customerContacts.id, dn.contactId)); contact = c; }
       else if (dn.customerId) { const [c] = await db.select().from(customerContacts).where(eq(customerContacts.customerId, dn.customerId)).limit(1); contact = c; }
 
+      const [company] = dn.companyId ? await db.select().from(companies).where(eq(companies.id, dn.companyId)) : [];
       const [shipTo] = dn.shipToId ? await db.select().from(shipToAddresses).where(eq(shipToAddresses.id, dn.shipToId)) : [];
       let shipToContact = null;
       if (dn.shipToContactId) { const [c] = await db.select().from(shipToContacts).where(eq(shipToContacts.id, dn.shipToContactId)); shipToContact = c; }
@@ -205,7 +192,7 @@ export async function GET(req: NextRequest) {
       data = {
         docType: "Supplier Invoice", docNo: inv.supplierInvoiceNo || inv.internalNo || `SI-${id}`, date: inv.invoiceDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined,officialNameAlt: factory.officialNameAlt ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined, attn: factoryContact?.contactName ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined } : undefined,
+        party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined, attn: factoryContact?.contactName ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined } : undefined,
         reference: inv.poNo ?? undefined, deliveryDate: inv.dueDate ?? undefined, currency: inv.currency ?? undefined,
         items: toExportItems(items), subtotal: inv.subtotal ?? undefined, vatRate: inv.vatRate ?? undefined, vatAmount: inv.vatAmount ?? undefined, total: inv.total ?? undefined, bankInfo,
         notes: inv.notes ? `${inv.notes}\n\n${defaultRemarks}` : defaultRemarks, exportedBy: currentUserName,
