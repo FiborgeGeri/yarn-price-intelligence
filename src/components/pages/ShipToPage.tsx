@@ -5,44 +5,30 @@ import { DirectoryCard, DirectoryContactsModal } from "@/components/CompanyDirec
 import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
 import DirectoryViewModal from "@/components/DirectoryViewModal";
+// ShipTo 不需要 Bank Accounts 和 Fapiao，因此保持輕量
 
 const CATEGORIES = [
-  "Fabric Mill",
-  "Garment Mill",
-  "Dye House",
-  "Knitting Mill",
-  "Weaving Mill",
-  "Spinning Mill",
-  "Forwarder",
-  "Warehouse",
-  "Office",
-  "Trading Company",
-  "Agent",
-  "Other",
+  "Fabric Mill", "Garment Mill", "Dye House", "Knitting Mill",
+  "Weaving Mill", "Spinning Mill", "Forwarder", "Warehouse",
+  "Office", "Trading Company", "Agent", "Other",
 ];
 
 interface Address {
-  id: number;
-  name: string;
-  officialName: string;
-  officialNameAlt?: string | null;
-  category: string;
-  addressLocal: string;
-  addressEnglish: string;
-  country: string;
-  telephone: string;
-  notes: string;
-  contactCount: number;
-  createdAt: string;
-  createdByName: string;
-  updatedAt: string;
-  updatedByName: string;
+  id: number; name: string; officialName: string; officialNameAlt?: string | null;
+  category: string; addressLocal: string; addressEnglish: string; country: string;
+  telephone: string; notes: string; createdAt: string; createdByName: string;
+  updatedAt: string; updatedByName: string;
+}
+
+interface ShipToContact {
+  id: number; shipToId: number; contactName: string;
 }
 
 interface Props { permissions: Permissions; }
 
 export default function ShipToPage({ permissions }: Props) {
   const [addresses, setAddresses] = useState<Address[]>([]);
+  const [allContacts, setAllContacts] = useState<ShipToContact[]>([]); // 🆕 加入聯絡人狀態
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Address | null>(null);
@@ -66,8 +52,12 @@ export default function ShipToPage({ permissions }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await fetch("/api/ship-to-addresses").then((r) => r.json());
-      setAddresses(Array.isArray(data) ? data : []);
+      const [addrData, contactData] = await Promise.all([
+        fetch("/api/ship-to-addresses").then((r) => r.json()),
+        fetch("/api/ship-to-contacts").then((r) => r.json()), // 🆕 同步撈取聯絡人
+      ]);
+      setAddresses(Array.isArray(addrData) ? addrData : []);
+      setAllContacts(Array.isArray(contactData) ? contactData : []);
     } finally {
       setLoading(false);
     }
@@ -75,20 +65,29 @@ export default function ShipToPage({ permissions }: Props) {
 
   useEffect(() => { load(); }, []);
 
+  // 🆕 精準計算每個 ShipTo 的聯絡人數
+  const contactCountMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const c of allContacts) {
+      if (c.shipToId) map[c.shipToId] = (map[c.shipToId] || 0) + 1;
+    }
+    return map;
+  }, [allContacts]);
+
   const filtered = useMemo(() => {
     let result = addresses;
-    if (categoryFilter) result = result.filter((address) => address.category === categoryFilter);
+    if (categoryFilter) result = result.filter((a) => a.category === categoryFilter);
     if (search.trim()) {
       const query = search.toLowerCase();
-      result = result.filter((address) =>
-        address.name?.toLowerCase().includes(query) ||
-        address.officialName?.toLowerCase().includes(query) ||
-        address.officialNameAlt?.toLowerCase().includes(query) ||
-        address.category?.toLowerCase().includes(query) ||
-        address.country?.toLowerCase().includes(query) ||
-        address.addressEnglish?.toLowerCase().includes(query) ||
-        address.addressLocal?.toLowerCase().includes(query) ||
-        address.telephone?.toLowerCase().includes(query)
+      result = result.filter((a) =>
+        a.name?.toLowerCase().includes(query) ||
+        a.officialName?.toLowerCase().includes(query) ||
+        a.officialNameAlt?.toLowerCase().includes(query) ||
+        a.category?.toLowerCase().includes(query) ||
+        a.country?.toLowerCase().includes(query) ||
+        a.addressEnglish?.toLowerCase().includes(query) ||
+        a.addressLocal?.toLowerCase().includes(query) ||
+        a.telephone?.toLowerCase().includes(query)
       );
     }
     return result;
@@ -96,15 +95,9 @@ export default function ShipToPage({ permissions }: Props) {
 
   const openForm = (address?: Address) => {
     setEditing(address || null);
-    setName(address?.name || "");
-    setOfficialName(address?.officialName || "");
-    setOfficialNameAlt(address?.officialNameAlt || "");
-    setCategory(address?.category || "");
-    setAddressLocal(address?.addressLocal || "");
-    setAddressEnglish(address?.addressEnglish || "");
-    setCountry(address?.country || "");
-    setTelephone(address?.telephone || "");
-    setNotes(address?.notes || "");
+    setName(address?.name || ""); setOfficialName(address?.officialName || ""); setOfficialNameAlt(address?.officialNameAlt || "");
+    setCategory(address?.category || ""); setAddressLocal(address?.addressLocal || ""); setAddressEnglish(address?.addressEnglish || "");
+    setCountry(address?.country || ""); setTelephone(address?.telephone || ""); setNotes(address?.notes || "");
     setShowForm(true);
   };
 
@@ -113,40 +106,25 @@ export default function ShipToPage({ permissions }: Props) {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const response = await fetch("/api/ship-to-addresses", {
+      const res = await fetch("/api/ship-to-addresses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: editing?.id,
-          name: name.trim(),
-          officialName,
-          officialNameAlt,
-          category,
-          addressLocal,
-          addressEnglish,
-          country,
-          telephone,
-          notes,
-          userId: getUserId(),
+          id: editing?.id, name: name.trim(), officialName, officialNameAlt, category,
+          addressLocal, addressEnglish, country, telephone, notes, userId: getUserId(),
         }),
       });
-      if (response.ok) {
-        setToast({ type: "success", text: editing ? "Ship-to address updated" : "Ship-to address created" });
-        setShowForm(false);
-        await load();
-      } else {
-        setToast({ type: "error", text: "Failed to save ship-to address" });
-      }
+      if (res.ok) { setToast({ type: "success", text: editing ? "Updated" : "Created" }); setShowForm(false); await load(); }
+      else { setToast({ type: "error", text: "Failed to save" }); }
     } finally {
-      setSaving(false);
-      setTimeout(() => setToast(null), 3000);
+      setSaving(false); setTimeout(() => setToast(null), 3000);
     }
   };
 
   const remove = async (id: number) => {
     if (!confirm("Delete this address and all its contacts?")) return;
-    const response = await fetch(`/api/ship-to-addresses?id=${id}`, { method: "DELETE" });
-    if (response.ok) load();
+    const res = await fetch(`/api/ship-to-addresses?id=${id}`, { method: "DELETE" });
+    if (res.ok) load();
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#d97449] border-t-transparent rounded-full animate-spin" /></div>;
@@ -154,57 +132,39 @@ export default function ShipToPage({ permissions }: Props) {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Ship-To Addresses</h1>
-          <p className="text-sm text-slate-500">{filtered.length} address{filtered.length === 1 ? "" : "es"}</p>
-        </div>
+        <div><h1 className="text-2xl font-bold text-slate-900">Ship-To Addresses</h1><p className="text-sm text-slate-500">{filtered.length} address(es)</p></div>
         {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-semibold transition-colors">+ Add Address</button>}
       </div>
 
-      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{toast.text}</div>}
+      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.text}</div>}
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-[#f1c6b2]"
-          placeholder="Search company, address, category, country or telephone..."
-        />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:ring-[#f1c6b2]" placeholder="Search company, address, country..." />
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white min-w-[170px]">
           <option value="">All Categories</option>
-          {CATEGORIES.map((value) => <option key={value}>{value}</option>)}
+          {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
         </select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filtered.length === 0 ? (
-          <div className="col-span-2 bg-white rounded-xl p-10 text-center border border-slate-200 text-slate-400">No addresses found</div>
-        ) : filtered.map((address) => (
+        {filtered.map((addr) => (
           <DirectoryCard
-            key={address.id}
-            name={address.name}
-            officialName={address.officialNameAlt ? `${address.officialName || ""} (${address.officialNameAlt})`.trim() : address.officialName}
-            badge={address.category ? { label: address.category, tone: "neutral" } : null}
-            addressEnglish={address.addressEnglish}
-            addressLocal={address.addressLocal}
-            country={address.country}
-            telephone={address.telephone}
-            notes={address.notes}
-            contactCount={address.contactCount || 0}
-            createdByName={address.createdByName}
-            updatedByName={address.updatedByName}
-            createdAt={address.createdAt}
-            updatedAt={address.updatedAt}
+            key={addr.id}
+            name={addr.name}
+            officialName={addr.officialNameAlt ? `${addr.officialName || ""} (${addr.officialNameAlt})`.trim() : addr.officialName}
+            badge={addr.category ? { label: addr.category, tone: "neutral" } : null}
+            addressEnglish={addr.addressEnglish} addressLocal={addr.addressLocal} country={addr.country} telephone={addr.telephone} notes={addr.notes}
+            contactCount={contactCountMap[addr.id] || 0} // 🟢 現在聯絡人數會 100% 正確顯示！
             permissions={permissions}
-            onContacts={() => setViewingContacts(address)}
-            onView={() => setViewingEntity(address)}
-            onEdit={() => openForm(address)}
-            onDelete={() => remove(address.id)}
+            onContacts={() => setViewingContacts(addr)}
+            onView={() => setViewingEntity(addr)}
+            onEdit={() => openForm(addr)}
+            onDelete={() => remove(addr.id)}
           />
         ))}
       </div>
 
-      {showForm && permissions.canEdit && (
+      {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
@@ -212,106 +172,24 @@ export default function ShipToPage({ permissions }: Props) {
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={save} className="p-4 space-y-4">
-              {/* 1. Display Name */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Entity Name (Display / System) *
-                </label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  placeholder="請輸入系統顯示名稱 / System display name"
-                  required
-                />
-              </div>
-
-                            {/* 2. Official Name Primary & Secondary */}
+              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Entity Name (Display / System) *</label><input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. Warehouse 1" required /></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Official Name (Primary)
-                  </label>
-                  <input
-                    value={officialName}
-                    onChange={(e) => setOfficialName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    placeholder="請輸入主要官方全名 / Primary official name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Official Name (Secondary)
-                  </label>
-                  <input
-                    value={officialNameAlt}
-                    onChange={(e) => setOfficialNameAlt(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    placeholder="Please enter secondary official name (optional)"
-                  />
-                </div>
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Official Name (Primary)</label><input value={officialName} onChange={(e) => setOfficialName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Primary official name" /></div>
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Official Name (Secondary)</label><input value={officialNameAlt} onChange={(e) => setOfficialNameAlt(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Secondary official name" /></div>
               </div>
-
-              {/* 3. Address Primary & Secondary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Address (Primary / Local)
-                  </label>
-                  <textarea 
-                    value={addressLocal} 
-                    onChange={(e) => setAddressLocal(e.target.value)} 
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" 
-                    rows={2} 
-                    placeholder="請輸入主要/本地語言詳細地址" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Address (Secondary / English)
-                  </label>
-                  <textarea 
-                    value={addressEnglish} 
-                    onChange={(e) => setAddressEnglish(e.target.value)} 
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" 
-                    rows={2} 
-                    placeholder="Please enter detailed English address" 
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Category</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="">Select...</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></div>
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Category</label>
-                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
-                    <option value="">Select category...</option>
-                    {CATEGORIES.map((value) => <option key={value}>{value}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label>
-                  <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. China / CN" />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Primary / Local)</label><textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Secondary / English)</label><textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
               </div>
-
-              {/* 3. Address Primary & Secondary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Primary / Local)</label>
-                  <textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="請輸入主要/本地語言詳細地址" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Secondary / English)</label>
-                  <textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="Please enter detailed English address" />
-                </div>
-              </div>
-
-              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="請輸入總機電話 / General telephone" /></div>
-              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notes / Instructions</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="請輸入備註或送貨指示 / Special instructions" /></div>
-              
-              <div className="flex gap-3 pt-2 border-t border-slate-200">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors">{saving ? "Saving..." : editing ? "Update Address" : "Create Address"}</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Cancel</button>
+              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notes / Instructions</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-[#d97449] text-white rounded-lg text-sm font-semibold">{saving ? "Saving..." : "Save Address"}</button>
               </div>
             </form>
           </div>
