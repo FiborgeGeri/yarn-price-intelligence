@@ -28,7 +28,7 @@ export const companies = pgTable("companies", {
   addressEnglish: text("address_english"),
   telephone: varchar("telephone", { length: 100 }),
   country: varchar("country", { length: 100 }),
-  logoPath: varchar("logo_path", { length: 500 }),
+  logoPath: text("logo_path"),
   isDefault: boolean("is_default").default(false),
   fapiaoCompanyName: varchar("fapiao_company_name", { length: 500 }),
   fapiaoTaxId: varchar("fapiao_tax_id", { length: 50 }),
