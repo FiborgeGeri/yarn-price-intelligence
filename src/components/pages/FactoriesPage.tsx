@@ -11,7 +11,7 @@ interface Factory {
   id: number;
   factoryName: string;
   officialName: string;
-  officialNameAlt?: string | null; // 🆕 次要/英文官方全名
+  officialNameAlt?: string | null;
   country: string;
   addressLocal: string;
   addressEnglish: string;
@@ -54,10 +54,10 @@ export default function FactoriesPage({ permissions }: Props) {
   const [relationshipFilter, setRelationshipFilter] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 表單 State
+  // 表單獨立狀態（保證絕不互相干擾）
   const [name, setName] = useState("");
   const [officialName, setOfficialName] = useState("");
-  const [officialNameAlt, setOfficialNameAlt] = useState(""); // 🆕 次要官方名稱
+  const [officialNameAlt, setOfficialNameAlt] = useState("");
   const [country, setCountry] = useState("");
   const [addressLocal, setAddressLocal] = useState("");
   const [addressEnglish, setAddressEnglish] = useState("");
@@ -67,6 +67,7 @@ export default function FactoriesPage({ permissions }: Props) {
   const [parentId, setParentId] = useState<number | null>(null);
   const [status, setStatus] = useState("Active");
   const [formCertificates, setFormCertificates] = useState<number[]>([]);
+  
   const [fapiao, setFapiao] = useState({
     fapiaoCompanyName: "", fapiaoTaxId: "", fapiaoAddress: "",
     fapiaoPhone: "", fapiaoFax: "", fapiaoBankName: "",
@@ -112,7 +113,7 @@ export default function FactoriesPage({ permissions }: Props) {
     setEditing(factory || null);
     setName(factory?.factoryName || "");
     setOfficialName(factory?.officialName || "");
-    setOfficialNameAlt(factory?.officialNameAlt || ""); // 🆕 回填次要全名
+    setOfficialNameAlt(factory?.officialNameAlt || "");
     setCountry(factory?.country || "");
     setAddressLocal(factory?.addressLocal || "");
     setAddressEnglish(factory?.addressEnglish || "");
@@ -147,7 +148,7 @@ export default function FactoriesPage({ permissions }: Props) {
           id: editing?.id,
           factoryName: name.trim(),
           officialName,
-          officialNameAlt, // 🆕 送出次要全名
+          officialNameAlt,
           country,
           addressLocal,
           addressEnglish,
@@ -215,7 +216,7 @@ export default function FactoriesPage({ permissions }: Props) {
           <DirectoryCard
             key={factory.id}
             name={factory.factoryName}
-            officialName={factory.officialName}
+            officialName={factory.officialNameAlt ? `${factory.officialName || ""} (${factory.officialNameAlt})`.trim() : factory.officialName}
             badge={{
               label: factory.relationship === "My Factory" ? "My Yarn Mill" : "Competitor Yarn Mill",
               tone: factory.relationship === "My Factory" ? "coral" : "sage",
@@ -249,6 +250,7 @@ export default function FactoriesPage({ permissions }: Props) {
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={save} className="p-4 space-y-4">
+              
               {/* 1. Display Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
@@ -258,12 +260,12 @@ export default function FactoriesPage({ permissions }: Props) {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  placeholder="e.g. Ningbo Worsted Mill"
+                  placeholder="e.g. System display name"
                   required
                 />
               </div>
 
-                            {/* 2. Official Name Primary & Secondary */}
+              {/* 2. Official Name Primary & Secondary */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
@@ -289,8 +291,22 @@ export default function FactoriesPage({ permissions }: Props) {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Relationship</label>
+                  <select value={relationship} onChange={(e) => setRelationship(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                    <option value="My Factory">Mine</option>
+                    <option value="Competitor Factory">Competitor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label>
+                  <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. China / CN" />
+                </div>
+              </div>
+
               {/* 3. Address Primary & Secondary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Address (Primary / Local)
@@ -317,34 +333,11 @@ export default function FactoriesPage({ permissions }: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Relationship</label>
-                  <select value={relationship} onChange={(e) => setRelationship(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
-                    <option value="My Factory">Mine</option>
-                    <option value="Competitor Factory">Competitor</option>
-                  </select>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label>
+                  <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="請輸入總機電話 / General telephone" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label>
-                  <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. China / CN" />
-                </div>
-              </div>
-
-              {/* 3. Address Primary & Secondary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Primary / Local)</label>
-                  <textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="e.g. 浙江省寧波市海曙區XX路88號" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Secondary / English)</label>
-                  <textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="e.g. No. 88, XX Road, Haishu, Ningbo" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Company main switchboard" /></div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Status</label>
                   <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
@@ -388,7 +381,10 @@ export default function FactoriesPage({ permissions }: Props) {
                 onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
               />
 
-              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notes</label>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} />
+              </div>
               
               <div className="flex gap-3 pt-2 border-t border-slate-200">
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors">{saving ? "Saving..." : editing ? "Update Mill" : "Create Mill"}</button>

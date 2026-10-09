@@ -20,21 +20,12 @@ async function fetchTemplateRemarks(key: string): Promise<string> {
   }
 }
 
-/**
- * 🆕 智慧 Remark 組合器 (防止手動載入範本與系統自動帶入產生重複)
- */
 function combineRemarks(userNotes: string | null | undefined, templateRemarks: string): string {
   const notes = (userNotes || "").trim();
   const tmpl = (templateRemarks || "").trim();
-
   if (!notes) return tmpl;
   if (!tmpl) return notes;
-
-  // 智慧比對：如果使用者備註中已經包含範本內容（例如在 UI 點過 Load template），就不再重複追加！
-  if (notes.includes(tmpl)) {
-    return notes;
-  }
-
+  if (notes.includes(tmpl)) return notes;
   return `${notes}\n\n${tmpl}`;
 }
 
@@ -44,7 +35,7 @@ function toExportItems(rows: any[]): ExportItem[] {
     description: it.description ?? undefined, colorName: it.colorName ?? undefined, colorCode: it.colorCode ?? undefined, colorReference: it.colorReference ?? undefined,
     quantity: it.quantity ?? undefined, unitPrice: it.unitPrice ?? undefined, currency: it.currency ?? undefined, unit: it.unit ?? undefined, weightBasis: it.weightBasis ?? undefined,
     incoterms: it.incoterms ?? undefined, amount: it.amount ?? undefined, notes: it.notes ?? undefined, lotNo: it.lotNo ?? undefined, packages: it.packages ?? undefined,
-    grossWeight: it.grossWeight ?? undefined, netWeight: it.netWeight ?? undefined,
+    grossWeight: it.grossWeight ?? undefined, netWeight: it.netWeight ?? undefined, packingDetails: it.packingDetails ?? undefined,
   }));
 }
 
@@ -90,13 +81,12 @@ export async function GET(req: NextRequest) {
       const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("quotation", lang));
 
       data = {
+        docId: id,
         docType: "Quotation", docNo: refQuote.quoteNo || `Q-${id}`, date: refQuote.quoteDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
         currency: refQuote.currency ?? undefined, incoterms: refQuote.incoterms ?? undefined, status: refQuote.status ?? undefined, validUntil: refQuote.validUntil ?? undefined,
-        items, 
-        notes: combineRemarks(refQuote.notes, defaultRemarks), // 🆕 智慧去重
-        exportedBy: currentUserName,
+        items, notes: combineRemarks(refQuote.notes, defaultRemarks), exportedBy: currentUserName,
       };
 
     // ============== PURCHASE ORDER ==============
@@ -128,29 +118,22 @@ export async function GET(req: NextRequest) {
       const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("po", lang));
 
       data = {
+        docId: id,
         docType: "Purchase Order", docNo: po.poNo || `PO-${id}`, date: po.poDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined, attn: factoryContact?.contactName ?? po.contactPerson ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined } : undefined,
         shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
         reference: po.soNo ?? undefined, customerPoNo: po.customerPoNo ?? undefined, deliveryDate: po.deliveryDate ?? undefined, paymentTerms: po.paymentMethod ? `${po.paymentMethod}${po.paymentDays ? ` ${po.paymentDays} Days` : ""}` : undefined, currency: po.currency ?? undefined, incoterms: po.incoterms ?? undefined, orderCategory: po.orderCategory ?? undefined, quantityUnit: po.quantityUnit ?? undefined,
         items: exportItems, subtotal: exportItems.reduce((s, it) => s + (it.amount || 0), 0), total: exportItems.reduce((s, it) => s + (it.amount || 0), 0),
-        notes: combineRemarks(po.notes, defaultRemarks), // 🆕 智慧去重
-        exportedBy: currentUserName,
-        revision: po.revision ?? undefined,
-        lastRevisedAt: po.lastRevisedAt ?? undefined,
+        notes: combineRemarks(po.notes, defaultRemarks), exportedBy: currentUserName,
+        revision: po.revision ?? undefined, lastRevisedAt: po.lastRevisedAt ?? undefined,
       };
 
-        // ============== DELIVERY NOTE ==============
+    // ============== DELIVERY NOTE ==============
     } else if (type === "dn") {
       const [dn] = await db.select().from(deliveryNotes).where(eq(deliveryNotes.id, id));
       if (!dn) return NextResponse.json({ error: "DN not found" }, { status: 404 });
-
-      const items = await db.select({
-        yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, composition: yarns.composition, micron: yarns.micron, // 🆕 DN 補上成份與 Micron
-        colorName: dnItems.colorName, colorCode: dnItems.colorCode,
-        quantity: dnItems.quantity, lotNo: dnItems.lotNo,
-        packages: dnItems.packages, grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight, notes: dnItems.notes,
-      }).from(dnItems).leftJoin(yarns, eq(dnItems.yarnId, yarns.id)).where(eq(dnItems.dnId, id));
+      const items = await db.select({ yarnName: yarns.yarnName, yarnCount: yarns.yarnCount, colorName: dnItems.colorName, colorCode: dnItems.colorCode, quantity: dnItems.quantity, lotNo: dnItems.lotNo, packages: dnItems.packages, grossWeight: dnItems.grossWeight, netWeight: dnItems.netWeight, packingDetails: dnItems.packingDetails, notes: dnItems.notes }).from(dnItems).leftJoin(yarns, eq(dnItems.yarnId, yarns.id)).where(eq(dnItems.dnId, id));
 
       const [customer] = dn.customerId ? await db.select().from(customers).where(eq(customers.id, dn.customerId)) : [];
       let contact = null;
@@ -163,18 +146,19 @@ export async function GET(req: NextRequest) {
       if (dn.shipToContactId) { const [c] = await db.select().from(shipToContacts).where(eq(shipToContacts.id, dn.shipToContactId)); shipToContact = c; }
       else if (dn.shipToId) { const [c] = await db.select().from(shipToContacts).where(eq(shipToContacts.shipToId, dn.shipToId)).limit(1); shipToContact = c; }
 
-      const lang = langOverride || detectDocumentLanguage(customer?.country);
+      // 🔧 DN 的語言應該優先看 Ship To，如果沒有再看 Customer
+      const lang = langOverride || detectDocumentLanguage(shipTo?.country) || detectDocumentLanguage(customer?.country);
       const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("dn", lang));
 
       data = {
+        docId: id,
         docType: "Delivery Note", docNo: dn.dnNo || `DN-${id}`, date: dn.dnDate,
-        company: company ? { name: company.name, officialName: company.officialName ?? undefined, officialNameAlt: company.officialNameAlt ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
-        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, officialNameAlt: customer.officialNameAlt ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
-        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, officialNameAlt: shipTo.officialNameAlt ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
+        company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
+        party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
+        shipTo: shipTo ? { name: shipTo.name, officialName: shipTo.officialName ?? undefined, address: shipTo.addressEnglish ?? shipTo.addressLocal ?? undefined, attn: shipToContact?.contactName ?? undefined, telephone: shipToContact?.cellPhone ?? shipToContact?.phone ?? shipTo.telephone ?? undefined } : undefined,
         customerPoNo: dn.customerPoNo ?? undefined, reference: dn.soNo ?? undefined, orderCategory: dn.orderCategory ?? undefined, quantityUnit: dn.quantityUnit ?? undefined,
-        shippingMethod: dn.shippingMethod ?? undefined, trackingNo: dn.trackingNo ?? undefined, // 🆕 DN 專用欄位
-        items: toExportItems(items),
-        notes: combineRemarks(dn.notes, defaultRemarks), exportedBy: currentUserName,
+        shippingMethod: dn.shippingMethod ?? undefined, trackingNo: dn.trackingNo ?? undefined,
+        items: toExportItems(items), notes: combineRemarks(dn.notes, defaultRemarks), exportedBy: currentUserName,
       };
 
     // ============== SALES INVOICE ==============
@@ -194,13 +178,13 @@ export async function GET(req: NextRequest) {
       const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("invoice", lang));
 
       data = {
+        docId: id,
         docType: "Sales Invoice", docNo: inv.invoiceNo || `INV-${id}`, date: inv.invoiceDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: customer ? { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, attn: contact?.contactName ?? undefined, telephone: contact?.cellPhone ?? contact?.phone ?? customer.telephone ?? undefined } : undefined,
         reference: inv.soNo ?? undefined, customerPoNo: inv.customerPoNo ?? undefined, deliveryDate: inv.dueDate ?? undefined, currency: inv.currency ?? undefined,
         items: toExportItems(items), subtotal: inv.subtotal ?? undefined, vatRate: inv.vatRate ?? undefined, vatAmount: inv.vatAmount ?? undefined, total: inv.total ?? undefined, bankInfo,
-        notes: combineRemarks(inv.notes, defaultRemarks), // 🆕 智慧去重
-        exportedBy: currentUserName,
+        notes: combineRemarks(inv.notes, defaultRemarks), exportedBy: currentUserName,
       };
 
     // ============== SUPPLIER INVOICE ==============
@@ -219,13 +203,13 @@ export async function GET(req: NextRequest) {
       const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("supplier-invoice", lang));
 
       data = {
+        docId: id,
         docType: "Supplier Invoice", docNo: inv.supplierInvoiceNo || inv.internalNo || `SI-${id}`, date: inv.invoiceDate,
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: factory ? { name: factory.factoryName, officialName: factory.officialName ?? undefined, address: factory.addressEnglish ?? factory.addressLocal ?? undefined, attn: factoryContact?.contactName ?? undefined, telephone: factoryContact?.cellPhone ?? factoryContact?.phone ?? factory.telephone ?? undefined } : undefined,
         reference: inv.poNo ?? undefined, deliveryDate: inv.dueDate ?? undefined, currency: inv.currency ?? undefined,
         items: toExportItems(items), subtotal: inv.subtotal ?? undefined, vatRate: inv.vatRate ?? undefined, vatAmount: inv.vatAmount ?? undefined, total: inv.total ?? undefined, bankInfo,
-        notes: combineRemarks(inv.notes, defaultRemarks), // 🆕 智慧去重
-        exportedBy: currentUserName,
+        notes: combineRemarks(inv.notes, defaultRemarks), exportedBy: currentUserName,
       };
 
     // ============== RECONCILIATION ==============
@@ -254,12 +238,12 @@ export async function GET(req: NextRequest) {
       const defaultRemarks = await fetchTemplateRemarks(getRemarksTemplateKey("reconciliation", lang));
 
       data = {
+        docId: customerId,
         docType: "Reconciliation", docNo: `REC-${customerId}-${new Date().toISOString().slice(0, 10)}`, date: new Date().toISOString().slice(0, 10),
         company: company ? { name: company.name, officialName: company.officialName ?? undefined, address: company.addressEnglish ?? company.addressLocal ?? undefined, telephone: company.telephone ?? undefined, logoPath: company.logoPath ?? undefined } : undefined,
         party: { name: customer.name, officialName: customer.officialName ?? undefined, address: customer.addressEnglish ?? customer.addressLocal ?? undefined, telephone: customer.telephone ?? undefined },
         currency: items[0]?.currency || "USD", items, openingBalance: 0, closingBalance: balance, subtotal: totalDebit, total: balance,
-        notes: combineRemarks(undefined, defaultRemarks), // 🆕 智慧帶入
-        exportedBy: currentUserName,
+        notes: combineRemarks(undefined, defaultRemarks), exportedBy: currentUserName,
       };
 
     } else {

@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import QRCode from "qrcode";
 
 const COLORS = {
   black: "000000",
@@ -52,6 +53,7 @@ export interface ExportItem {
   packages?: number;
   grossWeight?: string;
   netWeight?: string;
+  packingDetails?: string;
   docNo?: string;
   docDate?: string;
   docType?: string;
@@ -61,6 +63,7 @@ export interface ExportItem {
 }
 
 export interface ExportData {
+  docId: number;
   docType: "Quotation" | "Purchase Order" | "Delivery Note" | "Sales Invoice" | "Supplier Invoice" | "Reconciliation";
   docNo: string;
   date: string;
@@ -77,8 +80,8 @@ export interface ExportData {
   validUntil?: string;
   orderCategory?: string;
   quantityUnit?: string;
-  shippingMethod?: string; // 🆕 DN 專用
-  trackingNo?: string;     // 🆕 DN 專用
+  shippingMethod?: string;
+  trackingNo?: string;
   items: ExportItem[];
   subtotal?: number;
   vatRate?: number;
@@ -102,6 +105,17 @@ function needsMicronColumn(items: ExportItem[]): boolean {
     const comp = (it.composition || "").toLowerCase();
     return animalFibers.some((f) => comp.includes(f));
   });
+}
+
+async function generateQrCodeBuffer(url: string): Promise<Buffer | null> {
+  try {
+    const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, scale: 5 });
+    const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, "");
+    return Buffer.from(base64Data, "base64");
+  } catch (err) {
+    console.error("QR Code generation failed:", err);
+    return null;
+  }
 }
 
 export async function generateExcel(data: ExportData): Promise<Buffer> {
@@ -135,7 +149,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   const mainUnit = data.quantityUnit || "KGS";
   const unitShort = mainUnit.replace(/S$/i, "");
 
-  // 🆕 專屬 DN 欄位寬度
   if (showMicron) {
     ws.columns = [
       { width: 4 }, { width: 14 }, { width: 28 }, { width: 8 },
@@ -144,16 +157,9 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     ];
   } else if (isDN) {
     ws.columns = [
-      { width: 4 },   // A: #
-      { width: 16 },  // B: Description
-      { width: 22 },  // C: Spec
-      { width: 12 },  // D: Color
-      { width: 14 },  // E: Lot No
-      { width: 10 },  // F: Qty
-      { width: 8 },   // G: Pkgs
-      { width: 10 },  // H: Gross Wt
-      { width: 10 },  // I: Net Wt
-      { width: 14 },  // J: Remarks
+      { width: 4 }, { width: 18 }, { width: 16 }, { width: 14 },
+      { width: 12 }, { width: 10 }, { width: 10 }, { width: 10 },
+      { width: 10 }, { width: 16 },
     ];
   } else {
     ws.columns = [
@@ -174,11 +180,25 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       if (logoResponse.ok) {
         const logoBuffer = await logoResponse.arrayBuffer();
         const ext = logoUrl.includes(".png") ? "png" : "jpeg";
-        logoImageId = wb.addImage({ buffer: logoBuffer as unknown as ExcelJS.Buffer, extension: ext as "png" | "jpeg" });
+        // 🟢 修復 Buffer 型別衝突：用 as any 繞過嚴格型別檢查
+        logoImageId = wb.addImage({ buffer: logoBuffer as any, extension: ext as "png" | "jpeg" });
       }
-    } catch (err) {}
+    } catch {}
   }
   if (logoImageId !== null) ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: 110, height: 36 } });
+
+  const typeMap: Record<string, string> = {
+    "Quotation": "quotation", "Purchase Order": "po", "Delivery Note": "dn",
+    "Sales Invoice": "invoice", "Supplier Invoice": "supplier-invoice", "Reconciliation": "reconciliation"
+  };
+  const qrType = typeMap[data.docType] || "so";
+  const qrUrl = `https://yarn-price-intelligence.vercel.app/scan/${qrType}/${data.docId}`;
+  const qrBuffer = await generateQrCodeBuffer(qrUrl);
+  if (qrBuffer) {
+    // 🟢 修復 Buffer 型別衝突：用 as any 繞過
+    const qrImageId = wb.addImage({ buffer: qrBuffer as any, extension: "png" });
+    ws.addImage(qrImageId, { tl: { col: totalCols - 3, row: 0 }, ext: { width: 50, height: 50 } });
+  }
 
   ws.getRow(3).height = 24;
   ws.getCell("A3").value = data.company?.officialName || data.company?.name || "FIBORGE COMPANY LIMITED";
@@ -235,9 +255,7 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   if (data.deliveryDate) setRight(`Delivery Date: ${data.deliveryDate}`);
 
   if (data.revision && data.revision > 0 && data.lastRevisedAt) {
-    const revDateStr = data.lastRevisedAt instanceof Date 
-      ? data.lastRevisedAt.toISOString().slice(0, 10) 
-      : String(data.lastRevisedAt).slice(0, 10);
+    const revDateStr = data.lastRevisedAt instanceof Date ? data.lastRevisedAt.toISOString().slice(0, 10) : String(data.lastRevisedAt).slice(0, 10);
     setRight(`Revised Date: ${revDateStr} (Rev.${data.revision})`);
   }
 
@@ -249,7 +267,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
   const infoStart = row;
 
-  // TO
   const toLabel = data.docType === "Purchase Order" || data.docType === "Supplier Invoice" ? "TO (SUPPLIER)" : "TO (CLIENT)";
   const partyFullName = data.party?.officialName || data.party?.name || "";
   if (data.party) {
@@ -289,7 +306,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     }
   }
 
-  // SHIP TO
   if (data.shipTo) {
     let shipRow = infoStart;
     ws.getCell(`${rightStartCol}${shipRow}`).value = "SHIP TO";
@@ -332,9 +348,8 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
 
   row += 1;
 
-  // 🆕 Reference Info Bar (加入 Shipping 方式)
   const refItems: string[] = [];
-  if (data.reference) refItems.push(`Ref: ${data.reference}`);
+  if (!isDN && data.reference) refItems.push(`Ref: ${data.reference}`);
   if (data.orderCategory) refItems.push(`Category: ${data.orderCategory}`);
   if (data.shippingMethod) refItems.push(`Ship Via: ${data.shippingMethod}`);
   if (data.trackingNo) refItems.push(`Tracking: ${data.trackingNo}`);
@@ -352,7 +367,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     row += 2;
   }
 
-  // ===================== ITEMS TABLE =====================
   const qtyHeader = `Qty (${mainUnit})`;
   const priceHeader = `Unit Price (${mainCurrency}/${unitShort})`;
   const amountHeader = `Amount (${mainCurrency})`;
@@ -426,7 +440,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       cell.alignment = { vertical: "middle", wrapText: true };
       cell.border = BORDER_THIN;
       if (colNum === 1) cell.alignment = { horizontal: "center", vertical: "middle" };
-      // 數字右對齊
       if (isDN && colNum >= 6 && colNum <= 9) {
         cell.alignment = { horizontal: "right", vertical: "middle" };
       } else if (!isDN && colNum >= qtyColIdx && colNum <= amountColIdx) {
@@ -435,9 +448,21 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
       if (colNum === (showMicron ? 10 : 9) && !isDN) cell.alignment = { horizontal: "center", vertical: "middle" };
     });
     dataRow.height = spec.includes("\n") || colorDisplay.includes("\n") ? 28 : 20;
+
+    if (isDN && item.packingDetails) {
+      try {
+        const boxes = JSON.parse(item.packingDetails);
+        if (Array.isArray(boxes) && boxes.length > 0) {
+          const detailRow = ws.getRow(row++);
+          const packingStr = boxes.map(b => `${b.unit}: ${b.gross} GW, ${b.net} NW`).join(" | ");
+          detailRow.getCell(2).value = `Packing List: ${packingStr}`;
+          detailRow.getCell(2).font = { size: 8, color: { argb: COLORS.darkGray }, name: "Calibri", italic: true };
+          ws.mergeCells(detailRow.number, 2, detailRow.number, 10);
+        }
+      } catch {}
+    }
   });
 
-  // ===================== TOTALS =====================
   if (isDN) {
     row++;
     const totalRow = ws.getRow(row++);
@@ -502,7 +527,20 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     }
   }
 
-  // BANK INFO
+  if (isReconciliation && data.closingBalance !== undefined) {
+    row++;
+    const balRow = ws.getRow(row++);
+    balRow.getCell(balanceColIdx - 1).value = "CLOSING BALANCE:";
+    balRow.getCell(balanceColIdx).value = `${data.currency || ""} ${data.closingBalance.toFixed(2)}`;
+    balRow.getCell(balanceColIdx - 1).font = { size: 11, bold: true, name: "Calibri" };
+    balRow.getCell(balanceColIdx).font = { size: 11, bold: true, name: "Calibri" };
+    balRow.getCell(balanceColIdx - 1).alignment = { horizontal: "right" };
+    balRow.getCell(balanceColIdx).alignment = { horizontal: "right" };
+    balRow.getCell(balanceColIdx).border = { top: { style: "medium", color: { argb: COLORS.black } }, bottom: { style: "double", color: { argb: COLORS.black } } };
+    balRow.getCell(balanceColIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.bgLight } };
+    balRow.height = 24;
+  }
+
   if (data.bankInfo) {
     row += 2;
     ws.getCell(`A${row}`).value = "BANK DETAILS";
@@ -525,7 +563,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     });
   }
 
-  // REMARKS
   if (data.notes) {
     row += 2;
     ws.getCell(`A${row}`).value = "REMARKS";
@@ -540,7 +577,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
     row++;
   }
 
-  // SIGNATURES
   row += 3;
   const myFullName = data.company?.officialName || data.company?.name || "Company";
   const otherFullName = data.party?.officialName || data.party?.name || "";
@@ -565,7 +601,6 @@ export async function generateExcel(data: ExportData): Promise<Buffer> {
   ws.getCell(row, sigEndCol).font = { size: 8, bold: true, color: { argb: COLORS.darkGray }, name: "Calibri" };
   ws.getCell(row, sigEndCol).alignment = { horizontal: "center" };
 
-  // FOOTER
   row += 3;
   const nowFormatted = new Date().toISOString().replace("T", " ").slice(0, 19);
   const byUser = data.exportedBy ? ` by ${data.exportedBy}` : "";
