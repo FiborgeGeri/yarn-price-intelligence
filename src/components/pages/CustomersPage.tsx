@@ -6,12 +6,13 @@ import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
 import FapiaoInfoSection from "@/components/FapiaoInfoSection";
 import DirectoryViewModal from "@/components/DirectoryViewModal";
+import BankAccountsModal from "@/components/BankAccountsModal"; // 🆕 引入銀行帳戶模組
 
 interface Client {
   id: number;
   name: string;
   officialName: string;
-  officialNameAlt?: string | null; // 🆕 次要官方全名
+  officialNameAlt?: string | null;
   country: string;
   addressLocal: string;
   addressEnglish: string;
@@ -50,6 +51,7 @@ export default function ClientsPage({ permissions }: Props) {
   const [editing, setEditing] = useState<Client | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Client | null>(null);
   const [viewingEntity, setViewingEntity] = useState<Client | null>(null);
+  const [managingBanks, setManagingBanks] = useState<{ id: number; name: string } | null>(null); // 🆕 銀行帳戶 Modal State
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
@@ -57,12 +59,14 @@ export default function ClientsPage({ permissions }: Props) {
 
   const [name, setName] = useState("");
   const [officialName, setOfficialName] = useState("");
-  const [officialNameAlt, setOfficialNameAlt] = useState(""); // 🆕 次要名稱
+  const [officialNameAlt, setOfficialNameAlt] = useState("");
   const [country, setCountry] = useState("");
   const [addressLocal, setAddressLocal] = useState("");
   const [addressEnglish, setAddressEnglish] = useState("");
   const [telephone, setTelephone] = useState("");
   const [notes, setNotes] = useState("");
+  
+  // 🆕 發票 State
   const [fapiao, setFapiao] = useState({
     fapiaoCompanyName: "", fapiaoTaxId: "", fapiaoAddress: "",
     fapiaoPhone: "", fapiaoFax: "", fapiaoBankName: "",
@@ -127,7 +131,7 @@ export default function ClientsPage({ permissions }: Props) {
     setEditing(client || null);
     setName(client?.name || "");
     setOfficialName(client?.officialName || "");
-    setOfficialNameAlt(client?.officialNameAlt || ""); // 🆕 回填次要名稱
+    setOfficialNameAlt(client?.officialNameAlt || "");
     setCountry(client?.country || "");
     setAddressLocal(client?.addressLocal || "");
     setAddressEnglish(client?.addressEnglish || "");
@@ -158,7 +162,7 @@ export default function ClientsPage({ permissions }: Props) {
           id: editing?.id,
           name: name.trim(),
           officialName,
-          officialNameAlt, // 🆕 送出次要名稱
+          officialNameAlt,
           country,
           addressLocal,
           addressEnglish,
@@ -218,27 +222,38 @@ export default function ClientsPage({ permissions }: Props) {
         {filtered.length === 0 ? (
           <div className="col-span-2 bg-white rounded-xl p-10 text-center border border-slate-200 text-slate-400">No clients found</div>
         ) : filtered.map((client) => (
-          <DirectoryCard
-            key={client.id}
-            name={client.name}
-            officialName={client.officialName}
-            badge={{ label: "Client", tone: "coral" }}
-            addressEnglish={client.addressEnglish}
-            addressLocal={client.addressLocal}
-            country={client.country}
-            telephone={client.telephone}
-            notes={client.notes}
-            contactCount={contactCountMap[client.id] || 0}
-            createdByName={client.createdByName}
-            updatedByName={client.updatedByName}
-            createdAt={client.createdAt}
-            updatedAt={client.updatedAt}
-            permissions={permissions}
-            onContacts={() => setViewingContacts(client)}
-            onEdit={() => openForm(client)}
-            onDelete={() => remove(client.id)}
-            onView={() => setViewingEntity(client)}
-          />
+          <div key={client.id} className="relative">
+            <DirectoryCard
+              name={client.name}
+              officialName={client.officialNameAlt ? `${client.officialName || ""} (${client.officialNameAlt})`.trim() : client.officialName}
+              badge={{ label: "Client", tone: "coral" }}
+              addressEnglish={client.addressEnglish}
+              addressLocal={client.addressLocal}
+              country={client.country}
+              telephone={client.telephone}
+              notes={client.notes}
+              contactCount={contactCountMap[client.id] || 0}
+              createdByName={client.createdByName}
+              updatedByName={client.updatedByName}
+              createdAt={client.createdAt}
+              updatedAt={client.updatedAt}
+              permissions={permissions}
+              onContacts={() => setViewingContacts(client)}
+              onEdit={() => openForm(client)}
+              onDelete={() => remove(client.id)}
+              onView={() => setViewingEntity(client)}
+            />
+            {/* 🆕 加上 Bank 按鈕 */}
+            {permissions.canEdit && (
+              <button
+                onClick={() => setManagingBanks({ id: client.id, name: client.name })}
+                className="absolute top-4 right-10 p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                title="Manage Bank Accounts"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+              </button>
+            )}
+          </div>
         ))}
       </div>
 
@@ -250,21 +265,20 @@ export default function ClientsPage({ permissions }: Props) {
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <form onSubmit={save} className="p-4 space-y-4">
-              {/* 1. Display Name */}
+              
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Name (Display / System) *
+                  Client Name (Display / System) *
                 </label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  placeholder="System display name (e.g. Client A)"
+                  placeholder="e.g. System display name"
                   required
                 />
               </div>
 
-                            {/* 2. Official Name Primary & Secondary */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
@@ -290,7 +304,11 @@ export default function ClientsPage({ permissions }: Props) {
                 </div>
               </div>
 
-              {/* 3. Address Primary & Secondary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="請輸入總機電話 / General telephone" /></div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
@@ -317,39 +335,6 @@ export default function ClientsPage({ permissions }: Props) {
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
-                <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label><input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Company main switchboard" /></div>
-              </div>
-
-              {/* 3. Address Primary & Secondary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-  <div>
-    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-      Address (Primary / Local)
-    </label>
-    <textarea
-      value={addressLocal}
-      onChange={(e) => setAddressLocal(e.target.value)}
-      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-      rows={2}
-      placeholder="請輸入主要/本地語言詳細地址, Primary or local language detail address"
-    />
-  </div>
-  <div>
-    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-      Address (Secondary / English)
-    </label>
-    <textarea
-      value={addressEnglish}
-      onChange={(e) => setAddressEnglish(e.target.value)}
-      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-      rows={2}
-      placeholder="請輸入次要語言詳細地址, Please enter alternative detailed English address (optional)"
-    />
-  </div>
-</div>
               
               <FapiaoInfoSection
                 country={country}
@@ -369,6 +354,16 @@ export default function ClientsPage({ permissions }: Props) {
           </div>
         </div>
       )}
+
+      {/* 🆕 Bank Accounts Modal */}
+      {managingBanks && (
+  <BankAccountsModal
+    entity={{ id: managingBanks.id, name: managingBanks.name }}
+    entityType="customer"
+    permissions={permissions}
+    onClose={() => setManagingBanks(null)}
+  />
+)}
 
       <DirectoryContactsModal
         entity={viewingContacts ? { id: viewingContacts.id, name: viewingContacts.name, officialName: viewingContacts.officialName } : null}

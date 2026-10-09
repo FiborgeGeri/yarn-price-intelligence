@@ -6,6 +6,7 @@ import { getUserId } from "@/lib/getUserId";
 import { Permissions } from "@/lib/permissions";
 import FapiaoInfoSection from "@/components/FapiaoInfoSection";
 import DirectoryViewModal from "@/components/DirectoryViewModal";
+import BankAccountsModal from "@/components/BankAccountsModal";
 
 interface Factory {
   id: number;
@@ -49,12 +50,12 @@ export default function FactoriesPage({ permissions }: Props) {
   const [editing, setEditing] = useState<Factory | null>(null);
   const [viewingContacts, setViewingContacts] = useState<Factory | null>(null);
   const [viewingEntity, setViewingEntity] = useState<Factory | null>(null);
+  const [managingBanks, setManagingBanks] = useState<{ id: number; name: string } | null>(null);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [relationshipFilter, setRelationshipFilter] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 表單獨立狀態（保證絕不互相干擾）
   const [name, setName] = useState("");
   const [officialName, setOfficialName] = useState("");
   const [officialNameAlt, setOfficialNameAlt] = useState("");
@@ -213,32 +214,42 @@ export default function FactoriesPage({ permissions }: Props) {
         {filtered.length === 0 ? (
           <div className="col-span-2 bg-white rounded-xl p-10 text-center border border-slate-200 text-slate-400">No yarn mills found</div>
         ) : filtered.map((factory) => (
-          <DirectoryCard
-            key={factory.id}
-            name={factory.factoryName}
-            officialName={factory.officialNameAlt ? `${factory.officialName || ""} (${factory.officialNameAlt})`.trim() : factory.officialName}
-            badge={{
-              label: factory.relationship === "My Factory" ? "My Yarn Mill" : "Competitor Yarn Mill",
-              tone: factory.relationship === "My Factory" ? "coral" : "sage",
-            }}
-            addressEnglish={factory.addressEnglish}
-            addressLocal={factory.addressLocal}
-            country={factory.country}
-            telephone={factory.telephone}
-            summary={`${factory.yarnCount || 0} yarn${factory.yarnCount === 1 ? "" : "s"} · ${factory.status || "Active"}`}
-            chips={factory.certNames || []}
-            notes={factory.notes}
-            contactCount={factory.contactCount || 0}
-            createdByName={factory.createdByName}
-            updatedByName={factory.updatedByName}
-            createdAt={factory.createdAt}
-            updatedAt={factory.updatedAt}
-            permissions={permissions}
-            onContacts={() => setViewingContacts(factory)}
-            onEdit={() => openForm(factory)}
-            onDelete={() => remove(factory.id)}
-            onView={() => setViewingEntity(factory)}
-          />
+          <div key={factory.id} className="relative">
+            <DirectoryCard
+              name={factory.factoryName}
+              officialName={factory.officialNameAlt ? `${factory.officialName || ""} (${factory.officialNameAlt})`.trim() : factory.officialName}
+              badge={{
+                label: factory.relationship === "My Factory" ? "My Yarn Mill" : "Competitor Yarn Mill",
+                tone: factory.relationship === "My Factory" ? "coral" : "sage",
+              }}
+              addressEnglish={factory.addressEnglish}
+              addressLocal={factory.addressLocal}
+              country={factory.country}
+              telephone={factory.telephone}
+              summary={`${factory.yarnCount || 0} yarn${factory.yarnCount === 1 ? "" : "s"} · ${factory.status || "Active"}`}
+              chips={factory.certNames || []}
+              notes={factory.notes}
+              contactCount={factory.contactCount || 0}
+              createdByName={factory.createdByName}
+              updatedByName={factory.updatedByName}
+              createdAt={factory.createdAt}
+              updatedAt={factory.updatedAt}
+              permissions={permissions}
+              onContacts={() => setViewingContacts(factory)}
+              onEdit={() => openForm(factory)}
+              onDelete={() => remove(factory.id)}
+              onView={() => setViewingEntity(factory)}
+            />
+            {permissions.canEdit && (
+              <button
+                onClick={() => setManagingBanks({ id: factory.id, name: factory.factoryName })}
+                className="absolute top-4 right-10 p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                title="Manage Bank Accounts"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+              </button>
+            )}
+          </div>
         ))}
       </div>
 
@@ -251,7 +262,6 @@ export default function FactoriesPage({ permissions }: Props) {
             </div>
             <form onSubmit={save} className="p-4 space-y-4">
               
-              {/* 1. Display Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                   Name (Display / System) *
@@ -265,29 +275,14 @@ export default function FactoriesPage({ permissions }: Props) {
                 />
               </div>
 
-              {/* 2. Official Name Primary & Secondary */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Official Name (Primary)
-                  </label>
-                  <input
-                    value={officialName}
-                    onChange={(e) => setOfficialName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    placeholder="請輸入主要官方全名 / Primary official name"
-                  />
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Official Name (Primary)</label>
+                  <input value={officialName} onChange={(e) => setOfficialName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="請輸入主要官方全名 / Primary official name" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Official Name (Secondary)
-                  </label>
-                  <input
-                    value={officialNameAlt}
-                    onChange={(e) => setOfficialNameAlt(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    placeholder="Please enter secondary official name (optional)"
-                  />
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Official Name (Secondary)</label>
+                  <input value={officialNameAlt} onChange={(e) => setOfficialNameAlt(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Please enter secondary official name (optional)" />
                 </div>
               </div>
 
@@ -305,31 +300,14 @@ export default function FactoriesPage({ permissions }: Props) {
                 </div>
               </div>
 
-              {/* 3. Address Primary & Secondary */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Address (Primary / Local)
-                  </label>
-                  <textarea 
-                    value={addressLocal} 
-                    onChange={(e) => setAddressLocal(e.target.value)} 
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" 
-                    rows={2} 
-                    placeholder="請輸入主要/本地語言詳細地址" 
-                  />
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Primary / Local)</label>
+                  <textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="請輸入主要/本地語言詳細地址" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Address (Secondary / English)
-                  </label>
-                  <textarea 
-                    value={addressEnglish} 
-                    onChange={(e) => setAddressEnglish(e.target.value)} 
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" 
-                    rows={2} 
-                    placeholder="Please enter detailed English address" 
-                  />
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Secondary / English)</label>
+                  <textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="Please enter detailed English address" />
                 </div>
               </div>
 
@@ -394,6 +372,15 @@ export default function FactoriesPage({ permissions }: Props) {
           </div>
         </div>
       )}
+
+      {managingBanks && (
+  <BankAccountsModal
+    entity={{ id: managingBanks.id, name: managingBanks.name }}
+    entityType="factory"
+    permissions={permissions}
+    onClose={() => setManagingBanks(null)}
+  />
+)}
 
       <DirectoryContactsModal
         entity={viewingContacts ? { id: viewingContacts.id, name: viewingContacts.factoryName, officialName: viewingContacts.officialName } : null}

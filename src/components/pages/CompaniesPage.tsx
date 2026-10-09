@@ -1,26 +1,24 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Permissions } from "@/lib/permissions";
+
+import { useEffect, useState } from "react";
 import { getUserId } from "@/lib/getUserId";
-import AuditInfo from "@/components/AuditInfo";
+import { Permissions } from "@/lib/permissions";
+import ImageUploader from "@/components/ImageUploader";
 import FapiaoInfoSection from "@/components/FapiaoInfoSection";
-import DirectoryViewModal from "@/components/DirectoryViewModal";
+import BankAccountsModal from "@/components/BankAccountsModal";
 
 interface Company {
   id: number;
   name: string;
-  officialName: string;
-  addressLocal: string;
-  addressEnglish: string;
-  country: string;
-  telephone: string;
-  logoPath: string;
+  officialName: string | null;
+  officialNameAlt?: string | null;
+  addressLocal: string | null;
+  addressEnglish: string | null;
+  telephone: string | null;
+  country: string | null;
+  logoPath: string | null;
   isDefault: boolean;
-  notes: string;
-  createdByName: string;
-  updatedByName: string;
-  createdAt: string;
-  updatedAt: string;
+  notes: string | null;
   fapiaoCompanyName?: string | null;
   fapiaoTaxId?: string | null;
   fapiaoAddress?: string | null;
@@ -31,24 +29,8 @@ interface Company {
   fapiaoContact?: string | null;
 }
 
-interface Props { permissions: Permissions; }
-
-/**
- * Convert a Google Drive share link to a direct image URL.
- * Supports: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
- * Returns the original string if it's not a Drive link.
- */
-function toImageUrl(link: string): string {
-  if (!link) return "";
-  const match = link.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) {
-    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-  }
-  const openMatch = link.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
-  if (openMatch) {
-    return `https://drive.google.com/uc?export=view&id=${openMatch[1]}`;
-  }
-  return link;
+interface Props {
+  permissions: Permissions;
 }
 
 export default function CompaniesPage({ permissions }: Props) {
@@ -56,19 +38,22 @@ export default function CompaniesPage({ permissions }: Props) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
-  const [viewingEntity, setViewingEntity] = useState<Company | null>(null);
-  const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
+  const [managingBanks, setManagingBanks] = useState<{ id: number; name: string } | null>(null);
 
+  // Form states
   const [name, setName] = useState("");
   const [officialName, setOfficialName] = useState("");
+  const [officialNameAlt, setOfficialNameAlt] = useState("");
   const [addressLocal, setAddressLocal] = useState("");
   const [addressEnglish, setAddressEnglish] = useState("");
-  const [country, setCountry] = useState("");
   const [telephone, setTelephone] = useState("");
+  const [country, setCountry] = useState("");
   const [logoPath, setLogoPath] = useState("");
   const [isDefault, setIsDefault] = useState(false);
   const [notes, setNotes] = useState("");
+
   const [fapiao, setFapiao] = useState({
     fapiaoCompanyName: "", fapiaoTaxId: "", fapiaoAddress: "",
     fapiaoPhone: "", fapiaoFax: "", fapiaoBankName: "",
@@ -78,8 +63,13 @@ export default function CompaniesPage({ permissions }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await fetch("/api/companies").then((r) => r.json());
-      setCompanies(Array.isArray(data) ? data : []);
+      const res = await fetch("/api/companies");
+      if (res.ok) {
+        const data = await res.json();
+        setCompanies(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      setCompanies([]);
     } finally {
       setLoading(false);
     }
@@ -87,31 +77,32 @@ export default function CompaniesPage({ permissions }: Props) {
 
   useEffect(() => { load(); }, []);
 
-  const openForm = (company?: Company) => {
-    setEditing(company || null);
-    setName(company?.name || "");
-    setOfficialName(company?.officialName || "");
-    setAddressLocal(company?.addressLocal || "");
-    setAddressEnglish(company?.addressEnglish || "");
-    setCountry(company?.country || "");
-    setTelephone(company?.telephone || "");
-    setLogoPath(company?.logoPath || "");
-    setIsDefault(company?.isDefault || false);
-    setNotes(company?.notes || "");
+  const openForm = (comp?: Company) => {
+    setEditing(comp || null);
+    setName(comp?.name || "");
+    setOfficialName(comp?.officialName || "");
+    setOfficialNameAlt(comp?.officialNameAlt || "");
+    setAddressLocal(comp?.addressLocal || "");
+    setAddressEnglish(comp?.addressEnglish || "");
+    setTelephone(comp?.telephone || "");
+    setCountry(comp?.country || "");
+    setLogoPath(comp?.logoPath || "");
+    setIsDefault(comp?.isDefault || false);
+    setNotes(comp?.notes || "");
     setFapiao({
-      fapiaoCompanyName: company?.fapiaoCompanyName || "",
-      fapiaoTaxId: company?.fapiaoTaxId || "",
-      fapiaoAddress: company?.fapiaoAddress || "",
-      fapiaoPhone: company?.fapiaoPhone || "",
-      fapiaoFax: company?.fapiaoFax || "",
-      fapiaoBankName: company?.fapiaoBankName || "",
-      fapiaoBankAccount: company?.fapiaoBankAccount || "",
-      fapiaoContact: company?.fapiaoContact || "",
+      fapiaoCompanyName: comp?.fapiaoCompanyName || "",
+      fapiaoTaxId: comp?.fapiaoTaxId || "",
+      fapiaoAddress: comp?.fapiaoAddress || "",
+      fapiaoPhone: comp?.fapiaoPhone || "",
+      fapiaoFax: comp?.fapiaoFax || "",
+      fapiaoBankName: comp?.fapiaoBankName || "",
+      fapiaoBankAccount: comp?.fapiaoBankAccount || "",
+      fapiaoContact: comp?.fapiaoContact || "",
     });
     setShowForm(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
@@ -122,132 +113,204 @@ export default function CompaniesPage({ permissions }: Props) {
         body: JSON.stringify({
           id: editing?.id,
           name: name.trim(),
-          officialName,
-          addressLocal,
-          addressEnglish,
-          country,
-          telephone,
-          logoPath,
+          officialName: officialName.trim() || null,
+          officialNameAlt: officialNameAlt.trim() || null,
+          addressLocal: addressLocal.trim() || null,
+          addressEnglish: addressEnglish.trim() || null,
+          telephone: telephone.trim() || null,
+          country: country.trim() || null,
+          logoPath: logoPath.trim() || null,
           isDefault,
-          notes,
+          notes: notes.trim() || null,
           ...fapiao,
           userId: getUserId(),
         }),
       });
+
       if (res.ok) {
         setToast({ type: "success", text: editing ? "Company updated" : "Company created" });
         setShowForm(false);
-        await load();
+        load();
       } else {
-        setToast({ type: "error", text: "Failed to save" });
+        setToast({ type: "error", text: "Failed to save company" });
       }
-    } finally {
-      setSaving(false);
-      setTimeout(() => setToast(null), 3000);
+    } catch {
+      setToast({ type: "error", text: "Connection error" });
     }
+    setSaving(false);
+    setTimeout(() => setToast(null), 3000);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this company? Existing orders will lose their company tag.")) return;
-    await fetch(`/api/companies?id=${id}`, { method: "DELETE" });
-    load();
+  const remove = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this company?")) return;
+    try {
+      const res = await fetch(`/api/companies?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setToast({ type: "success", text: "Company deleted" });
+        load();
+      } else {
+        setToast({ type: "error", text: "Failed to delete" });
+      }
+    } catch {
+      setToast({ type: "error", text: "Connection error" });
+    }
+    setTimeout(() => setToast(null), 3000);
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-[#e5885d] border-t-transparent rounded-full animate-spin mx-auto" /></div>;
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Companies</h1>
-          <p className="text-sm text-slate-500">{companies.length} legal entit{companies.length === 1 ? "y" : "ies"}</p>
+          <p className="text-sm text-slate-500">Manage internal corporate entities for invoicing and document headers.</p>
         </div>
-        {permissions.canEdit && <button onClick={() => openForm()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ Add Company</button>}
+        {permissions.canManageUsers && (
+          <button onClick={() => openForm()} className="px-4 py-2 bg-[#d97449] hover:bg-[#b7492f] text-white rounded-lg text-sm font-semibold transition-colors">
+            + Add Company
+          </button>
+        )}
       </div>
 
-      {toast && <div className={`mb-4 p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{toast.text}</div>}
+      {toast && (
+        <div className={`p-3 rounded-lg text-sm ${toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {toast.text}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {companies.length === 0 ? (
-          <div className="col-span-2 bg-white rounded-xl p-10 text-center border border-slate-200 text-slate-400">No companies yet</div>
-        ) : companies.map((company) => (
-          <div key={company.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  {company.logoPath && <img src={toImageUrl(company.logoPath)} alt="" className="w-8 h-8 object-contain rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
-                  <button 
-                    type="button"
-                    onClick={() => setViewingEntity(company)} 
-                    className="font-semibold text-slate-900 hover:text-blue-700 hover:underline text-left"
-                  >
-                    {company.name}
-                  </button>
-                  {company.isDefault && <span className="px-2 py-0.5 bg-[#fff0e8] text-[#b8613f] border border-[#f1c6b2] rounded text-[10px] font-semibold">Default</span>}
+      {companies.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+          <h3 className="text-lg font-medium text-slate-900 mb-2">No companies configured</h3>
+          <p className="text-slate-500 text-sm mb-4">You need at least one company to generate POs, Invoices, and Quotations.</p>
+          {permissions.canManageUsers && (
+            <button onClick={() => openForm()} className="px-4 py-2 bg-[#d97449] text-white rounded-lg text-sm font-medium hover:bg-[#b7492f] transition-colors">
+              Add your first company
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {companies.map((comp) => (
+            <div key={comp.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col relative group">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex gap-3 items-center">
+                  {comp.logoPath ? (
+                    <img src={comp.logoPath} alt="Logo" className="w-12 h-12 object-contain bg-slate-50 rounded border border-slate-100" />
+                  ) : (
+                    <div className="w-12 h-12 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-slate-400 text-xs">No Logo</div>
+                  )}
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      {comp.name}
+                      {comp.isDefault && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#fdeae2] text-[#b7492f] border border-[#f4c9b6]">DEFAULT</span>}
+                    </h3>
+                    {comp.officialName && <p className="text-xs text-slate-500 mt-0.5">{comp.officialName}</p>}
+                    {comp.officialNameAlt && <p className="text-[11px] text-slate-400">{comp.officialNameAlt}</p>}
+                  </div>
                 </div>
-                {company.officialName && <div className="text-xs text-slate-400 mt-0.5">{company.officialName}</div>}
-                {company.addressEnglish && <div className="text-xs text-slate-500 mt-2 whitespace-pre-line">{company.addressEnglish}</div>}
-                {company.addressLocal && company.addressLocal !== company.addressEnglish && <div className="text-xs text-slate-400 mt-1 whitespace-pre-line">{company.addressLocal}</div>}
-                {company.country && <div className="text-xs text-slate-400 mt-1">Country: {company.country}</div>}
-                {company.telephone && <div className="text-xs text-slate-400 mt-1">Tel: {company.telephone}</div>}
-                {company.notes && <div className="text-xs text-slate-400 mt-2">{company.notes}</div>}
-                <AuditInfo createdByName={company.createdByName} updatedByName={company.updatedByName} className="mt-3 pt-2 border-t border-slate-100" />
-              </div>
-              <div className="flex flex-col gap-1 shrink-0 items-end">
-                <button onClick={() => setViewingEntity(company)} className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1">View</button>
-                {permissions.canEdit && <button onClick={() => openForm(company)} className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">Edit</button>}
-                {permissions.canDelete && <button onClick={() => handleDelete(company.id)} className="text-red-500 hover:text-red-700 text-xs px-2 py-1">Delete</button>}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
 
-      {showForm && permissions.canEdit && (
+                {permissions.canManageUsers && (
+                  <button
+                    onClick={() => setManagingBanks({ id: comp.id, name: comp.name })}
+                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors absolute top-4 right-4"
+                    title="Manage Bank Accounts"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                  </button>
+                )}
+              </div>
+
+              <div className="text-xs text-slate-600 space-y-1.5 mb-4 flex-1">
+                {comp.country && <div><span className="text-slate-400 w-16 inline-block">Country:</span> {comp.country}</div>}
+                {comp.telephone && <div><span className="text-slate-400 w-16 inline-block">Phone:</span> {comp.telephone}</div>}
+                {(comp.addressLocal || comp.addressEnglish) && (
+                  <div className="flex">
+                    <span className="text-slate-400 w-16 inline-block shrink-0">Address:</span>
+                    <span className="truncate">{comp.addressLocal || comp.addressEnglish}</span>
+                  </div>
+                )}
+              </div>
+
+              {permissions.canManageUsers && (
+                <div className="flex gap-3 pt-3 border-t border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => openForm(comp)} className="text-xs font-semibold text-blue-600 hover:text-blue-800">Edit</button>
+                  <button onClick={() => remove(comp.id)} className="text-xs font-semibold text-red-500 hover:text-red-700">Delete</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editing ? "Edit Company" : "Add Company"}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Company Name (Display) *</label>
-                  <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required placeholder="e.g. Fiborge" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Official Name</label>
-                  <input value={officialName} onChange={(e) => setOfficialName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. Fiborge Company Limited" />
-                </div>
-              </div>
+            <form onSubmit={save} className="p-4 space-y-4">
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Address (Local Language)</label>
-                <textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} />
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Name (Display / System) *
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  placeholder="e.g. System display name"
+                  required
+                />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Address (English)</label>
-                <textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={3} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Country</label>
-                  <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. China, Hong Kong" />
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Official Name (Primary)
+                  </label>
+                  <input
+                    value={officialName}
+                    onChange={(e) => setOfficialName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="請輸入主要官方全名 / Primary official name"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Telephone</label>
-                  <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Official Name (Secondary)
+                  </label>
+                  <input
+                    value={officialNameAlt}
+                    onChange={(e) => setOfficialNameAlt(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="Please enter secondary official name (optional)"
+                  />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL or Path</label>
-                <input value={logoPath} onChange={(e) => setLogoPath(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="https://drive.google.com/file/d/... or /images/logo.png" />
-                <p className="text-[10px] text-slate-400 mt-1">Paste a Google Drive share link or an app path like /images/logo.png</p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Country</label>
+                  <input value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="e.g. China / CN" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">General Telephone</label>
+                  <input value={telephone} onChange={(e) => setTelephone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="請輸入總機電話 / General telephone" />
+                </div>
               </div>
-              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="w-4 h-4 rounded border-slate-300" />
-                <span>Set as default company for new orders</span>
-              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Primary / Local)</label>
+                  <textarea value={addressLocal} onChange={(e) => setAddressLocal(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="請輸入主要/本地語言詳細地址" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Address (Secondary / English)</label>
+                  <textarea value={addressEnglish} onChange={(e) => setAddressEnglish(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="Please enter detailed English address" />
+                </div>
+              </div>
 
               <FapiaoInfoSection
                 country={country}
@@ -257,25 +320,49 @@ export default function CompaniesPage({ permissions }: Props) {
                 onChange={(field, value) => setFapiao((prev) => ({ ...prev, [field]: value }))}
               />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} />
+              <div className="pt-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="w-4 h-4 text-[#d97449] rounded border-slate-300 focus:ring-[#f1c6b2]" />
+                  Set as default company for new documents
+                </label>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editing ? "Update" : "Create"}</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm">Cancel</button>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Company Logo (Optional)</label>
+                <div className="flex gap-4 items-start">
+                  {/* 🟢 補上必需屬性 value={logoPath} */}
+                  <ImageUploader
+                    value={logoPath}
+                    onChange={(val: string | string[]) => {
+                      const url = Array.isArray(val) ? val[0] || "" : val;
+                      setLogoPath(url);
+                    }}
+                    folder="fiborge/logos"
+                  />
+                  {logoPath && <div className="flex-1 bg-slate-50 p-2 rounded-lg border border-slate-200"><img src={logoPath} alt="Logo preview" className="h-12 object-contain" /></div>}
+                </div>
+                <div className="mt-2 flex gap-2"><input type="text" value={logoPath} onChange={(e) => setLogoPath(e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono text-slate-500" placeholder="Or paste direct image URL..." /></div>
+              </div>
+
+              <div><label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Internal Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" rows={2} /></div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-[#d97449] text-white rounded-lg text-sm font-semibold hover:bg-[#b7492f] disabled:opacity-50 transition-colors">{saving ? "Saving..." : "Save Company"}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      <DirectoryViewModal
-        entity={viewingEntity}
-        entityType="company"
-        entityLabel="Company"
-        onClose={() => setViewingEntity(null)}
-      />
+      {managingBanks && (
+        <BankAccountsModal
+          entity={{ id: managingBanks.id, name: managingBanks.name }}
+          entityType="company"
+          permissions={permissions}
+          onClose={() => setManagingBanks(null)}
+        />
+      )}
     </div>
   );
 }
