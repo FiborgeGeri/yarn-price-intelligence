@@ -1,149 +1,155 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef } from "react";
 import { Upload, X, Loader2 } from "lucide-react";
 
 interface Props {
-  value: string | string[];
-  onChange: (value: string | string[]) => void;
+  value?: string | string[];
+  onChange: (value: any) => void;
   folder?: string;
-  multiple?: boolean;
-  maxImages?: number;
+  accept?: string;
   label?: string;
   hint?: string;
+  multiple?: boolean;
+  maxImages?: number;
 }
 
 export default function ImageUploader({
   value,
   onChange,
-  folder = "yarns",
-  multiple = false,
-  maxImages = 5,
+  folder = "fiborge/images",
+  accept = "image/png, image/jpeg, image/webp, image/svg+xml",
   label,
   hint,
+  multiple = false,
+  maxImages = 5,
 }: Props) {
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Parse value into a reliable array of image URLs
-  const images: string[] = useMemo(() => {
-    if (multiple) {
-      return Array.isArray(value) ? value : (value ? [value as string] : []);
-    }
-    return value ? [value as string] : [];
-  }, [value, multiple]);
+  const currentUrl = Array.isArray(value) ? value[0] || "" : value || "";
 
-  const handleFileSelect = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setError("");
-    setUploading(true);
+  // 檔案轉 Base64 Data URL 備援
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File size exceeds 5MB limit.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
 
     try {
-      const newUrls: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("folder", folder);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", folder);
 
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Upload failed");
-        }
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
         const data = await res.json();
-        newUrls.push(data.url);
+        if (data.url) {
+          onChange(data.url);
+          setLoading(false);
+          return;
+        }
       }
 
-      if (multiple) {
-        const combined = [...images, ...newUrls].slice(0, maxImages);
-        onChange(combined);
-      } else {
-        onChange(newUrls[0]);
+      // Base64 回退備援
+      const base64Url = await readFileAsDataUrl(file);
+      onChange(base64Url);
+    } catch {
+      try {
+        const base64Url = await readFileAsDataUrl(file);
+        onChange(base64Url);
+      } catch {
+        setError("Failed to process image.");
       }
-    } catch (err: any) {
-      setError(err?.message || "Failed to upload image");
     } finally {
-      setUploading(false);
+      setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const removeImage = (index: number) => {
-    if (multiple) {
-      onChange(images.filter((_, i) => i !== index));
-    } else {
-      onChange("");
-    }
+  const handleClear = () => {
+    onChange("");
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const canAddMore = multiple ? images.length < maxImages : images.length === 0;
-
   return (
-    <div className="space-y-2">
+    <div className="w-full space-y-1.5 text-left">
       {label && (
-        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
           {label}
         </label>
       )}
 
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-        {images.map((url, index) => (
-          <div 
-            key={index} 
-            className="relative group aspect-square bg-slate-100 rounded-lg overflow-hidden border border-slate-200"
-          >
-            <img src={url} alt="" className="w-full h-full object-cover" />
-            <button
-              type="button"
-              onClick={() => removeImage(index)}
-              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 shadow-sm"
-              title="Remove image"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        ))}
-
-        {canAddMore && (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="aspect-square border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center gap-1 text-slate-400 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {uploading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span className="text-[10px] font-medium">Uploading...</span>
-              </>
-            ) : (
-              <>
-                <Upload className="w-5 h-5" />
-                <span className="text-[10px] font-medium">Add Image</span>
-              </>
-            )}
-          </button>
-        )}
-      </div>
-
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        multiple={multiple}
-        onChange={(e) => handleFileSelect(e.target.files)}
+        accept={accept}
+        onChange={handleFileChange}
         className="hidden"
       />
 
-      {error && (
-        <p className="text-xs text-red-600">{error}</p>
+      {currentUrl ? (
+        <div className="relative inline-flex items-center gap-3 p-2 bg-slate-50 border border-slate-200 rounded-xl group">
+          <img
+            src={currentUrl}
+            alt="Upload Preview"
+            className="h-12 w-auto max-w-[160px] object-contain rounded bg-white p-1 border border-slate-100"
+          />
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-semibold text-slate-700">Image Uploaded</span>
+            <span className="text-[10px] text-slate-400 truncate max-w-[120px]">Ready to save</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="w-6 h-6 rounded-full bg-slate-200 hover:bg-red-100 hover:text-red-600 text-slate-500 flex items-center justify-center transition-colors cursor-pointer ml-2"
+            title="Remove image"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={loading}
+          className="w-full py-3 px-4 border-2 border-dashed border-slate-200 hover:border-[#f1c6b2] bg-slate-50/50 hover:bg-[#fef7f3]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer group disabled:opacity-50"
+        >
+          {loading ? (
+            <Loader2 className="w-4 h-4 text-[#d97449] animate-spin" />
+          ) : (
+            <Upload className="w-4 h-4 text-slate-400 group-hover:text-[#d97449] transition-colors" />
+          )}
+          <span className="text-xs font-semibold text-slate-600 group-hover:text-[#d97449] transition-colors">
+            {loading ? "Processing..." : "Click to upload image"}
+          </span>
+          <span className="text-[10px] text-slate-400">PNG, JPG, WEBP or SVG (Max 5MB)</span>
+        </button>
       )}
 
-      <p className="text-[10px] text-slate-400">
-        {hint || `JPG, PNG, WebP or GIF (max 10MB per image)${multiple ? `. Up to ${maxImages} images.` : "."}`}
-      </p>
+      {hint && <p className="text-[10px] text-slate-400 mt-1">{hint}</p>}
+      {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
     </div>
   );
 }
